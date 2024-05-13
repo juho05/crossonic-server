@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,12 +13,25 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/juho05/crossonic-server/config"
+	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers"
 	"github.com/juho05/log"
 )
 
 func run() error {
-	handler := handlers.New()
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", config.DBUser(), config.DBPassword(), config.DBHost(), config.DBPort(), config.DBName())
+	dbConn, err := db.Connect(dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close(dbConn)
+
+	store := db.NewStore(dbConn)
+	if config.AutoMigrate() {
+		return err
+	}
+
+	handler := handlers.New(store)
 
 	addr := config.ListenAddr()
 
@@ -52,7 +66,7 @@ func run() error {
 	}()
 
 	log.Infof("Listening on http://%s...", addr)
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		err = nil
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -39,9 +40,11 @@ func usersCreate(args []string, store db.Store) error {
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			fmt.Println(pgErr.Message)
-			fmt.Println(pgErr.Code)
-			fmt.Println(pgErr.ConstraintName)
+			if strings.Contains(pgErr.ConstraintName, "pkey") {
+				return errors.New("user already exists")
+			} else {
+				return err
+			}
 		} else {
 			return err
 		}

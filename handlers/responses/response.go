@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"io"
+	"net/http"
 
 	"github.com/juho05/crossonic-server"
+	"github.com/juho05/log"
 )
 
 const (
@@ -35,7 +37,7 @@ type Response struct {
 
 func New() Response {
 	return Response{
-		Status:        statusFailed,
+		Status:        statusOK,
 		Version:       apiVersion,
 		XMLNS:         xmlns,
 		Type:          crossonic.ServerName,
@@ -62,9 +64,23 @@ func EncodeError(w io.Writer, format, msg string, code SubsonicError) error {
 	return r.Encode(w, format)
 }
 
+func (r Response) EncodeOrLog(w io.Writer, format string) {
+	err := r.Encode(w, format)
+	if err != nil {
+		log.Error(err)
+	}
+}
+
 func (r Response) Encode(w io.Writer, format string) error {
+	rw, isRW := w.(http.ResponseWriter)
 	if format == "json" {
+		if isRW {
+			rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+		}
 		return json.NewEncoder(w).Encode(r)
+	}
+	if isRW {
+		rw.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	}
 	encoder := xml.NewEncoder(w)
 	err := encoder.Encode(r)

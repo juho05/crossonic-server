@@ -26,6 +26,20 @@ func EncryptPassword(password string) ([]byte, error) {
 	return gcm.Seal(nonce, nonce, []byte(password), nil), nil
 }
 
-func DecryptPassword(encryptedPassword []byte) string {
-	return ""
+func DecryptPassword(encryptedPassword []byte) (string, error) {
+	aes, err := aes.NewCipher(config.PasswordEncryptionKey())
+	if err != nil {
+		return "", fmt.Errorf("decrypt password: %w", err)
+	}
+	gcm, err := cipher.NewGCM(aes)
+	if err != nil {
+		return "", fmt.Errorf("decrypt password: %w", err)
+	}
+	nonceSize := gcm.NonceSize()
+	nonce, ciphertext := encryptedPassword[:nonceSize], encryptedPassword[nonceSize:]
+	password, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", fmt.Errorf("decrypt password: %w", err)
+	}
+	return string(password), nil
 }
