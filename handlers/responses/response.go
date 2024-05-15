@@ -31,8 +31,9 @@ type Response struct {
 	OpenSubsonic  bool   `xml:"openSubsonic,attr" json:"openSubsonic"`
 	Crossonic     bool   `xml:"crossonic,attr" json:"crossonic"`
 
-	Error                  *Error                  `xml:"error" json:"error,omitempty"`
-	OpenSubsonicExtensions *OpenSubsonicExtensions `xml:"openSubsonicExtensions" json:"openSubsonicExtensions,omitempty"`
+	Error                  *Error                  `xml:"error,omitempty" json:"error,omitempty"`
+	OpenSubsonicExtensions *OpenSubsonicExtensions `xml:"openSubsonicExtensions,omitempty" json:"openSubsonicExtensions,omitempty"`
+	License                *License                `xml:"license,omitempty" json:"license,omitempty"`
 }
 
 func New() Response {

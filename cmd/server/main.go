@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,8 +16,19 @@ import (
 	"github.com/juho05/crossonic-server/config"
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers"
+	"github.com/juho05/crossonic-server/scanner"
 	"github.com/juho05/log"
 )
+
+func init() {
+	mime.AddExtensionType(".aac", "audio/aac")
+	mime.AddExtensionType(".mp3", "audio/mpeg")
+	mime.AddExtensionType(".oga", "audio/ogg")
+	mime.AddExtensionType(".ogg", "audio/ogg")
+	mime.AddExtensionType(".opus", "audio/opus")
+	mime.AddExtensionType(".wav", "audio/wav")
+	mime.AddExtensionType(".flac", "audio/flac")
+}
 
 func run() error {
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", config.DBUser(), config.DBPassword(), config.DBHost(), config.DBPort(), config.DBName())
@@ -26,8 +38,21 @@ func run() error {
 	}
 	defer db.Close(dbConn)
 
-	store := db.NewStore(dbConn)
 	if config.AutoMigrate() {
+		err = db.AutoMigrate(dsn)
+		if err != nil {
+			return err
+		}
+	}
+
+	store, err := db.NewStore(dbConn)
+	if err != nil {
+		return err
+	}
+
+	scanner := scanner.New(config.MusicDir(), store)
+	err = scanner.ScanMediaFull()
+	if err != nil {
 		return err
 	}
 

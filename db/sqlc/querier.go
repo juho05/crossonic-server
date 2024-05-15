@@ -6,13 +6,44 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	CreateAlbum(ctx context.Context, arg CreateAlbumParams) (*Album, error)
+	CreateAlbumArtists(ctx context.Context, arg []CreateAlbumArtistsParams) (int64, error)
+	CreateAlbumGenres(ctx context.Context, arg []CreateAlbumGenresParams) (int64, error)
+	CreateArtist(ctx context.Context, arg CreateArtistParams) (*Artist, error)
+	CreateGenre(ctx context.Context, name string) error
+	CreateSong(ctx context.Context, arg CreateSongParams) (*Song, error)
+	CreateSongArtists(ctx context.Context, arg []CreateSongArtistsParams) (int64, error)
+	CreateSongGenres(ctx context.Context, arg []CreateSongGenresParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) error
+	DeleteAlbumArtists(ctx context.Context, albumID string) error
+	DeleteAlbumGenres(ctx context.Context, albumID string) error
+	DeleteAlbumsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
+	DeleteAllGenres(ctx context.Context) error
+	DeleteArtistsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
+	DeleteGenre(ctx context.Context, name string) error
+	DeleteSongArtists(ctx context.Context, songID string) error
+	DeleteSongGenres(ctx context.Context, songID string) error
+	DeleteSongsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
 	DeleteUser(ctx context.Context, name string) (string, error)
+	FindAlbumsByNameWithArtistMatchCount(ctx context.Context, arg FindAlbumsByNameWithArtistMatchCountParams) ([]*FindAlbumsByNameWithArtistMatchCountRow, error)
+	FindAllGenres(ctx context.Context) ([]string, error)
+	FindArtistsByName(ctx context.Context, artistNames []string) ([]*Artist, error)
+	FindGenre(ctx context.Context, name string) (string, error)
+	FindSong(ctx context.Context, id string) (*FindSongRow, error)
+	FindSongByMusicBrainzID(ctx context.Context, musicBrainzID *string) (*FindSongByMusicBrainzIDRow, error)
+	FindSongByPath(ctx context.Context, path string) (*FindSongByPathRow, error)
+	FindSongCount(ctx context.Context) (int64, error)
 	FindUser(ctx context.Context, name string) (*User, error)
 	FindUsers(ctx context.Context) ([]*User, error)
+	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)
+	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error
+	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
+	UpdateSong(ctx context.Context, arg UpdateSongParams) error
 }
 
 var _ Querier = (*Queries)(nil)

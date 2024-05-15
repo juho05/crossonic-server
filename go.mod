@@ -6,6 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/cors v1.2.1
 	github.com/jackc/pgx/v5 v5.5.5
+	github.com/jaevor/go-nanoid v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/juho05/log v0.0.0-20230224211948-f9bad0acae34
 	github.com/rubenv/sql-migrate v1.6.1

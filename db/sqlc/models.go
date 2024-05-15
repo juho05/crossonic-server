@@ -4,6 +4,84 @@
 
 package db
 
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type Album struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+}
+
+type AlbumArtist struct {
+	AlbumID  string
+	ArtistID string
+}
+
+type AlbumGenre struct {
+	AlbumID   string
+	GenreName string
+}
+
+type Artist struct {
+	ID            string
+	Name          string
+	Created       pgtype.Timestamptz
+	Updated       pgtype.Timestamptz
+	MusicBrainzID *string
+}
+
+type Genre struct {
+	Name string
+}
+
+type Song struct {
+	ID             string
+	Path           string
+	AlbumID        *string
+	Title          string
+	Track          *int32
+	Year           *int32
+	Size           int64
+	ContentType    string
+	DurationMs     int32
+	BitRate        int32
+	SamplingRate   int32
+	ChannelCount   int32
+	DiscNumber     *int32
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Bpm            *int32
+	MusicBrainzID  *string
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	Lyrics         *string
+}
+
+type SongArtist struct {
+	SongID   string
+	ArtistID string
+}
+
+type SongGenre struct {
+	SongID    string
+	GenreName string
+}
+
+type System struct {
+	Key   string
+	Value string
+}
+
 type User struct {
 	Name              string
 	EncryptedPassword []byte

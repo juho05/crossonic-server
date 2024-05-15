@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"mime"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -11,6 +12,16 @@ import (
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/log"
 )
+
+func init() {
+	mime.AddExtensionType(".aac", "audio/aac")
+	mime.AddExtensionType(".mp3", "audio/mpeg")
+	mime.AddExtensionType(".oga", "audio/ogg")
+	mime.AddExtensionType(".ogg", "audio/ogg")
+	mime.AddExtensionType(".opus", "audio/opus")
+	mime.AddExtensionType(".wav", "audio/wav")
+	mime.AddExtensionType(".flac", "audio/flac")
+}
 
 func genEncryptionKey() error {
 	key := make([]byte, 32)
@@ -24,7 +35,7 @@ func genEncryptionKey() error {
 
 func run(args []string) error {
 	if len(args) < 2 {
-		fmt.Println("USAGE:", args[0], "<command>\n\nCOMMANDS:\n  gen-encryption-key\n  users")
+		fmt.Println("USAGE:", args[0], "<command>\n\nCOMMANDS:\n  gen-encryption-key\n  users\n  remove-crossonic-metadata")
 		os.Exit(1)
 	}
 	if args[1] == "gen-encryption-key" {
@@ -37,17 +48,26 @@ func run(args []string) error {
 	}
 	defer db.Close(dbConn)
 
-	store := db.NewStore(dbConn)
 	if config.AutoMigrate() {
+		err = db.AutoMigrate(dsn)
+		if err != nil {
+			return err
+		}
+	}
+
+	store, err := db.NewStore(dbConn)
+	if err != nil {
 		return err
 	}
 
 	switch args[1] {
 	case "users":
 		err = users(args, store)
+	case "remove-crossonic-metadata":
+		err = removeCrossonicMetadata(args, store)
 	default:
 		fmt.Println("Unknown command")
-		fmt.Println("USAGE:", args[0], "<command>\n\nCOMMANDS:\n  gen-encryption-key")
+		fmt.Println("USAGE:", args[0], "<command>\n\nCOMMANDS:\n  gen-encryption-key\n  users\n  remove-crossonic-metadata")
 		os.Exit(1)
 	}
 

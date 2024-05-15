@@ -11,3 +11,7 @@ type OpenSubsonicExtension struct {
 	Name     string `xml:"name,attr" json:"name"`
 	Versions []int  `xml:"versions" json:"versions"`
 }
+
+type License struct {
+	Valid bool `xml:"valid,attr" json:"valid"`
+}
