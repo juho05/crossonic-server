@@ -58,7 +58,7 @@
 - [ ] [download](https://opensubsonic.netlify.app/docs/endpoints/download)
 - [ ] [hls](https://opensubsonic.netlify.app/docs/endpoints/hls)
 - [ ] [getCaptions](https://opensubsonic.netlify.app/docs/endpoints/getcaptions)
-- [ ] [getCoverArt](https://opensubsonic.netlify.app/docs/endpoints/getcoverart)
+- [x] [getCoverArt](https://opensubsonic.netlify.app/docs/endpoints/getcoverart)
 - [ ] [getLyrics](https://opensubsonic.netlify.app/docs/endpoints/getlyrics)
 - [ ] [getLyricsBySongId](https://opensubsonic.netlify.app/docs/endpoints/getlyricsbysongid)
 - [ ] [getAvatar](https://opensubsonic.netlify.app/docs/endpoints/getavatar)

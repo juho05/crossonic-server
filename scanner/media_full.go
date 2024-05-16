@@ -249,6 +249,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 			albumID = &album
 		}
 
+		var coverID *string
 		if media.coverPath != nil {
 			var file *os.File
 			if albumID != nil {
@@ -258,6 +259,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 						log.Errorf("failed to create cover art file for %s: %s", media.path, err)
 					}
 				}
+				coverID = albumID
 			} else {
 				if _, ok := songCovers[song.id]; !ok {
 					file, err = os.Create(filepath.Join(songCoverDir, song.id))
@@ -265,6 +267,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 						log.Errorf("failed to create cover art file for %s: %s", media.path, err)
 					}
 				}
+				coverID = &song.id
 			}
 			if file != nil {
 				originalFile, err := os.Open(*media.coverPath)
@@ -330,6 +333,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 			ReplayGain:     media.replayGainTrack,
 			ReplayGainPeak: media.replayGainTrackPeak,
 			Lyrics:         media.lyrics,
+			CoverID:        coverID,
 		})
 		if err != nil {
 			log.Errorf("failed to update song in db: %s", err)
@@ -507,6 +511,8 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 		MusicBrainzID:  media.musicBrainzSongID,
 		ReplayGain:     media.replayGainTrack,
 		ReplayGainPeak: media.replayGainTrackPeak,
+		Lyrics:         media.lyrics,
+		CoverID:        nil,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("find or create song: %w", err)

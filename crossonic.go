@@ -20,6 +20,7 @@ var migrationsFS embed.FS
 var MigrationsFS fs.FS
 
 var GenID func() string
+var IDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-~"
 
 func init() {
 	var err error
@@ -27,7 +28,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	GenID, err = nanoid.CustomUnicode("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-~", 12)
+	GenID, err = nanoid.CustomUnicode(IDAlphabet, 12)
 	if err != nil {
 		panic(err)
 	}

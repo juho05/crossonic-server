@@ -89,6 +89,7 @@ type Song struct {
 	ReplayGain     *float32
 	ReplayGainPeak *float32
 	Lyrics         *string
+	CoverID        *string
 }
 
 type SongArtist struct {

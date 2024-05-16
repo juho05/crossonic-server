@@ -13,8 +13,8 @@ import (
 
 const createSong = `-- name: CreateSong :one
 INSERT INTO songs
-(id, path, album_id, title, track, year, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated, bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW(), $14, $15, $16, $17, $18) RETURNING id, path, album_id, title, track, year, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated, bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics
+(id, path, album_id, title, track, year, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated, bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics, cover_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW(), $14, $15, $16, $17, $18, $19) RETURNING id, path, album_id, title, track, year, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated, bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics, cover_id
 `
 
 type CreateSongParams struct {
@@ -36,6 +36,7 @@ type CreateSongParams struct {
 	ReplayGain     *float32
 	ReplayGainPeak *float32
 	Lyrics         *string
+	CoverID        *string
 }
 
 func (q *Queries) CreateSong(ctx context.Context, arg CreateSongParams) (*Song, error) {
@@ -58,6 +59,7 @@ func (q *Queries) CreateSong(ctx context.Context, arg CreateSongParams) (*Song, 
 		arg.ReplayGain,
 		arg.ReplayGainPeak,
 		arg.Lyrics,
+		arg.CoverID,
 	)
 	var i Song
 	err := row.Scan(
@@ -81,6 +83,7 @@ func (q *Queries) CreateSong(ctx context.Context, arg CreateSongParams) (*Song, 
 		&i.ReplayGain,
 		&i.ReplayGainPeak,
 		&i.Lyrics,
+		&i.CoverID,
 	)
 	return &i, err
 }
@@ -123,7 +126,7 @@ func (q *Queries) DeleteSongsLastUpdatedBefore(ctx context.Context, updated pgty
 }
 
 const findSong = `-- name: FindSong :one
-SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = $1
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = $1
 `
 
 type FindSongRow struct {
@@ -147,6 +150,7 @@ type FindSongRow struct {
 	ReplayGain     *float32
 	ReplayGainPeak *float32
 	Lyrics         *string
+	CoverID        *string
 	AlbumName      *string
 }
 
@@ -174,13 +178,14 @@ func (q *Queries) FindSong(ctx context.Context, id string) (*FindSongRow, error)
 		&i.ReplayGain,
 		&i.ReplayGainPeak,
 		&i.Lyrics,
+		&i.CoverID,
 		&i.AlbumName,
 	)
 	return &i, err
 }
 
 const findSongByMusicBrainzID = `-- name: FindSongByMusicBrainzID :one
-SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.music_brainz_id = $1
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.music_brainz_id = $1
 `
 
 type FindSongByMusicBrainzIDRow struct {
@@ -204,6 +209,7 @@ type FindSongByMusicBrainzIDRow struct {
 	ReplayGain     *float32
 	ReplayGainPeak *float32
 	Lyrics         *string
+	CoverID        *string
 	AlbumName      *string
 }
 
@@ -231,13 +237,14 @@ func (q *Queries) FindSongByMusicBrainzID(ctx context.Context, musicBrainzID *st
 		&i.ReplayGain,
 		&i.ReplayGainPeak,
 		&i.Lyrics,
+		&i.CoverID,
 		&i.AlbumName,
 	)
 	return &i, err
 }
 
 const findSongByPath = `-- name: FindSongByPath :one
-SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.path = $1
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.path = $1
 `
 
 type FindSongByPathRow struct {
@@ -261,6 +268,7 @@ type FindSongByPathRow struct {
 	ReplayGain     *float32
 	ReplayGainPeak *float32
 	Lyrics         *string
+	CoverID        *string
 	AlbumName      *string
 }
 
@@ -288,6 +296,7 @@ func (q *Queries) FindSongByPath(ctx context.Context, path string) (*FindSongByP
 		&i.ReplayGain,
 		&i.ReplayGainPeak,
 		&i.Lyrics,
+		&i.CoverID,
 		&i.AlbumName,
 	)
 	return &i, err
@@ -305,7 +314,7 @@ func (q *Queries) FindSongCount(ctx context.Context) (int64, error) {
 }
 
 const updateSong = `-- name: UpdateSong :exec
-UPDATE songs SET path=$2,album_id=$3,title=$4,track=$5,year=$6,size=$7,content_type=$8,duration_ms=$9,bit_rate=$10,sampling_rate=$11,channel_count=$12,disc_number=$13,updated=NOW(),bpm=$14,music_brainz_id=$15,replay_gain=$16,replay_gain_peak=$17,lyrics=$18
+UPDATE songs SET path=$2,album_id=$3,title=$4,track=$5,year=$6,size=$7,content_type=$8,duration_ms=$9,bit_rate=$10,sampling_rate=$11,channel_count=$12,disc_number=$13,updated=NOW(),bpm=$14,music_brainz_id=$15,replay_gain=$16,replay_gain_peak=$17,lyrics=$18,cover_id=$19
 WHERE id = $1
 `
 
@@ -328,6 +337,7 @@ type UpdateSongParams struct {
 	ReplayGain     *float32
 	ReplayGainPeak *float32
 	Lyrics         *string
+	CoverID        *string
 }
 
 func (q *Queries) UpdateSong(ctx context.Context, arg UpdateSongParams) error {
@@ -350,6 +360,7 @@ func (q *Queries) UpdateSong(ctx context.Context, arg UpdateSongParams) error {
 		arg.ReplayGain,
 		arg.ReplayGainPeak,
 		arg.Lyrics,
+		arg.CoverID,
 	)
 	return err
 }
