@@ -9,3 +9,14 @@ UPDATE artists SET name = $2, music_brainz_id = $3, updated = NOW() WHERE id = $
 DELETE FROM artists WHERE updated < $1;
 -- name: FindArtistsByName :many
 SELECT * FROM artists WHERE name = any(sqlc.arg('artist_names')::text[]);
+-- name: FindArtists :many
+SELECT artists.*, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
+LEFT JOIN (
+  SELECT artist_id, COUNT(*) AS count FROM album_artist GROUP BY artist_id
+) aa ON aa.artist_id = artists.id
+LEFT JOIN artist_stars ON artist_stars.artist_id = artists.id AND artist_stars.user_name = $1
+LEFT JOIN (
+  SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id
+) avgr ON avgr.artist_id = artists.id
+LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
+ORDER BY lower(artists.name);

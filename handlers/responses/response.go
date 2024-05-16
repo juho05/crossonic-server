@@ -35,6 +35,8 @@ type Response struct {
 	OpenSubsonicExtensions *OpenSubsonicExtensions `xml:"openSubsonicExtensions,omitempty" json:"openSubsonicExtensions,omitempty"`
 	License                *License                `xml:"license,omitempty" json:"license,omitempty"`
 	ScanStatus             *ScanStatus             `xml:"scanStatus,omitempty" json:"scanStatus,omitempty"`
+	Genres                 *Genres                 `xml:"genres,omitempty" json:"genres,omitempty"`
+	Artists *Artists `xml:"artists,omitempty" json:"artists,omitempty"`
 }
 
 func New() Response {
