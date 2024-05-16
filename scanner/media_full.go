@@ -200,7 +200,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					a, err := s.store.CreateAlbum(ctx, db.CreateAlbumParams{
-						ID:             "al_" + crossonic.GenID(),
+						ID:             crossonic.GenIDAlbum(),
 						Name:           *media.album,
 						Year:           intPtrToInt32Ptr(media.year),
 						RecordLabels:   recordLabels,
@@ -490,7 +490,7 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 	}
 
 	sc, err := s.store.CreateSong(ctx, db.CreateSongParams{
-		ID:             "tr_" + crossonic.GenID(),
+		ID:             crossonic.GenIDSong(),
 		Path:           media.path,
 		AlbumID:        nil,
 		Title:          media.title,

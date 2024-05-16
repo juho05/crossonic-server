@@ -169,7 +169,7 @@ func findOrCreateArtistIDs(db Store, ctx context.Context, names []string) ([]str
 			continue
 		}
 		a, err := tx.CreateArtist(ctx, CreateArtistParams{
-			ID:   "ar_" + crossonic.GenID(),
+			ID:   crossonic.GenIDArtist(),
 			Name: names[i],
 		})
 		if err != nil {

@@ -4,6 +4,8 @@ import (
 	"embed"
 	"io/fs"
 	"log"
+	"slices"
+	"strings"
 
 	"github.com/jaevor/go-nanoid"
 )
@@ -29,4 +31,38 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+type IDType string
+
+const (
+	IDTypeSong   IDType = "tr"
+	IDTypeAlbum  IDType = "al"
+	IDTypeArtist IDType = "ar"
+)
+
+func GenIDSong() string {
+	return string(IDTypeSong) + "_" + GenID()
+}
+
+func GenIDAlbum() string {
+	return string(IDTypeAlbum) + "_" + GenID()
+}
+
+func GenIDArtist() string {
+	return string(IDTypeArtist) + "_" + GenID()
+}
+
+func GetIDType(id string) (IDType, bool) {
+	parts := strings.Split(id, "_")
+	if len(parts) != 2 {
+		return "", false
+	}
+	types := []IDType{
+		IDTypeSong, IDTypeAlbum, IDTypeArtist,
+	}
+	if !slices.Contains(types, IDType(parts[0])) {
+		return "", false
+	}
+	return IDType(parts[0]), true
 }

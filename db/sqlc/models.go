@@ -32,12 +32,36 @@ type AlbumGenre struct {
 	GenreName string
 }
 
+type AlbumRating struct {
+	AlbumID  string
+	UserName string
+	Rating   int32
+}
+
+type AlbumStar struct {
+	AlbumID  string
+	UserName string
+	Created  pgtype.Timestamptz
+}
+
 type Artist struct {
 	ID            string
 	Name          string
 	Created       pgtype.Timestamptz
 	Updated       pgtype.Timestamptz
 	MusicBrainzID *string
+}
+
+type ArtistRating struct {
+	ArtistID string
+	UserName string
+	Rating   int32
+}
+
+type ArtistStar struct {
+	ArtistID string
+	UserName string
+	Created  pgtype.Timestamptz
 }
 
 type Genre struct {
@@ -75,6 +99,18 @@ type SongArtist struct {
 type SongGenre struct {
 	SongID    string
 	GenreName string
+}
+
+type SongRating struct {
+	SongID   string
+	UserName string
+	Rating   int32
+}
+
+type SongStar struct {
+	SongID   string
+	UserName string
+	Created  pgtype.Timestamptz
 }
 
 type System struct {

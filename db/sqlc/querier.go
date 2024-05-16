@@ -41,6 +41,18 @@ type Querier interface {
 	FindUser(ctx context.Context, name string) (*User, error)
 	FindUsers(ctx context.Context) ([]*User, error)
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)
+	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error
+	RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error
+	RemoveSongRating(ctx context.Context, arg RemoveSongRatingParams) error
+	SetAlbumRating(ctx context.Context, arg SetAlbumRatingParams) error
+	SetArtistRating(ctx context.Context, arg SetArtistRatingParams) error
+	SetSongRating(ctx context.Context, arg SetSongRatingParams) error
+	StarAlbum(ctx context.Context, arg StarAlbumParams) error
+	StarArtist(ctx context.Context, arg StarArtistParams) error
+	StarSong(ctx context.Context, arg StarSongParams) error
+	UnstarAlbum(ctx context.Context, arg UnstarAlbumParams) error
+	UnstarArtist(ctx context.Context, arg UnstarArtistParams) error
+	UnstarSong(ctx context.Context, arg UnstarSongParams) error
 	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error
 	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
 	UpdateSong(ctx context.Context, arg UpdateSongParams) error

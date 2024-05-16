@@ -11,4 +11,7 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/getOpenSubsonicExtensions", h.handleGetOpenSubsonicExtensions)
 	registerRoute(r, "/startScan", h.handleStartScan)
 	registerRoute(r, "/getScanStatus", h.handleGetScanStatus)
+	registerRoute(r, "/setRating", h.handleSetRating)
+	registerRoute(r, "/star", h.handleStar)
+	registerRoute(r, "/unstar", h.handleUnstar)
 }
