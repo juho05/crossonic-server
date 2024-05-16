@@ -15,3 +15,8 @@ type OpenSubsonicExtension struct {
 type License struct {
 	Valid bool `xml:"valid,attr" json:"valid"`
 }
+
+type ScanStatus struct {
+	Scanning bool `xml:"scanning,attr" json:"scanning"`
+	Count    *int `xml:"count,attr,omitempty" json:"count,omitempty"`
+}

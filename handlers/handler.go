@@ -7,16 +7,19 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/scanner"
 )
 
 type Handler struct {
-	router chi.Router
-	Store  db.Store
+	router  chi.Router
+	Store   db.Store
+	Scanner *scanner.Scanner
 }
 
-func New(store db.Store) *Handler {
+func New(store db.Store, scanner *scanner.Scanner) *Handler {
 	h := &Handler{
-		Store: store,
+		Store:   store,
+		Scanner: scanner,
 	}
 	h.registerRoutes()
 	return h

@@ -6,26 +6,23 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/log"
 	migrate "github.com/rubenv/sql-migrate"
 )
 
-func Connect(dsn string) (*pgx.Conn, error) {
-	conn, err := pgx.Connect(context.Background(), dsn)
+func Connect(dsn string) (*pgxpool.Pool, error) {
+	conn, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		return nil, fmt.Errorf("connect DB: %w", err)
 	}
 	return conn, nil
 }
 
-func Close(conn *pgx.Conn) error {
-	err := conn.Close(context.Background())
-	if err != nil {
-		return fmt.Errorf("close DB connection: %w", err)
-	}
+func Close(conn *pgxpool.Pool) error {
+	conn.Close()
 	return nil
 }
 

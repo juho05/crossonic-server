@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaevor/go-nanoid"
 	"github.com/juho05/crossonic-server"
 )
@@ -25,7 +26,7 @@ type Store interface {
 
 type store struct {
 	*Queries
-	db         *pgx.Conn
+	db         *pgxpool.Pool
 	instanceID string
 }
 
@@ -35,7 +36,7 @@ type transaction struct {
 	instanceID string
 }
 
-func NewStore(db *pgx.Conn) (Store, error) {
+func NewStore(db *pgxpool.Pool) (Store, error) {
 	store := &store{
 		db:      db,
 		Queries: New(db),

@@ -21,6 +21,9 @@ type Scanner struct {
 	store         db.Store
 	coverDir      string
 	firstScan     bool
+
+	Scanning bool
+	Count    int
 }
 
 func New(mediaDir string, store db.Store) *Scanner {

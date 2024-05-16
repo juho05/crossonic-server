@@ -34,6 +34,7 @@ type Response struct {
 	Error                  *Error                  `xml:"error,omitempty" json:"error,omitempty"`
 	OpenSubsonicExtensions *OpenSubsonicExtensions `xml:"openSubsonicExtensions,omitempty" json:"openSubsonicExtensions,omitempty"`
 	License                *License                `xml:"license,omitempty" json:"license,omitempty"`
+	ScanStatus             *ScanStatus             `xml:"scanStatus,omitempty" json:"scanStatus,omitempty"`
 }
 
 func New() Response {

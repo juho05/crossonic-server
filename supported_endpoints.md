@@ -4,123 +4,123 @@
 
 ### System
 
-- [x] ping
-- [x] getLicense (only `valid` field)
-- [x] getOpenSubsonicExtensions
+- [x] [ping](https://opensubsonic.netlify.app/docs/endpoints/ping)
+- [x] [getLicense](https://opensubsonic.netlify.app/docs/endpoints/getlicense) (only `valid` field)
+- [x] [getOpenSubsonicExtensions](https://opensubsonic.netlify.app/docs/endpoints/getopensubsonicextensions)
 
 ### Browsing
 
-- [ ] getMusicFolders
-- [ ] getIndexes
-- [ ] getMusicDirectory
-- [ ] getGenres
-- [ ] getArtists
-- [ ] getArtist
-- [ ] getAlbum
-- [ ] getSong
-- [ ] getVideos
-- [ ] getVideoInfo
-- [ ] getArtistInfo
-- [ ] getArtistInfo2
-- [ ] getAlbumInfo
-- [ ] getAlbumInfo2
-- [ ] getSimilarSongs
-- [ ] getSimilarSongs2
-- [ ] getTopSongs
+- [ ] [getMusicFolders](https://opensubsonic.netlify.app/docs/endpoints/getmusicfolders)
+- [ ] [getIndexes](https://opensubsonic.netlify.app/docs/endpoints/getindexes)
+- [ ] [getMusicDirectory](https://opensubsonic.netlify.app/docs/endpoints/getmusicdirectory)
+- [ ] [getGenres](https://opensubsonic.netlify.app/docs/endpoints/getgenres)
+- [ ] [getArtists](https://opensubsonic.netlify.app/docs/endpoints/getartists)
+- [ ] [getArtist](https://opensubsonic.netlify.app/docs/endpoints/getartist)
+- [ ] [getAlbum](https://opensubsonic.netlify.app/docs/endpoints/getalbum)
+- [ ] [getSong](https://opensubsonic.netlify.app/docs/endpoints/getsong)
+- [ ] [getVideos](https://opensubsonic.netlify.app/docs/endpoints/getvideos)
+- [ ] [getVideoInfo](https://opensubsonic.netlify.app/docs/endpoints/getvideoinfo)
+- [ ] [getArtistInfo](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo)
+- [ ] [getArtistInfo2](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo2)
+- [ ] [getAlbumInfo](https://opensubsonic.netlify.app/docs/endpoints/getalbuminfo)
+- [ ] [getAlbumInfo2](https://opensubsonic.netlify.app/docs/endpoints/getalbuminfo2)
+- [ ] [getSimilarSongs](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs)
+- [ ] [getSimilarSongs2](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs2)
+- [ ] [getTopSongs](https://opensubsonic.netlify.app/docs/endpoints/gettopsongs)
 
 ### Album/Song Lists
 
-- [ ] getAlbumList
-- [ ] getAlbumList2
-- [ ] getRandomSongs
-- [ ] getSongsByGenre
-- [ ] getNowPlaying
-- [ ] getStarred
-- [ ] getStarred2
+- [ ] [getAlbumList](https://opensubsonic.netlify.app/docs/endpoints/getalbumlist)
+- [ ] [getAlbumList2](https://opensubsonic.netlify.app/docs/endpoints/getalbumlist2)
+- [ ] [getRandomSongs](https://opensubsonic.netlify.app/docs/endpoints/getrandomsongs)
+- [ ] [getSongsByGenre](https://opensubsonic.netlify.app/docs/endpoints/getsongsbygenre)
+- [ ] [getNowPlaying](https://opensubsonic.netlify.app/docs/endpoints/getnowplaying)
+- [ ] [getStarred](https://opensubsonic.netlify.app/docs/endpoints/getstarred)
+- [ ] [getStarred2](https://opensubsonic.netlify.app/docs/endpoints/getstarred2)
 
 ### Searching
 
-- [ ] search
-- [ ] search2
-- [ ] search3
+- [ ] [search](https://opensubsonic.netlify.app/docs/endpoints/search)
+- [ ] [search2](https://opensubsonic.netlify.app/docs/endpoints/search2)
+- [ ] [search3](https://opensubsonic.netlify.app/docs/endpoints/search3)
 
 ### Playlists
 
-- [ ] getPlaylists
-- [ ] getPlaylist
-- [ ] createPlaylist
-- [ ] updatePlaylist
-- [ ] deletePlaylist
+- [ ] [getPlaylists](https://opensubsonic.netlify.app/docs/endpoints/getplaylists)
+- [ ] [getPlaylist](https://opensubsonic.netlify.app/docs/endpoints/getplaylist)
+- [ ] [createPlaylist](https://opensubsonic.netlify.app/docs/endpoints/createplaylist)
+- [ ] [updatePlaylist](https://opensubsonic.netlify.app/docs/endpoints/updateplaylist)
+- [ ] [deletePlaylist](https://opensubsonic.netlify.app/docs/endpoints/deleteplaylist)
 
 ### Media Retrieval
 
-- [ ] stream
-- [ ] download
-- [ ] hls
-- [ ] getCaptions
-- [ ] getCoverArt
-- [ ] getLyrics
-- [ ] getLyricsBySongId
-- [ ] getAvatar
+- [ ] [stream](https://opensubsonic.netlify.app/docs/endpoints/stream)
+- [ ] [download](https://opensubsonic.netlify.app/docs/endpoints/download)
+- [ ] [hls](https://opensubsonic.netlify.app/docs/endpoints/hls)
+- [ ] [getCaptions](https://opensubsonic.netlify.app/docs/endpoints/getcaptions)
+- [ ] [getCoverArt](https://opensubsonic.netlify.app/docs/endpoints/getcoverart)
+- [ ] [getLyrics](https://opensubsonic.netlify.app/docs/endpoints/getlyrics)
+- [ ] [getLyricsBySongId](https://opensubsonic.netlify.app/docs/endpoints/getlyricsbysongid)
+- [ ] [getAvatar](https://opensubsonic.netlify.app/docs/endpoints/getavatar)
 
 ### Media Annotation
 
-- [ ] star
-- [ ] unstar
-- [ ] setRating
-- [ ] scrobble
+- [ ] [star](https://opensubsonic.netlify.app/docs/endpoints/star)
+- [ ] [unstar](https://opensubsonic.netlify.app/docs/endpoints/unstar)
+- [ ] [setRating](https://opensubsonic.netlify.app/docs/endpoints/setrating)
+- [ ] [scrobble](https://opensubsonic.netlify.app/docs/endpoints/scrobble)
 
 ### Sharing
 
-- [ ] getShares
-- [ ] createShare
-- [ ] updateShare
-- [ ] deleteShare
+- [ ] [getShares](https://opensubsonic.netlify.app/docs/endpoints/getshares)
+- [ ] [createShare](https://opensubsonic.netlify.app/docs/endpoints/createshare)
+- [ ] [updateShare](https://opensubsonic.netlify.app/docs/endpoints/updateshare)
+- [ ] [deleteShare](https://opensubsonic.netlify.app/docs/endpoints/deleteshare)
 
 ### Podcast
 
-- [ ] getPodcasts
-- [ ] getNewestPodcasts
-- [ ] refreshPodcasts
-- [ ] createPodcastChannel
-- [ ] deletePodcastChannel
-- [ ] deletePodcastEpisode
-- [ ] downloadPodcastEpisode
+- [ ] [getPodcasts](https://opensubsonic.netlify.app/docs/endpoints/getpodcasts)
+- [ ] [getNewestPodcasts](https://opensubsonic.netlify.app/docs/endpoints/getnewestpodcasts)
+- [ ] [refreshPodcasts](https://opensubsonic.netlify.app/docs/endpoints/refreshpodcasts)
+- [ ] [createPodcastChannel](https://opensubsonic.netlify.app/docs/endpoints/createpodcastchannel)
+- [ ] [deletePodcastChannel](https://opensubsonic.netlify.app/docs/endpoints/deletepodcastchannel)
+- [ ] [deletePodcastEpisode](https://opensubsonic.netlify.app/docs/endpoints/deletepodcastepisode)
+- [ ] [downloadPodcastEpisode](https://opensubsonic.netlify.app/docs/endpoints/downloadpodcastepisode)
 
 ### Jukebox
 
-- [ ] jukeboxControl
+- [ ] [jukeboxControl](https://opensubsonic.netlify.app/docs/endpoints/jukeboxcontrol)
 
 ### Internet Radio
 
-- [ ] getInternetRadioStations
-- [ ] createInternetRadioStation
-- [ ] updateInternetRadioStation
-- [ ] deleteInternetRadioStation
+- [ ] [getInternetRadioStations](https://opensubsonic.netlify.app/docs/endpoints/getinternetradiostations)
+- [ ] [createInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/createinternetradiostation)
+- [ ] [updateInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/updateinternetradiostation)
+- [ ] [deleteInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/deleteinternetradiostation)
 
 ### Chat
 
-- [ ] getChatMessages
-- [ ] addChatMessage
+- [ ] [getChatMessages](https://opensubsonic.netlify.app/docs/endpoints/getchatmessages)
+- [ ] [addChatMessage](https://opensubsonic.netlify.app/docs/endpoints/addchatmessage)
 
 ### User Management
 
-- [ ] getUser
-- [ ] getUsers
-- [ ] createUser
-- [ ] updateUser
-- [ ] deleteUser
-- [ ] changePassword
+- [ ] [getUser](https://opensubsonic.netlify.app/docs/endpoints/getuser)
+- [ ] [getUsers](https://opensubsonic.netlify.app/docs/endpoints/getusers)
+- [ ] [createUser](https://opensubsonic.netlify.app/docs/endpoints/createuser)
+- [ ] [updateUser](https://opensubsonic.netlify.app/docs/endpoints/updateuser)
+- [ ] [deleteUser](https://opensubsonic.netlify.app/docs/endpoints/deleteuser)
+- [ ] [changePassword](https://opensubsonic.netlify.app/docs/endpoints/changepassword)
 
 ### Bookmarks
 
-- [ ] getBookmarks
-- [ ] createBookmark
-- [ ] deleteBookmark
-- [ ] getPlayQueue
-- [ ] savePlayQueue
+- [ ] [getBookmarks](https://opensubsonic.netlify.app/docs/endpoints/getbookmarks)
+- [ ] [createBookmark](https://opensubsonic.netlify.app/docs/endpoints/createbookmark)
+- [ ] [deleteBookmark](https://opensubsonic.netlify.app/docs/endpoints/deletebookmark)
+- [ ] [getPlayQueue](https://opensubsonic.netlify.app/docs/endpoints/getplayqueue)
+- [ ] [savePlayQueue](https://opensubsonic.netlify.app/docs/endpoints/saveplayqueue)
 
 ### Media Library Scanning
 
-- [ ] getScanStatus
-- [ ] startScan
+- [x] [getScanStatus](https://opensubsonic.netlify.app/docs/endpoints/getscanstatus)
+- [x] [startScan](https://opensubsonic.netlify.app/docs/endpoints/startscan)

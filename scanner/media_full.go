@@ -65,12 +65,19 @@ type song struct {
 	albumName *string
 }
 
-func (s *Scanner) ScanMediaFull() error {
+func (s *Scanner) ScanMediaFull(printStatus bool) error {
 	if !s.lock.TryLock() {
 		return ErrAlreadyScanning
 	}
+	s.Scanning = true
+	defer func() {
+		s.Scanning = false
+	}()
 	defer s.lock.Unlock()
-	fmt.Printf("Scanning %s...\n", s.mediaDir)
+
+	s.Count = 0
+
+	log.Infof("Scanning %s...", s.mediaDir)
 
 	ctx := context.Background()
 
@@ -85,7 +92,7 @@ func (s *Scanner) ScanMediaFull() error {
 	go s.scanMediaDir(ctx, s.mediaDir, c)
 
 	processDone := make(chan bool)
-	go s.processMediaFiles(ctx, c, processDone)
+	go s.processMediaFiles(ctx, c, processDone, printStatus)
 	s.waitGroup.Wait()
 	close(c)
 	success := <-processDone
@@ -94,16 +101,16 @@ func (s *Scanner) ScanMediaFull() error {
 		log.Errorf("delete scan cover cache: %s", err)
 	}
 	if !success {
-		fmt.Println("Scan failed.")
+		log.Error("Scan failed.")
 		return errors.New("scan error")
 	}
-	fmt.Println("Scan complete.")
+	log.Info("Scan complete.")
 	return nil
 }
 
 var imagePrios = []string{"front", "folder", "cover"}
 
-func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, done chan<- bool) {
+func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, done chan<- bool, printStatus bool) {
 	startTime := time.Now()
 	s.originalStore = s.store
 	var err error
@@ -145,10 +152,9 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		return
 	}
 
-	var count int
 	for media := range c {
-		if count%5 == 0 {
-			fmt.Print("\rScanned: ", count)
+		if printStatus && s.Count%5 == 0 {
+			fmt.Print("\rScanned: ", s.Count)
 		}
 		song, err := s.findOrCreateSong(ctx, media)
 		if err != nil {
@@ -341,9 +347,11 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 			log.Errorf("failed to update song genres: %s", err)
 			return
 		}
-		count++
+		s.Count++
 	}
-	fmt.Println("\rScanned:", count)
+	if printStatus {
+		fmt.Println("\rScanned:", s.Count)
+	}
 
 	err = s.clean(ctx, startTime)
 	if err != nil {

@@ -51,12 +51,12 @@ func run() error {
 	}
 
 	scanner := scanner.New(config.MusicDir(), store)
-	err = scanner.ScanMediaFull()
+	err = scanner.ScanMediaFull(true)
 	if err != nil {
 		return err
 	}
 
-	handler := handlers.New(store)
+	handler := handlers.New(store, scanner)
 
 	addr := config.ListenAddr()
 
