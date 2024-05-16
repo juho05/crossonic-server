@@ -17,3 +17,7 @@ LEFT JOIN (
   SELECT genre_name, COUNT(*) AS count FROM song_genre GROUP BY genre_name
 ) so ON so.genre_name = genres.name
 ORDER BY lower(genres.name);
+-- name: FindGenresByAlbums :many
+SELECT album_genre.album_id, genres.name FROM album_genre
+JOIN genres ON album_genre.genre_name = genres.name
+WHERE album_genre.album_id = any(sqlc.arg('album_ids')::text[]);

@@ -20,3 +20,7 @@ LEFT JOIN (
 ) avgr ON avgr.artist_id = artists.id
 LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
 ORDER BY lower(artists.name);
+-- name: FindArtistRefsByAlbums :many
+SELECT album_artist.album_id, artists.id, artists.name FROM album_artist
+JOIN artists ON album_artist.artist_id = artists.id
+WHERE album_artist.album_id = any(sqlc.arg('album_ids')::text[]);

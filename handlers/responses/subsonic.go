@@ -51,3 +51,37 @@ type Artist struct {
 	UserRating    *int       `xml:"userRating,attr,omitempty"    json:"userRating,omitempty"`
 	AverageRating *float64   `xml:"averageRating,attr,omitempty" json:"averageRating,omitempty"`
 }
+
+type AlbumList2 struct {
+	Albums []*Album `xml:"album" json:"album"`
+}
+
+type Album struct {
+	ID            string       `xml:"id,attr,omitempty"       json:"id"`
+	Created       time.Time    `xml:"created,attr,omitempty"  json:"created,omitempty"`
+	ArtistID      *string      `xml:"artistId,attr,omitempty" json:"artistId,omitempty"`
+	Artist        *string      `xml:"artist,attr"             json:"artist"`
+	Artists       []*ArtistRef `xml:"artists"           json:"artists"`
+	DisplayArtist *string      `xml:"diplayArtist,attr,omitempty" json:"displayArtist,omitempty"`
+	CoverID       *string      `xml:"coverArt,attr,omitempty" json:"coverArt,omitempty"`
+	Title         string       `xml:"title,attr"  json:"title"`
+	Name          string       `xml:"name,attr"              json:"name"`
+	TrackCount    int          `xml:"songCount,attr"         json:"songCount"`
+	Duration      int          `xml:"duration,attr"          json:"duration"`
+	PlayCount     *int         `xml:"playCount,attr,omitempty"          json:"playCount,omitempty"`
+	Genre         *string      `xml:"genre,attr,omitempty"   json:"genre,omitempty"`
+	Genres        []*GenreRef  `xml:"genres,omitempty"       json:"genres,omitempty"`
+	Year          *int         `xml:"year,attr,omitempty"    json:"year,omitempty"`
+	Starred       *time.Time   `xml:"starred,attr,omitempty"         json:"starred,omitempty"`
+	UserRating    *int         `xml:"userRating,attr,omitempty"      json:"userRating,omitempty"`
+	AverageRating *float64     `xml:"averageRating,attr,omitempty"   json:"averageRating,omitempty"`
+}
+
+type ArtistRef struct {
+	ID   string `xml:"id,attr" json:"id"`
+	Name string `xml:"name,attr" json:"name"`
+}
+
+type GenreRef struct {
+	Name string `xml:"name,attr" json:"name"`
+}

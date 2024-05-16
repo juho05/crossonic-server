@@ -46,6 +46,38 @@ func (q *Queries) DeleteArtistsLastUpdatedBefore(ctx context.Context, updated pg
 	return err
 }
 
+const findArtistRefsByAlbums = `-- name: FindArtistRefsByAlbums :many
+SELECT album_artist.album_id, artists.id, artists.name FROM album_artist
+JOIN artists ON album_artist.artist_id = artists.id
+WHERE album_artist.album_id = any($1::text[])
+`
+
+type FindArtistRefsByAlbumsRow struct {
+	AlbumID string
+	ID      string
+	Name    string
+}
+
+func (q *Queries) FindArtistRefsByAlbums(ctx context.Context, albumIds []string) ([]*FindArtistRefsByAlbumsRow, error) {
+	rows, err := q.db.Query(ctx, findArtistRefsByAlbums, albumIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindArtistRefsByAlbumsRow
+	for rows.Next() {
+		var i FindArtistRefsByAlbumsRow
+		if err := rows.Scan(&i.AlbumID, &i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findArtists = `-- name: FindArtists :many
 SELECT artists.id, artists.name, artists.created, artists.updated, artists.music_brainz_id, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
 LEFT JOIN (

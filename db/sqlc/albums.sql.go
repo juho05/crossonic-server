@@ -96,6 +96,191 @@ func (q *Queries) DeleteAlbumsLastUpdatedBefore(ctx context.Context, updated pgt
 	return err
 }
 
+const findAlbumsAlphabeticalByName = `-- name: FindAlbumsAlphabeticalByName :many
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast($4 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= $4))
+AND (cast($5 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= $5))
+AND ($6::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any($6::text[])
+))
+ORDER BY lower(albums.name)
+OFFSET $2 LIMIT $3
+`
+
+type FindAlbumsAlphabeticalByNameParams struct {
+	UserName    string
+	Offset      int32
+	Limit       int32
+	FromYear    *int32
+	ToYear      *int32
+	GenresLower []string
+}
+
+type FindAlbumsAlphabeticalByNameRow struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	TrackCount     int64
+	DurationMs     int64
+	Starred        pgtype.Timestamptz
+	UserRating     *int32
+	AvgRating      float64
+}
+
+func (q *Queries) FindAlbumsAlphabeticalByName(ctx context.Context, arg FindAlbumsAlphabeticalByNameParams) ([]*FindAlbumsAlphabeticalByNameRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumsAlphabeticalByName,
+		arg.UserName,
+		arg.Offset,
+		arg.Limit,
+		arg.FromYear,
+		arg.ToYear,
+		arg.GenresLower,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumsAlphabeticalByNameRow
+	for rows.Next() {
+		var i FindAlbumsAlphabeticalByNameRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Created,
+			&i.Updated,
+			&i.Year,
+			&i.RecordLabels,
+			&i.MusicBrainzID,
+			&i.ReleaseTypes,
+			&i.IsCompilation,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.TrackCount,
+			&i.DurationMs,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findAlbumsByGenre = `-- name: FindAlbumsByGenre :many
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast($4 as int) IS NULL OR albums.year >= $4)
+AND (cast($5 as int) IS NULL OR albums.year <= $5)
+AND EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any($6::text[])
+)
+OFFSET $2 LIMIT $3
+`
+
+type FindAlbumsByGenreParams struct {
+	UserName    string
+	Offset      int32
+	Limit       int32
+	FromYear    *int32
+	ToYear      *int32
+	GenresLower []string
+}
+
+type FindAlbumsByGenreRow struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	TrackCount     int64
+	DurationMs     int64
+	Starred        pgtype.Timestamptz
+	UserRating     *int32
+	AvgRating      float64
+}
+
+func (q *Queries) FindAlbumsByGenre(ctx context.Context, arg FindAlbumsByGenreParams) ([]*FindAlbumsByGenreRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumsByGenre,
+		arg.UserName,
+		arg.Offset,
+		arg.Limit,
+		arg.FromYear,
+		arg.ToYear,
+		arg.GenresLower,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumsByGenreRow
+	for rows.Next() {
+		var i FindAlbumsByGenreRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Created,
+			&i.Updated,
+			&i.Year,
+			&i.RecordLabels,
+			&i.MusicBrainzID,
+			&i.ReleaseTypes,
+			&i.IsCompilation,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.TrackCount,
+			&i.DurationMs,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findAlbumsByNameWithArtistMatchCount = `-- name: FindAlbumsByNameWithArtistMatchCount :many
 SELECT albums.id, albums.music_brainz_id, COUNT(artists.id) AS artist_matches FROM albums
 LEFT JOIN album_artist ON albums.id = album_artist.album_id
@@ -125,6 +310,471 @@ func (q *Queries) FindAlbumsByNameWithArtistMatchCount(ctx context.Context, arg 
 	for rows.Next() {
 		var i FindAlbumsByNameWithArtistMatchCountRow
 		if err := rows.Scan(&i.ID, &i.MusicBrainzID, &i.ArtistMatches); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findAlbumsByYear = `-- name: FindAlbumsByYear :many
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE albums.year IS NOT NULL
+AND albums.year >= $4
+AND albums.year <= $5
+AND ($6::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any($6::text[])
+))
+ORDER BY albums.year
+OFFSET $2 LIMIT $3
+`
+
+type FindAlbumsByYearParams struct {
+	UserName    string
+	Offset      int32
+	Limit       int32
+	FromYear    *int32
+	ToYear      *int32
+	GenresLower []string
+}
+
+type FindAlbumsByYearRow struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	TrackCount     int64
+	DurationMs     int64
+	Starred        pgtype.Timestamptz
+	UserRating     *int32
+	AvgRating      float64
+}
+
+func (q *Queries) FindAlbumsByYear(ctx context.Context, arg FindAlbumsByYearParams) ([]*FindAlbumsByYearRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumsByYear,
+		arg.UserName,
+		arg.Offset,
+		arg.Limit,
+		arg.FromYear,
+		arg.ToYear,
+		arg.GenresLower,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumsByYearRow
+	for rows.Next() {
+		var i FindAlbumsByYearRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Created,
+			&i.Updated,
+			&i.Year,
+			&i.RecordLabels,
+			&i.MusicBrainzID,
+			&i.ReleaseTypes,
+			&i.IsCompilation,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.TrackCount,
+			&i.DurationMs,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findAlbumsHighestRated = `-- name: FindAlbumsHighestRated :many
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast($4 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= $4))
+AND (cast($5 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= $5))
+AND ($6::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any($6::text[])
+))
+ORDER BY COALESCE(album_ratings.rating, 0) DESC
+OFFSET $2 LIMIT $3
+`
+
+type FindAlbumsHighestRatedParams struct {
+	UserName    string
+	Offset      int32
+	Limit       int32
+	FromYear    *int32
+	ToYear      *int32
+	GenresLower []string
+}
+
+type FindAlbumsHighestRatedRow struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	TrackCount     int64
+	DurationMs     int64
+	Starred        pgtype.Timestamptz
+	UserRating     *int32
+	AvgRating      float64
+}
+
+func (q *Queries) FindAlbumsHighestRated(ctx context.Context, arg FindAlbumsHighestRatedParams) ([]*FindAlbumsHighestRatedRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumsHighestRated,
+		arg.UserName,
+		arg.Offset,
+		arg.Limit,
+		arg.FromYear,
+		arg.ToYear,
+		arg.GenresLower,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumsHighestRatedRow
+	for rows.Next() {
+		var i FindAlbumsHighestRatedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Created,
+			&i.Updated,
+			&i.Year,
+			&i.RecordLabels,
+			&i.MusicBrainzID,
+			&i.ReleaseTypes,
+			&i.IsCompilation,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.TrackCount,
+			&i.DurationMs,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findAlbumsNewest = `-- name: FindAlbumsNewest :many
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast($4 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= $4))
+AND (cast($5 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= $5))
+AND ($6::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any($6::text[])
+))
+ORDER BY albums.created DESC
+OFFSET $2 LIMIT $3
+`
+
+type FindAlbumsNewestParams struct {
+	UserName    string
+	Offset      int32
+	Limit       int32
+	FromYear    *int32
+	ToYear      *int32
+	GenresLower []string
+}
+
+type FindAlbumsNewestRow struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	TrackCount     int64
+	DurationMs     int64
+	Starred        pgtype.Timestamptz
+	UserRating     *int32
+	AvgRating      float64
+}
+
+func (q *Queries) FindAlbumsNewest(ctx context.Context, arg FindAlbumsNewestParams) ([]*FindAlbumsNewestRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumsNewest,
+		arg.UserName,
+		arg.Offset,
+		arg.Limit,
+		arg.FromYear,
+		arg.ToYear,
+		arg.GenresLower,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumsNewestRow
+	for rows.Next() {
+		var i FindAlbumsNewestRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Created,
+			&i.Updated,
+			&i.Year,
+			&i.RecordLabels,
+			&i.MusicBrainzID,
+			&i.ReleaseTypes,
+			&i.IsCompilation,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.TrackCount,
+			&i.DurationMs,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findAlbumsRandom = `-- name: FindAlbumsRandom :many
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast($3 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= $3))
+AND (cast($4 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= $4))
+AND ($5::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any($5::text[])
+))
+ORDER BY random()
+OFFSET $2
+`
+
+type FindAlbumsRandomParams struct {
+	UserName    string
+	Offset      int32
+	FromYear    *int32
+	ToYear      *int32
+	GenresLower []string
+}
+
+type FindAlbumsRandomRow struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	TrackCount     int64
+	DurationMs     int64
+	Starred        pgtype.Timestamptz
+	UserRating     *int32
+	AvgRating      float64
+}
+
+func (q *Queries) FindAlbumsRandom(ctx context.Context, arg FindAlbumsRandomParams) ([]*FindAlbumsRandomRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumsRandom,
+		arg.UserName,
+		arg.Offset,
+		arg.FromYear,
+		arg.ToYear,
+		arg.GenresLower,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumsRandomRow
+	for rows.Next() {
+		var i FindAlbumsRandomRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Created,
+			&i.Updated,
+			&i.Year,
+			&i.RecordLabels,
+			&i.MusicBrainzID,
+			&i.ReleaseTypes,
+			&i.IsCompilation,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.TrackCount,
+			&i.DurationMs,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findAlbumsStarred = `-- name: FindAlbumsStarred :many
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE album_stars.created IS NOT NULL
+AND (cast($4 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= $4))
+AND (cast($5 as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= $5))
+AND ($6::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any($6::text[])
+))
+ORDER BY album_stars.created DESC
+OFFSET $2 LIMIT $3
+`
+
+type FindAlbumsStarredParams struct {
+	UserName    string
+	Offset      int32
+	Limit       int32
+	FromYear    *int32
+	ToYear      *int32
+	GenresLower []string
+}
+
+type FindAlbumsStarredRow struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	TrackCount     int64
+	DurationMs     int64
+	Starred        pgtype.Timestamptz
+	UserRating     *int32
+	AvgRating      float64
+}
+
+func (q *Queries) FindAlbumsStarred(ctx context.Context, arg FindAlbumsStarredParams) ([]*FindAlbumsStarredRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumsStarred,
+		arg.UserName,
+		arg.Offset,
+		arg.Limit,
+		arg.FromYear,
+		arg.ToYear,
+		arg.GenresLower,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumsStarredRow
+	for rows.Next() {
+		var i FindAlbumsStarredRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Created,
+			&i.Updated,
+			&i.Year,
+			&i.RecordLabels,
+			&i.MusicBrainzID,
+			&i.ReleaseTypes,
+			&i.IsCompilation,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.TrackCount,
+			&i.DurationMs,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

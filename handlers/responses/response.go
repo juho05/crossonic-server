@@ -36,7 +36,8 @@ type Response struct {
 	License                *License                `xml:"license,omitempty" json:"license,omitempty"`
 	ScanStatus             *ScanStatus             `xml:"scanStatus,omitempty" json:"scanStatus,omitempty"`
 	Genres                 *Genres                 `xml:"genres,omitempty" json:"genres,omitempty"`
-	Artists *Artists `xml:"artists,omitempty" json:"artists,omitempty"`
+	Artists                *Artists                `xml:"artists,omitempty" json:"artists,omitempty"`
+	AlbumList2             *AlbumList2             `xml:"albumList2,omitempty" json:"albumList2,omitempty"`
 }
 
 func New() Response {

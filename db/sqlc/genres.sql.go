@@ -70,6 +70,37 @@ func (q *Queries) FindGenre(ctx context.Context, name string) (string, error) {
 	return name, err
 }
 
+const findGenresByAlbums = `-- name: FindGenresByAlbums :many
+SELECT album_genre.album_id, genres.name FROM album_genre
+JOIN genres ON album_genre.genre_name = genres.name
+WHERE album_genre.album_id = any($1::text[])
+`
+
+type FindGenresByAlbumsRow struct {
+	AlbumID string
+	Name    string
+}
+
+func (q *Queries) FindGenresByAlbums(ctx context.Context, albumIds []string) ([]*FindGenresByAlbumsRow, error) {
+	rows, err := q.db.Query(ctx, findGenresByAlbums, albumIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindGenresByAlbumsRow
+	for rows.Next() {
+		var i FindGenresByAlbumsRow
+		if err := rows.Scan(&i.AlbumID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findGenresWithCount = `-- name: FindGenresWithCount :many
 SELECT genres.name, COALESCE(al.count, 0) AS album_count, COALESCE(so.count, 0) AS song_count FROM genres
 LEFT JOIN (

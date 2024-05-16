@@ -31,7 +31,17 @@
 ### Album/Song Lists
 
 - [ ] [getAlbumList](https://opensubsonic.netlify.app/docs/endpoints/getalbumlist)
-- [ ] [getAlbumList2](https://opensubsonic.netlify.app/docs/endpoints/getalbumlist2)
+- [x] [getAlbumList2](https://opensubsonic.netlify.app/docs/endpoints/getalbumlist2)
+  - [x] random
+  - [x] newest
+  - [x] highest
+  - [ ] frequent
+  - [ ] recent
+  - [x] alphabeticalByName
+  - [ ] alphabeticalByArtist
+  - [x] starred
+  - [x] byYear
+  - [x] byGenre
 - [ ] [getRandomSongs](https://opensubsonic.netlify.app/docs/endpoints/getrandomsongs)
 - [ ] [getSongsByGenre](https://opensubsonic.netlify.app/docs/endpoints/getsongsbygenre)
 - [ ] [getNowPlaying](https://opensubsonic.netlify.app/docs/endpoints/getnowplaying)

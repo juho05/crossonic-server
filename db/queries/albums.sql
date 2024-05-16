@@ -23,3 +23,137 @@ INSERT INTO album_artist (album_id,artist_id) VALUES ($1, $2);
 DELETE FROM album_genre WHERE album_id = $1;
 -- name: CreateAlbumGenres :copyfrom
 INSERT INTO album_genre (album_id,genre_name) VALUES ($1, $2);
+-- name: FindAlbumsAlphabeticalByName :many
+SELECT albums.*, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast(sqlc.narg(from_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= sqlc.arg(from_year)))
+AND (cast(sqlc.narg(to_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= sqlc.arg(to_year)))
+AND (sqlc.arg('genres_lower')::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
+))
+ORDER BY lower(albums.name)
+OFFSET $2 LIMIT $3;
+-- name: FindAlbumsNewest :many
+SELECT albums.*, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast(sqlc.narg(from_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= sqlc.arg(from_year)))
+AND (cast(sqlc.narg(to_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= sqlc.arg(to_year)))
+AND (sqlc.arg('genres_lower')::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
+))
+ORDER BY albums.created DESC
+OFFSET $2 LIMIT $3;
+-- name: FindAlbumsHighestRated :many
+SELECT albums.*, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast(sqlc.narg(from_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= sqlc.arg(from_year)))
+AND (cast(sqlc.narg(to_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= sqlc.arg(to_year)))
+AND (sqlc.arg('genres_lower')::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
+))
+ORDER BY COALESCE(album_ratings.rating, 0) DESC
+OFFSET $2 LIMIT $3;
+-- name: FindAlbumsStarred :many
+SELECT albums.*, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE album_stars.created IS NOT NULL
+AND (cast(sqlc.narg(from_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= sqlc.arg(from_year)))
+AND (cast(sqlc.narg(to_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= sqlc.arg(to_year)))
+AND (sqlc.arg('genres_lower')::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
+))
+ORDER BY album_stars.created DESC
+OFFSET $2 LIMIT $3;
+-- name: FindAlbumsRandom :many
+SELECT albums.*, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast(sqlc.narg(from_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year >= sqlc.arg(from_year)))
+AND (cast(sqlc.narg(to_year) as int) IS NULL OR (albums.year IS NOT NULL AND albums.year <= sqlc.arg(to_year)))
+AND (sqlc.arg('genres_lower')::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
+))
+ORDER BY random()
+OFFSET $2;
+-- name: FindAlbumsByYear :many
+SELECT albums.*, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE albums.year IS NOT NULL
+AND albums.year >= sqlc.arg(from_year)
+AND albums.year <= sqlc.arg(to_year)
+AND (sqlc.arg('genres_lower')::text[] IS NULL OR EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
+))
+ORDER BY albums.year
+OFFSET $2 LIMIT $3;
+-- name: FindAlbumsByGenre :many
+SELECT albums.*, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE (cast(sqlc.narg(from_year) as int) IS NULL OR albums.year >= sqlc.arg(from_year))
+AND (cast(sqlc.narg(to_year) as int) IS NULL OR albums.year <= sqlc.arg(to_year))
+AND EXISTS (
+  SELECT album_genre.album_id, genres.name FROM album_genre
+  JOIN genres ON album_genre.genre_name = genres.name
+  WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
+)
+OFFSET $2 LIMIT $3;

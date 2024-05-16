@@ -28,3 +28,14 @@ func registerRoute(r chi.Router, pattern string, handlerFunc func(w http.Respons
 	r.Get(pattern+".view", handlerFunc)
 	r.Post(pattern+".view", handlerFunc)
 }
+
+func mapData[T, U any](list []T, mapFn func(T) U) []U {
+	if list == nil {
+		return nil
+	}
+	newList := make([]U, len(list))
+	for i := range list {
+		newList[i] = mapFn(list[i])
+	}
+	return newList
+}
