@@ -30,6 +30,7 @@ type Querier interface {
 	DeleteSongGenres(ctx context.Context, songID string) error
 	DeleteSongsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
 	DeleteUser(ctx context.Context, name string) (string, error)
+	FindAlbumArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindAlbumArtistRefsBySongsRow, error)
 	FindAlbumsAlphabeticalByName(ctx context.Context, arg FindAlbumsAlphabeticalByNameParams) ([]*FindAlbumsAlphabeticalByNameRow, error)
 	FindAlbumsByGenre(ctx context.Context, arg FindAlbumsByGenreParams) ([]*FindAlbumsByGenreRow, error)
 	FindAlbumsByNameWithArtistMatchCount(ctx context.Context, arg FindAlbumsByNameWithArtistMatchCountParams) ([]*FindAlbumsByNameWithArtistMatchCountRow, error)
@@ -40,11 +41,14 @@ type Querier interface {
 	FindAlbumsStarred(ctx context.Context, arg FindAlbumsStarredParams) ([]*FindAlbumsStarredRow, error)
 	FindAllGenres(ctx context.Context) ([]string, error)
 	FindArtistRefsByAlbums(ctx context.Context, albumIds []string) ([]*FindArtistRefsByAlbumsRow, error)
+	FindArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindArtistRefsBySongsRow, error)
 	FindArtists(ctx context.Context, userName string) ([]*FindArtistsRow, error)
 	FindArtistsByName(ctx context.Context, artistNames []string) ([]*Artist, error)
 	FindGenre(ctx context.Context, name string) (string, error)
 	FindGenresByAlbums(ctx context.Context, albumIds []string) ([]*FindGenresByAlbumsRow, error)
+	FindGenresBySongs(ctx context.Context, songIds []string) ([]*FindGenresBySongsRow, error)
 	FindGenresWithCount(ctx context.Context) ([]*FindGenresWithCountRow, error)
+	FindRandomSongs(ctx context.Context, arg FindRandomSongsParams) ([]*FindRandomSongsRow, error)
 	FindSong(ctx context.Context, id string) (*FindSongRow, error)
 	FindSongByMusicBrainzID(ctx context.Context, musicBrainzID *string) (*FindSongByMusicBrainzIDRow, error)
 	FindSongByPath(ctx context.Context, path string) (*FindSongByPathRow, error)

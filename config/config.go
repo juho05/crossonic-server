@@ -22,6 +22,7 @@ func LoadAll() {
 	AutoMigrate()
 	LogLevel()
 	LogFile()
+	ReplayGainFallback()
 }
 
 var values = make(map[string]any)
@@ -142,6 +143,10 @@ func LogFile() (file *os.File) {
 	}
 }
 
+func ReplayGainFallback() float32 {
+	return optionalFloat32("REPLAY_GAIN_FALLBACK", -8)
+}
+
 func optionalString(key, def string) (str string) {
 	if s, ok := values[key]; ok {
 		return s.(string)
@@ -186,6 +191,24 @@ func requiredInt(key string) (i int) {
 		log.Fatalf("%s must be an integer", key)
 	}
 	return i
+}
+
+func optionalFloat32(key string, def float32) (f float32) {
+	if f, ok := values[key]; ok {
+		return f.(float32)
+	}
+	defer func() {
+		values[key] = f
+	}()
+	str := os.Getenv(key)
+	if str == "" {
+		return def
+	}
+	f64, err := strconv.ParseFloat(str, 32)
+	if err != nil {
+		log.Fatalf("%s must be an integer", key)
+	}
+	return float32(f64)
 }
 
 func boolean(key string, def bool) (b bool) {

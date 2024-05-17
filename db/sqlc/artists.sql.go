@@ -46,6 +46,40 @@ func (q *Queries) DeleteArtistsLastUpdatedBefore(ctx context.Context, updated pg
 	return err
 }
 
+const findAlbumArtistRefsBySongs = `-- name: FindAlbumArtistRefsBySongs :many
+SELECT songs.id as song_id, artists.id, artists.name FROM songs
+JOIN albums ON songs.album_id = albums.id
+JOIN album_artist ON album_artist.album_id = albums.id
+JOIN artists ON album_artist.artist_id = artists.id
+WHERE songs.id = any($1::text[])
+`
+
+type FindAlbumArtistRefsBySongsRow struct {
+	SongID string
+	ID     string
+	Name   string
+}
+
+func (q *Queries) FindAlbumArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindAlbumArtistRefsBySongsRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumArtistRefsBySongs, songIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumArtistRefsBySongsRow
+	for rows.Next() {
+		var i FindAlbumArtistRefsBySongsRow
+		if err := rows.Scan(&i.SongID, &i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findArtistRefsByAlbums = `-- name: FindArtistRefsByAlbums :many
 SELECT album_artist.album_id, artists.id, artists.name FROM album_artist
 JOIN artists ON album_artist.artist_id = artists.id
@@ -68,6 +102,38 @@ func (q *Queries) FindArtistRefsByAlbums(ctx context.Context, albumIds []string)
 	for rows.Next() {
 		var i FindArtistRefsByAlbumsRow
 		if err := rows.Scan(&i.AlbumID, &i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findArtistRefsBySongs = `-- name: FindArtistRefsBySongs :many
+SELECT song_artist.song_id, artists.id, artists.name FROM song_artist
+JOIN artists ON song_artist.artist_id = artists.id
+WHERE song_artist.song_id = any($1::text[])
+`
+
+type FindArtistRefsBySongsRow struct {
+	SongID string
+	ID     string
+	Name   string
+}
+
+func (q *Queries) FindArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindArtistRefsBySongsRow, error) {
+	rows, err := q.db.Query(ctx, findArtistRefsBySongs, songIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindArtistRefsBySongsRow
+	for rows.Next() {
+		var i FindArtistRefsBySongsRow
+		if err := rows.Scan(&i.SongID, &i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

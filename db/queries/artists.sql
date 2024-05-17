@@ -24,3 +24,13 @@ ORDER BY lower(artists.name);
 SELECT album_artist.album_id, artists.id, artists.name FROM album_artist
 JOIN artists ON album_artist.artist_id = artists.id
 WHERE album_artist.album_id = any(sqlc.arg('album_ids')::text[]);
+-- name: FindArtistRefsBySongs :many
+SELECT song_artist.song_id, artists.id, artists.name FROM song_artist
+JOIN artists ON song_artist.artist_id = artists.id
+WHERE song_artist.song_id = any(sqlc.arg('song_ids')::text[]);
+-- name: FindAlbumArtistRefsBySongs :many
+SELECT songs.id as song_id, artists.id, artists.name FROM songs
+JOIN albums ON songs.album_id = albums.id
+JOIN album_artist ON album_artist.album_id = albums.id
+JOIN artists ON album_artist.artist_id = artists.id
+WHERE songs.id = any(sqlc.arg('song_ids')::text[]);

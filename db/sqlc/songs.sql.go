@@ -125,6 +125,117 @@ func (q *Queries) DeleteSongsLastUpdatedBefore(ctx context.Context, updated pgty
 	return err
 }
 
+const findRandomSongs = `-- name: FindRandomSongs :many
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, albums.replay_gain as album_replay_gain, albums.replay_gain_peak as album_replay_gain_peak, song_stars.created as starred, song_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM songs
+LEFT JOIN albums ON albums.id = songs.album_id
+LEFT JOIN song_stars ON song_stars.song_id = songs.id AND song_stars.user_name = $1
+LEFT JOIN (
+  SELECT song_id, AVG(song_ratings.rating) AS rating FROM song_ratings GROUP BY song_id
+) avgr ON avgr.song_id = songs.id
+LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_name = $1
+WHERE (cast($3 as int) IS NULL OR (songs.year IS NOT NULL AND songs.year >= $3))
+AND (cast($4 as int) IS NULL OR (songs.year IS NOT NULL AND songs.year <= $4))
+AND ($5::text[] IS NULL OR EXISTS (
+  SELECT song_genre.song_id, genres.name FROM song_genre
+  JOIN genres ON song_genre.genre_name = genres.name
+  WHERE song_genre.song_id = songs.id AND lower(song_genre.genre_name) = any($5::text[])
+))
+ORDER BY random()
+LIMIT $2
+`
+
+type FindRandomSongsParams struct {
+	UserName    string
+	Limit       int32
+	FromYear    *int32
+	ToYear      *int32
+	GenresLower []string
+}
+
+type FindRandomSongsRow struct {
+	ID                  string
+	Path                string
+	AlbumID             *string
+	Title               string
+	Track               *int32
+	Year                *int32
+	Size                int64
+	ContentType         string
+	DurationMs          int32
+	BitRate             int32
+	SamplingRate        int32
+	ChannelCount        int32
+	DiscNumber          *int32
+	Created             pgtype.Timestamptz
+	Updated             pgtype.Timestamptz
+	Bpm                 *int32
+	MusicBrainzID       *string
+	ReplayGain          *float32
+	ReplayGainPeak      *float32
+	Lyrics              *string
+	CoverID             *string
+	AlbumName           *string
+	AlbumReplayGain     *float32
+	AlbumReplayGainPeak *float32
+	Starred             pgtype.Timestamptz
+	UserRating          *int32
+	AvgRating           float64
+}
+
+func (q *Queries) FindRandomSongs(ctx context.Context, arg FindRandomSongsParams) ([]*FindRandomSongsRow, error) {
+	rows, err := q.db.Query(ctx, findRandomSongs,
+		arg.UserName,
+		arg.Limit,
+		arg.FromYear,
+		arg.ToYear,
+		arg.GenresLower,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindRandomSongsRow
+	for rows.Next() {
+		var i FindRandomSongsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Path,
+			&i.AlbumID,
+			&i.Title,
+			&i.Track,
+			&i.Year,
+			&i.Size,
+			&i.ContentType,
+			&i.DurationMs,
+			&i.BitRate,
+			&i.SamplingRate,
+			&i.ChannelCount,
+			&i.DiscNumber,
+			&i.Created,
+			&i.Updated,
+			&i.Bpm,
+			&i.MusicBrainzID,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.Lyrics,
+			&i.CoverID,
+			&i.AlbumName,
+			&i.AlbumReplayGain,
+			&i.AlbumReplayGainPeak,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findSong = `-- name: FindSong :one
 SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = $1
 `

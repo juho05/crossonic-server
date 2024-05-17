@@ -42,7 +42,7 @@
   - [x] starred
   - [x] byYear
   - [x] byGenre
-- [ ] [getRandomSongs](https://opensubsonic.netlify.app/docs/endpoints/getrandomsongs)
+- [x] [getRandomSongs](https://opensubsonic.netlify.app/docs/endpoints/getrandomsongs)
 - [ ] [getSongsByGenre](https://opensubsonic.netlify.app/docs/endpoints/getsongsbygenre)
 - [ ] [getNowPlaying](https://opensubsonic.netlify.app/docs/endpoints/getnowplaying)
 - [ ] [getStarred](https://opensubsonic.netlify.app/docs/endpoints/getstarred)

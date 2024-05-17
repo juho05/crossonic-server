@@ -23,3 +23,20 @@ INSERT INTO song_artist (song_id,artist_id) VALUES ($1, $2);
 DELETE FROM song_genre WHERE song_id = $1;
 -- name: CreateSongGenres :copyfrom
 INSERT INTO song_genre (song_id,genre_name) VALUES ($1, $2);
+-- name: FindRandomSongs :many
+SELECT songs.*, albums.name as album_name, albums.replay_gain as album_replay_gain, albums.replay_gain_peak as album_replay_gain_peak, song_stars.created as starred, song_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM songs
+LEFT JOIN albums ON albums.id = songs.album_id
+LEFT JOIN song_stars ON song_stars.song_id = songs.id AND song_stars.user_name = $1
+LEFT JOIN (
+  SELECT song_id, AVG(song_ratings.rating) AS rating FROM song_ratings GROUP BY song_id
+) avgr ON avgr.song_id = songs.id
+LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_name = $1
+WHERE (cast(sqlc.narg(from_year) as int) IS NULL OR (songs.year IS NOT NULL AND songs.year >= sqlc.arg(from_year)))
+AND (cast(sqlc.narg(to_year) as int) IS NULL OR (songs.year IS NOT NULL AND songs.year <= sqlc.arg(to_year)))
+AND (sqlc.arg('genres_lower')::text[] IS NULL OR EXISTS (
+  SELECT song_genre.song_id, genres.name FROM song_genre
+  JOIN genres ON song_genre.genre_name = genres.name
+  WHERE song_genre.song_id = songs.id AND lower(song_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
+))
+ORDER BY random()
+LIMIT $2;

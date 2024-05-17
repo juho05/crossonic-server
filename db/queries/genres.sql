@@ -21,3 +21,7 @@ ORDER BY lower(genres.name);
 SELECT album_genre.album_id, genres.name FROM album_genre
 JOIN genres ON album_genre.genre_name = genres.name
 WHERE album_genre.album_id = any(sqlc.arg('album_ids')::text[]);
+-- name: FindGenresBySongs :many
+SELECT song_genre.song_id, genres.name FROM song_genre
+JOIN genres ON song_genre.genre_name = genres.name
+WHERE song_genre.song_id = any(sqlc.arg('song_ids')::text[]);
