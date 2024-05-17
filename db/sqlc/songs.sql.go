@@ -424,6 +424,39 @@ func (q *Queries) FindSongCount(ctx context.Context) (int64, error) {
 	return song_count, err
 }
 
+const findSongWithoutAlbum = `-- name: FindSongWithoutAlbum :one
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id FROM songs WHERE songs.id = $1
+`
+
+func (q *Queries) FindSongWithoutAlbum(ctx context.Context, id string) (*Song, error) {
+	row := q.db.QueryRow(ctx, findSongWithoutAlbum, id)
+	var i Song
+	err := row.Scan(
+		&i.ID,
+		&i.Path,
+		&i.AlbumID,
+		&i.Title,
+		&i.Track,
+		&i.Year,
+		&i.Size,
+		&i.ContentType,
+		&i.DurationMs,
+		&i.BitRate,
+		&i.SamplingRate,
+		&i.ChannelCount,
+		&i.DiscNumber,
+		&i.Created,
+		&i.Updated,
+		&i.Bpm,
+		&i.MusicBrainzID,
+		&i.ReplayGain,
+		&i.ReplayGainPeak,
+		&i.Lyrics,
+		&i.CoverID,
+	)
+	return &i, err
+}
+
 const findSongsByAlbum = `-- name: FindSongsByAlbum :many
 SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, albums.replay_gain as album_replay_gain, albums.replay_gain_peak as album_replay_gain_peak, song_stars.created as starred, song_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM songs
 LEFT JOIN albums ON albums.id = songs.album_id

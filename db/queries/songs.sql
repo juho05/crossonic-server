@@ -2,6 +2,8 @@
 SELECT COUNT(*) as song_count FROM songs;
 -- name: FindSong :one
 SELECT songs.*, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = $1;
+-- name: FindSongWithoutAlbum :one
+SELECT songs.* FROM songs WHERE songs.id = $1;
 -- name: FindSongByMusicBrainzID :one
 SELECT songs.*, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.music_brainz_id = $1;
 -- name: FindSongByPath :one

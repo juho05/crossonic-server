@@ -16,6 +16,7 @@ type Querier interface {
 	CreateAlbumGenres(ctx context.Context, arg []CreateAlbumGenresParams) (int64, error)
 	CreateArtist(ctx context.Context, arg CreateArtistParams) (*Artist, error)
 	CreateGenre(ctx context.Context, name string) error
+	CreateScrobble(ctx context.Context, arg CreateScrobbleParams) (*Scrobble, error)
 	CreateSong(ctx context.Context, arg CreateSongParams) (*Song, error)
 	CreateSongArtists(ctx context.Context, arg []CreateSongArtistsParams) (int64, error)
 	CreateSongGenres(ctx context.Context, arg []CreateSongGenresParams) (int64, error)
@@ -26,6 +27,7 @@ type Querier interface {
 	DeleteAllGenres(ctx context.Context) error
 	DeleteArtistsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
 	DeleteGenre(ctx context.Context, name string) error
+	DeleteNowPlaying(ctx context.Context, userName string) error
 	DeleteSongArtists(ctx context.Context, songID string) error
 	DeleteSongGenres(ctx context.Context, songID string) error
 	DeleteSongsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
@@ -56,9 +58,12 @@ type Querier interface {
 	FindSongByMusicBrainzID(ctx context.Context, musicBrainzID *string) (*FindSongByMusicBrainzIDRow, error)
 	FindSongByPath(ctx context.Context, path string) (*FindSongByPathRow, error)
 	FindSongCount(ctx context.Context) (int64, error)
+	FindSongWithoutAlbum(ctx context.Context, id string) (*Song, error)
 	FindSongsByAlbum(ctx context.Context, arg FindSongsByAlbumParams) ([]*FindSongsByAlbumRow, error)
 	FindUser(ctx context.Context, name string) (*User, error)
 	FindUsers(ctx context.Context) ([]*User, error)
+	GetNowPlaying(ctx context.Context, userName string) (*Scrobble, error)
+	GetNowPlayingSongs(ctx context.Context, userName string) ([]*GetNowPlayingSongsRow, error)
 	GetSongPath(ctx context.Context, id string) (string, error)
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)
 	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error

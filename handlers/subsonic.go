@@ -28,6 +28,8 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/getArtist", h.handleGetArtist)
 	registerRoute(r, "/stream", h.handleStream)
 	registerRoute(r, "/download", h.handleDownload)
+	registerRoute(r, "/scrobble", h.handleScrobble)
+	registerRoute(r, "/getNowPlaying", h.handleGetNowPlaying)
 }
 
 func int32PtrToIntPtr(ptr *int32) *int {
@@ -37,6 +39,15 @@ func int32PtrToIntPtr(ptr *int32) *int {
 	v32 := *ptr
 	v := int(v32)
 	return &v
+}
+
+func intPtrToInt32Ptr(ptr *int) *int32 {
+	if ptr == nil {
+		return nil
+	}
+	v := *ptr
+	v32 := int32(v)
+	return &v32
 }
 
 func hasCoverArt(id string) bool {

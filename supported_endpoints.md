@@ -44,7 +44,7 @@
   - [x] byGenre
 - [x] [getRandomSongs](https://opensubsonic.netlify.app/docs/endpoints/getrandomsongs)
 - [ ] [getSongsByGenre](https://opensubsonic.netlify.app/docs/endpoints/getsongsbygenre)
-- [ ] [getNowPlaying](https://opensubsonic.netlify.app/docs/endpoints/getnowplaying)
+- [x] [getNowPlaying](https://opensubsonic.netlify.app/docs/endpoints/getnowplaying)
 - [ ] [getStarred](https://opensubsonic.netlify.app/docs/endpoints/getstarred)
 - [ ] [getStarred2](https://opensubsonic.netlify.app/docs/endpoints/getstarred2)
 
@@ -81,7 +81,7 @@
 - [x] [star](https://opensubsonic.netlify.app/docs/endpoints/star)
 - [x] [unstar](https://opensubsonic.netlify.app/docs/endpoints/unstar)
 - [x] [setRating](https://opensubsonic.netlify.app/docs/endpoints/setrating)
-- [ ] [scrobble](https://opensubsonic.netlify.app/docs/endpoints/scrobble)
+- [x] [scrobble](https://opensubsonic.netlify.app/docs/endpoints/scrobble)
 
 ### Sharing
 

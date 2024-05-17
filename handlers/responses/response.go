@@ -41,6 +41,7 @@ type Response struct {
 	RandomSongs            *RandomSongs            `xml:"randomSongs,omitempty" json:"randomSongs,omitempty"`
 	Album                  *AlbumWithSongs         `xml:"album,omitempty" json:"album,omitempty"`
 	Artist                 *Artist                 `xml:"artist,omitempty" json:"artist,omitempty"`
+	NowPlaying             *NowPlaying             `xml:"nowPlaying,omitempty" json:"nowPlaying,omitempty"`
 }
 
 func New() Response {

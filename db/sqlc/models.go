@@ -68,6 +68,17 @@ type Genre struct {
 	Name string
 }
 
+type Scrobble struct {
+	UserName                string
+	SongID                  string
+	AlbumID                 *string
+	Time                    pgtype.Timestamptz
+	SongDurationMs          int32
+	DurationMs              *int32
+	SubmittedToListenbrainz bool
+	NowPlaying              bool
+}
+
 type Song struct {
 	ID             string
 	Path           string

@@ -149,3 +149,13 @@ type AlbumWithSongs struct {
 type RecordLabel struct {
 	Name string `xml:"name,attr" json:"name"`
 }
+
+type NowPlaying struct {
+	Entries []*NowPlayingEntry `xml:"entry" json:"entry"`
+}
+
+type NowPlayingEntry struct {
+	Song
+	Username   string `xml:"username,attr" json:"username"`
+	MinutesAgo int    `xml:"minutesAgo" json:"minutesAgo"`
+}
