@@ -16,7 +16,7 @@
 - [x] [getGenres](https://opensubsonic.netlify.app/docs/endpoints/getgenres)
 - [x] [getArtists](https://opensubsonic.netlify.app/docs/endpoints/getartists)
 - [ ] [getArtist](https://opensubsonic.netlify.app/docs/endpoints/getartist)
-- [ ] [getAlbum](https://opensubsonic.netlify.app/docs/endpoints/getalbum)
+- [x] [getAlbum](https://opensubsonic.netlify.app/docs/endpoints/getalbum)
 - [ ] [getSong](https://opensubsonic.netlify.app/docs/endpoints/getsong)
 - [ ] [getVideos](https://opensubsonic.netlify.app/docs/endpoints/getvideos)
 - [ ] [getVideoInfo](https://opensubsonic.netlify.app/docs/endpoints/getvideoinfo)

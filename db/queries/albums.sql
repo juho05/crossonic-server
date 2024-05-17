@@ -157,3 +157,14 @@ AND EXISTS (
   WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) = any(sqlc.arg('genres_lower')::text[])
 )
 OFFSET $2 LIMIT $3;
+-- name: FindAlbum :one
+SELECT albums.*, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE albums.id = $2;

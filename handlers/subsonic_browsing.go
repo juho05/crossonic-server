@@ -1,15 +1,230 @@
 package handlers
 
 import (
+	"errors"
 	"math"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/juho05/crossonic-server/config"
+	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/log"
 )
+
+func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
+	query := getQuery(r)
+	user := query.Get("u")
+	id := query.Get("id")
+	if id == "" {
+		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+		return
+	}
+	album, err := h.Store.FindAlbum(r.Context(), db.FindAlbumParams{
+		UserName: user,
+		ID:       id,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		} else {
+			log.Errorf("get album: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		}
+		return
+	}
+	genres, err := h.Store.FindGenresByAlbums(r.Context(), []string{album.ID})
+	if err != nil {
+		log.Errorf("get album: get genres: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	genreRefs := mapData(genres, func(g *db.FindGenresByAlbumsRow) *responses.GenreRef {
+		return &responses.GenreRef{
+			Name: g.Name,
+		}
+	})
+	artists, err := h.Store.FindArtistRefsByAlbums(r.Context(), []string{album.ID})
+	if err != nil {
+		log.Errorf("get album: get artists: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	artistRefs := mapData(artists, func(a *db.FindArtistRefsByAlbumsRow) *responses.ArtistRef {
+		return &responses.ArtistRef{
+			ID:   a.ID,
+			Name: a.Name,
+		}
+	})
+	songs, err := h.Store.FindSongsByAlbum(r.Context(), db.FindSongsByAlbumParams{
+		UserName: user,
+		ID:       album.ID,
+	})
+	if err != nil {
+		log.Errorf("get album: get songs: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	songMap := make(map[string]*responses.Song, len(songs))
+	songList := make([]*responses.Song, 0, len(songs))
+	songIDs := mapData(songs, func(s *db.FindSongsByAlbumRow) string {
+		var starred *time.Time
+		if s.Starred.Valid {
+			starred = &s.Starred.Time
+		}
+		var averageRating *float64
+		if s.AvgRating != 0 {
+			avgRating := math.Round(s.AvgRating*100) / 100
+			averageRating = &avgRating
+		}
+		fallbackGain := config.ReplayGainFallback()
+		song := &responses.Song{
+			ID:            s.ID,
+			IsDir:         false,
+			Title:         s.Title,
+			Album:         s.AlbumName,
+			Track:         int32PtrToIntPtr(s.Track),
+			Year:          int32PtrToIntPtr(s.Year),
+			CoverArt:      s.CoverID,
+			Size:          s.Size,
+			ContentType:   s.ContentType,
+			Suffix:        filepath.Ext(s.Path),
+			Duration:      int(s.DurationMs) / 1000,
+			BitRate:       int(s.BitRate),
+			SamplingRate:  int(s.SamplingRate),
+			ChannelCount:  int(s.ChannelCount),
+			UserRating:    int32PtrToIntPtr(s.UserRating),
+			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
+			Created:       s.Created.Time,
+			AlbumID:       s.AlbumID,
+			Type:          "music",
+			MediaType:     "song",
+			BPM:           int32PtrToIntPtr(s.Bpm),
+			MusicBrainzID: s.MusicBrainzID,
+			Starred:       starred,
+			AverageRating: averageRating,
+			ReplayGain: &responses.ReplayGain{
+				TrackGain:    s.ReplayGain,
+				AlbumGain:    s.AlbumReplayGain,
+				TrackPeak:    s.ReplayGainPeak,
+				AlbumPeak:    s.AlbumReplayGainPeak,
+				FallbackGain: &fallbackGain,
+			},
+			AlbumArtists: artistRefs,
+		}
+		songMap[song.ID] = song
+		songList = append(songList, song)
+		return s.ID
+	})
+	dbGenres, err := h.Store.FindGenresBySongs(r.Context(), songIDs)
+	if err != nil {
+		log.Errorf("get album: get songs: get genres: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	for _, g := range dbGenres {
+		song := songMap[g.SongID]
+		if song.Genre == nil {
+			song.Genre = &g.Name
+		}
+		song.Genres = append(song.Genres, &responses.GenreRef{
+			Name: g.Name,
+		})
+	}
+	songArtists, err := h.Store.FindArtistRefsBySongs(r.Context(), songIDs)
+	if err != nil {
+		log.Errorf("get album: get songs: get artist refs: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	for _, a := range songArtists {
+		song := songMap[a.SongID]
+		if song.ArtistID == nil && song.Artist == nil {
+			song.ArtistID = &a.ID
+			song.Artist = &a.Name
+		}
+		song.Artists = append(song.Artists, &responses.ArtistRef{
+			ID:   a.ID,
+			Name: a.Name,
+		})
+	}
+
+	var artistID *string
+	var artistName *string
+	if len(artistRefs) > 0 {
+		artistID = &artists[0].ID
+		artistName = &artists[0].Name
+	}
+
+	var genre *string
+	if len(genreRefs) > 0 {
+		genre = &genreRefs[0].Name
+	}
+
+	var coverID *string
+	if hasCoverArt(album.ID) {
+		coverID = &album.ID
+	}
+
+	var starred *time.Time
+	if album.Starred.Valid {
+		starred = &album.Starred.Time
+	}
+
+	var averageRating *float64
+	if album.AvgRating != 0 {
+		avgRating := math.Round(album.AvgRating*100) / 100
+		averageRating = &avgRating
+	}
+
+	var releaseTypes []string
+	if album.ReleaseTypes != nil {
+		releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+	}
+	var recordLabels []*responses.RecordLabel
+	if album.RecordLabels != nil {
+		recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+			return &responses.RecordLabel{
+				Name: l,
+			}
+		})
+	}
+
+	res := responses.New()
+	res.Album = &responses.AlbumWithSongs{
+		Album: responses.Album{
+			ID:            album.ID,
+			Created:       album.Created.Time,
+			ArtistID:      artistID,
+			Artist:        artistName,
+			Artists:       artistRefs,
+			CoverID:       coverID,
+			Title:         album.Name,
+			Name:          album.Name,
+			SongCount:     int(album.TrackCount),
+			Duration:      int(album.DurationMs / 1000),
+			Genre:         genre,
+			Genres:        genreRefs,
+			Year:          int32PtrToIntPtr(album.Year),
+			Starred:       starred,
+			UserRating:    int32PtrToIntPtr(album.UserRating),
+			AverageRating: averageRating,
+			IsDir:         true,
+			Type:          "music",
+			MediaType:     "album",
+			MusicBrainzID: album.MusicBrainzID,
+			IsCompilation: album.IsCompilation,
+			RecordLabels:  recordLabels,
+			ReleaseTypes:  releaseTypes,
+		},
+		Songs: songList,
+	}
+	res.EncodeOrLog(w, query.Get("f"))
+}
 
 func (h *Handler) handleGetGenres(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)

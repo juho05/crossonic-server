@@ -96,6 +96,67 @@ func (q *Queries) DeleteAlbumsLastUpdatedBefore(ctx context.Context, updated pgt
 	return err
 }
 
+const findAlbum = `-- name: FindAlbum :one
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+LEFT JOIN (
+  SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
+) tracks ON tracks.album_id = albums.id
+LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = $1
+LEFT JOIN (
+  SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
+) avgr ON avgr.album_id = albums.id
+LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = $1
+WHERE albums.id = $2
+`
+
+type FindAlbumParams struct {
+	UserName string
+	ID       string
+}
+
+type FindAlbumRow struct {
+	ID             string
+	Name           string
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Year           *int32
+	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseTypes   *string
+	IsCompilation  *bool
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	TrackCount     int64
+	DurationMs     int64
+	Starred        pgtype.Timestamptz
+	UserRating     *int32
+	AvgRating      float64
+}
+
+func (q *Queries) FindAlbum(ctx context.Context, arg FindAlbumParams) (*FindAlbumRow, error) {
+	row := q.db.QueryRow(ctx, findAlbum, arg.UserName, arg.ID)
+	var i FindAlbumRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Created,
+		&i.Updated,
+		&i.Year,
+		&i.RecordLabels,
+		&i.MusicBrainzID,
+		&i.ReleaseTypes,
+		&i.IsCompilation,
+		&i.ReplayGain,
+		&i.ReplayGainPeak,
+		&i.TrackCount,
+		&i.DurationMs,
+		&i.Starred,
+		&i.UserRating,
+		&i.AvgRating,
+	)
+	return &i, err
+}
+
 const findAlbumsAlphabeticalByName = `-- name: FindAlbumsAlphabeticalByName :many
 SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (

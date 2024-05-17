@@ -30,6 +30,7 @@ type Querier interface {
 	DeleteSongGenres(ctx context.Context, songID string) error
 	DeleteSongsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
 	DeleteUser(ctx context.Context, name string) (string, error)
+	FindAlbum(ctx context.Context, arg FindAlbumParams) (*FindAlbumRow, error)
 	FindAlbumArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindAlbumArtistRefsBySongsRow, error)
 	FindAlbumsAlphabeticalByName(ctx context.Context, arg FindAlbumsAlphabeticalByNameParams) ([]*FindAlbumsAlphabeticalByNameRow, error)
 	FindAlbumsByGenre(ctx context.Context, arg FindAlbumsByGenreParams) ([]*FindAlbumsByGenreRow, error)
@@ -53,6 +54,7 @@ type Querier interface {
 	FindSongByMusicBrainzID(ctx context.Context, musicBrainzID *string) (*FindSongByMusicBrainzIDRow, error)
 	FindSongByPath(ctx context.Context, path string) (*FindSongByPathRow, error)
 	FindSongCount(ctx context.Context) (int64, error)
+	FindSongsByAlbum(ctx context.Context, arg FindSongsByAlbumParams) ([]*FindSongsByAlbumRow, error)
 	FindUser(ctx context.Context, name string) (*User, error)
 	FindUsers(ctx context.Context) ([]*User, error)
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)

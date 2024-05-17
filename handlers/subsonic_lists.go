@@ -130,7 +130,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 		if song.Genre == nil {
 			song.Genre = &g.Name
 		}
-		song.Genres = append(song.Genres, responses.GenreRef{
+		song.Genres = append(song.Genres, &responses.GenreRef{
 			Name: g.Name,
 		})
 	}
@@ -146,7 +146,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 			song.ArtistID = &a.ID
 			song.Artist = &a.Name
 		}
-		song.Artists = append(song.Artists, responses.ArtistRef{
+		song.Artists = append(song.Artists, &responses.ArtistRef{
 			ID:   a.ID,
 			Name: a.Name,
 		})
@@ -163,7 +163,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 			song.ArtistID = &a.ID
 			song.Artist = &a.Name
 		}
-		song.AlbumArtists = append(song.AlbumArtists, responses.ArtistRef{
+		song.AlbumArtists = append(song.AlbumArtists, &responses.ArtistRef{
 			ID:   a.ID,
 			Name: a.Name,
 		})
@@ -267,18 +267,33 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				avgRating := math.Round(album.AvgRating*100) / 100
 				averageRating = &avgRating
 			}
+			var releaseTypes []string
+			if album.ReleaseTypes != nil {
+				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+			}
+			var recordLabels []*responses.RecordLabel
+			if album.RecordLabels != nil {
+				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+					return &responses.RecordLabel{
+						Name: l,
+					}
+				})
+			}
 			albums[album.ID] = &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
 				Name:          album.Name,
-				TrackCount:    int(album.TrackCount),
+				SongCount:     int(album.TrackCount),
 				Duration:      int(album.DurationMs / 1000),
 				Year:          int32PtrToIntPtr(album.Year),
 				Starred:       starred,
 				UserRating:    int32PtrToIntPtr(album.UserRating),
 				AverageRating: averageRating,
 				MusicBrainzID: album.MusicBrainzID,
+				IsCompilation: album.IsCompilation,
+				ReleaseTypes:  releaseTypes,
+				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
 		}
@@ -306,18 +321,33 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				avgRating := math.Round(album.AvgRating*100) / 100
 				averageRating = &avgRating
 			}
+			var releaseTypes []string
+			if album.ReleaseTypes != nil {
+				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+			}
+			var recordLabels []*responses.RecordLabel
+			if album.RecordLabels != nil {
+				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+					return &responses.RecordLabel{
+						Name: l,
+					}
+				})
+			}
 			albums[album.ID] = &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
 				Name:          album.Name,
-				TrackCount:    int(album.TrackCount),
+				SongCount:     int(album.TrackCount),
 				Duration:      int(album.DurationMs / 1000),
 				Year:          int32PtrToIntPtr(album.Year),
 				Starred:       starred,
 				UserRating:    int32PtrToIntPtr(album.UserRating),
 				AverageRating: averageRating,
 				MusicBrainzID: album.MusicBrainzID,
+				IsCompilation: album.IsCompilation,
+				ReleaseTypes:  releaseTypes,
+				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
 		}
@@ -345,18 +375,33 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				avgRating := math.Round(album.AvgRating*100) / 100
 				averageRating = &avgRating
 			}
+			var releaseTypes []string
+			if album.ReleaseTypes != nil {
+				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+			}
+			var recordLabels []*responses.RecordLabel
+			if album.RecordLabels != nil {
+				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+					return &responses.RecordLabel{
+						Name: l,
+					}
+				})
+			}
 			albums[album.ID] = &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
 				Name:          album.Name,
-				TrackCount:    int(album.TrackCount),
+				SongCount:     int(album.TrackCount),
 				Duration:      int(album.DurationMs / 1000),
 				Year:          int32PtrToIntPtr(album.Year),
 				Starred:       starred,
 				UserRating:    int32PtrToIntPtr(album.UserRating),
 				AverageRating: averageRating,
 				MusicBrainzID: album.MusicBrainzID,
+				IsCompilation: album.IsCompilation,
+				ReleaseTypes:  releaseTypes,
+				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
 		}
@@ -384,18 +429,33 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				avgRating := math.Round(album.AvgRating*100) / 100
 				averageRating = &avgRating
 			}
+			var releaseTypes []string
+			if album.ReleaseTypes != nil {
+				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+			}
+			var recordLabels []*responses.RecordLabel
+			if album.RecordLabels != nil {
+				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+					return &responses.RecordLabel{
+						Name: l,
+					}
+				})
+			}
 			albums[album.ID] = &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
 				Name:          album.Name,
-				TrackCount:    int(album.TrackCount),
+				SongCount:     int(album.TrackCount),
 				Duration:      int(album.DurationMs / 1000),
 				Year:          int32PtrToIntPtr(album.Year),
 				Starred:       starred,
 				UserRating:    int32PtrToIntPtr(album.UserRating),
 				AverageRating: averageRating,
 				MusicBrainzID: album.MusicBrainzID,
+				IsCompilation: album.IsCompilation,
+				ReleaseTypes:  releaseTypes,
+				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
 		}
@@ -423,18 +483,33 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				avgRating := math.Round(album.AvgRating*100) / 100
 				averageRating = &avgRating
 			}
+			var releaseTypes []string
+			if album.ReleaseTypes != nil {
+				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+			}
+			var recordLabels []*responses.RecordLabel
+			if album.RecordLabels != nil {
+				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+					return &responses.RecordLabel{
+						Name: l,
+					}
+				})
+			}
 			albums[album.ID] = &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
 				Name:          album.Name,
-				TrackCount:    int(album.TrackCount),
+				SongCount:     int(album.TrackCount),
 				Duration:      int(album.DurationMs / 1000),
 				Year:          int32PtrToIntPtr(album.Year),
 				Starred:       starred,
 				UserRating:    int32PtrToIntPtr(album.UserRating),
 				AverageRating: averageRating,
 				MusicBrainzID: album.MusicBrainzID,
+				IsCompilation: album.IsCompilation,
+				ReleaseTypes:  releaseTypes,
+				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
 		}
@@ -462,18 +537,33 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				avgRating := math.Round(album.AvgRating*100) / 100
 				averageRating = &avgRating
 			}
+			var releaseTypes []string
+			if album.ReleaseTypes != nil {
+				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+			}
+			var recordLabels []*responses.RecordLabel
+			if album.RecordLabels != nil {
+				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+					return &responses.RecordLabel{
+						Name: l,
+					}
+				})
+			}
 			albums[album.ID] = &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
 				Name:          album.Name,
-				TrackCount:    int(album.TrackCount),
+				SongCount:     int(album.TrackCount),
 				Duration:      int(album.DurationMs / 1000),
 				Year:          int32PtrToIntPtr(album.Year),
 				Starred:       starred,
 				UserRating:    int32PtrToIntPtr(album.UserRating),
 				AverageRating: averageRating,
 				MusicBrainzID: album.MusicBrainzID,
+				IsCompilation: album.IsCompilation,
+				ReleaseTypes:  releaseTypes,
+				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
 		}
@@ -501,18 +591,33 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				avgRating := math.Round(album.AvgRating*100) / 100
 				averageRating = &avgRating
 			}
+			var releaseTypes []string
+			if album.ReleaseTypes != nil {
+				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+			}
+			var recordLabels []*responses.RecordLabel
+			if album.RecordLabels != nil {
+				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+					return &responses.RecordLabel{
+						Name: l,
+					}
+				})
+			}
 			albums[album.ID] = &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
 				Name:          album.Name,
-				TrackCount:    int(album.TrackCount),
+				SongCount:     int(album.TrackCount),
 				Duration:      int(album.DurationMs / 1000),
 				Year:          int32PtrToIntPtr(album.Year),
 				Starred:       starred,
 				UserRating:    int32PtrToIntPtr(album.UserRating),
 				AverageRating: averageRating,
 				MusicBrainzID: album.MusicBrainzID,
+				IsCompilation: album.IsCompilation,
+				ReleaseTypes:  releaseTypes,
+				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
 		}
