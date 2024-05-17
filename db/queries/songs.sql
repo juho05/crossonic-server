@@ -50,3 +50,5 @@ LEFT JOIN (
 LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_name = $1
 WHERE albums.id = $2
 ORDER BY songs.disc_number, songs.track;
+-- name: GetSongPath :one
+SELECT songs.path FROM songs WHERE songs.id = $1;

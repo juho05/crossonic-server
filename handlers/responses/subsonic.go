@@ -78,8 +78,8 @@ type Album struct {
 	Type          string         `xml:"type,attr" json:"type"`
 	MediaType     string         `xml:"mediaType,attr" json:"mediaType"`
 	MusicBrainzID *string        `xml:"musicBrainzId,attr" json:"musicBrainzId"`
-	RecordLabels  []*RecordLabel `xml:"recordLabels,attr,omitempty" json:"recordLabels,omitempty"`
-	ReleaseTypes  []string       `xml:"releaseTypes,attr,omitempty" json:"releaseTypes,omitempty"`
+	RecordLabels  []*RecordLabel `xml:"recordLabels,omitempty" json:"recordLabels,omitempty"`
+	ReleaseTypes  []string       `xml:"releaseTypes,omitempty" json:"releaseTypes,omitempty"`
 	IsCompilation *bool          `xml:"isCompilation,attr,omitempty" json:"isCompilation,omitempty"`
 }
 

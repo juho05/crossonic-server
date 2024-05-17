@@ -59,6 +59,7 @@ type Querier interface {
 	FindSongsByAlbum(ctx context.Context, arg FindSongsByAlbumParams) ([]*FindSongsByAlbumRow, error)
 	FindUser(ctx context.Context, name string) (*User, error)
 	FindUsers(ctx context.Context) ([]*User, error)
+	GetSongPath(ctx context.Context, id string) (string, error)
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)
 	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error
 	RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error

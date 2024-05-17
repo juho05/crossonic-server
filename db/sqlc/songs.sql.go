@@ -519,6 +519,17 @@ func (q *Queries) FindSongsByAlbum(ctx context.Context, arg FindSongsByAlbumPara
 	return items, nil
 }
 
+const getSongPath = `-- name: GetSongPath :one
+SELECT songs.path FROM songs WHERE songs.id = $1
+`
+
+func (q *Queries) GetSongPath(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, getSongPath, id)
+	var path string
+	err := row.Scan(&path)
+	return path, err
+}
+
 const updateSong = `-- name: UpdateSong :exec
 UPDATE songs SET path=$2,album_id=$3,title=$4,track=$5,year=$6,size=$7,content_type=$8,duration_ms=$9,bit_rate=$10,sampling_rate=$11,channel_count=$12,disc_number=$13,updated=NOW(),bpm=$14,music_brainz_id=$15,replay_gain=$16,replay_gain_peak=$17,lyrics=$18,cover_id=$19
 WHERE id = $1

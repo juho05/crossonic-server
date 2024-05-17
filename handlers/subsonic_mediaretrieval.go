@@ -10,11 +10,92 @@ import (
 	"strings"
 
 	"github.com/disintegration/imaging"
+	"github.com/jackc/pgx/v5"
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/log"
 )
+
+func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
+	query := getQuery(r)
+	id := query.Get("id")
+	if id == "" {
+		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+		return
+	}
+
+	format := query.Get("format")
+	if format == "" {
+		format = "raw"
+	}
+	if format != "raw" {
+		responses.EncodeError(w, query.Get("f"), "transcoding is currently not supported", responses.SubsonicErrorGeneric)
+		return
+	}
+
+	maxBitRateStr := query.Get("maxBitRate")
+	var maxBitRate int
+	var err error
+	if maxBitRateStr != "" {
+		maxBitRate, err = strconv.Atoi(maxBitRateStr)
+		if err != nil || maxBitRate < 0 {
+			responses.EncodeError(w, query.Get("f"), "invalid maxBitRate parameter", responses.SubsonicErrorGeneric)
+			return
+		}
+	}
+	if maxBitRate != 0 {
+		responses.EncodeError(w, query.Get("f"), "transcoding is currently not supported", responses.SubsonicErrorGeneric)
+		return
+	}
+
+	timeOffsetStr := query.Get("timeOffset")
+	var timeOffset int
+	if timeOffsetStr != "" {
+		timeOffset, err = strconv.Atoi(timeOffsetStr)
+		if err != nil || timeOffset < 0 {
+			responses.EncodeError(w, query.Get("f"), "invalid timeOffset parameter", responses.SubsonicErrorGeneric)
+			return
+		}
+	}
+	if timeOffset != 0 {
+		responses.EncodeError(w, query.Get("f"), "time offset is currently not supported", responses.SubsonicErrorGeneric)
+		return
+	}
+
+	path, err := h.Store.GetSongPath(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		} else {
+			log.Errorf("stream: get path: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		}
+		return
+	}
+
+	http.ServeFile(w, r, path)
+}
+
+func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
+	query := getQuery(r)
+	id := query.Get("id")
+	if id == "" {
+		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+		return
+	}
+	path, err := h.Store.GetSongPath(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		} else {
+			log.Errorf("stream: get path: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		}
+		return
+	}
+	http.ServeFile(w, r, path)
+}
 
 func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
@@ -77,6 +158,8 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	err = imaging.Encode(w, img, imaging.JPEG)
 	if err != nil {
-		log.Errorf("get cover art: encode %s: %s", id, err)
+		if !strings.Contains(err.Error(), "broken pipe") {
+			log.Errorf("get cover art: encode %s: %s", id, err)
+		}
 	}
 }

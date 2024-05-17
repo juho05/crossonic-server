@@ -64,8 +64,11 @@
 
 ### Media Retrieval
 
-- [ ] [stream](https://opensubsonic.netlify.app/docs/endpoints/stream)
-- [ ] [download](https://opensubsonic.netlify.app/docs/endpoints/download)
+- [x] [stream](https://opensubsonic.netlify.app/docs/endpoints/stream)
+  - [x] raw
+  - [ ] transcoding
+  - [ ] timeOffset
+- [x] [download](https://opensubsonic.netlify.app/docs/endpoints/download)
 - [ ] [hls](https://opensubsonic.netlify.app/docs/endpoints/hls)
 - [ ] [getCaptions](https://opensubsonic.netlify.app/docs/endpoints/getcaptions)
 - [x] [getCoverArt](https://opensubsonic.netlify.app/docs/endpoints/getcoverart)
