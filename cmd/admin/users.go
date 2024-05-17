@@ -59,16 +59,10 @@ func usersDelete(args []string, store db.Store) error {
 	}
 	_, err := store.DeleteUser(context.Background(), args[3])
 	if err != nil {
-		var pgErr *pgconn.PgError
 		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("user '%s' does not exist", args[3])
-		} else if errors.As(err, &pgErr) {
-			fmt.Println(pgErr.Message)
-			fmt.Println(pgErr.Code)
-			fmt.Println(pgErr.ConstraintName)
-		} else {
-			return err
 		}
+		return err
 	}
 	return nil
 }

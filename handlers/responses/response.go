@@ -40,6 +40,7 @@ type Response struct {
 	AlbumList2             *AlbumList2             `xml:"albumList2,omitempty" json:"albumList2,omitempty"`
 	RandomSongs            *RandomSongs            `xml:"randomSongs,omitempty" json:"randomSongs,omitempty"`
 	Album                  *AlbumWithSongs         `xml:"album,omitempty" json:"album,omitempty"`
+	Artist                 *Artist                 `xml:"artist,omitempty" json:"artist,omitempty"`
 }
 
 func New() Response {

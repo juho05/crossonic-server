@@ -23,6 +23,7 @@ func LoadAll() {
 	LogLevel()
 	LogFile()
 	ReplayGainFallback()
+	DisableStartupScan()
 }
 
 var values = make(map[string]any)
@@ -145,6 +146,10 @@ func LogFile() (file *os.File) {
 
 func ReplayGainFallback() float32 {
 	return optionalFloat32("REPLAY_GAIN_FALLBACK", -8)
+}
+
+func DisableStartupScan() bool {
+	return boolean("DISABLE_STARTUP_SCAN", false)
 }
 
 func optionalString(key, def string) (str string) {

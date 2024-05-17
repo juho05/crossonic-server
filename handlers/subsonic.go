@@ -25,6 +25,7 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/getAlbumList2", h.handleGetAlbumList2)
 	registerRoute(r, "/getRandomSongs", h.handleGetRandomSongs)
 	registerRoute(r, "/getAlbum", h.handleGetAlbum)
+	registerRoute(r, "/getArtist", h.handleGetArtist)
 }
 
 func int32PtrToIntPtr(ptr *int32) *int {

@@ -80,6 +80,48 @@ func (q *Queries) FindAlbumArtistRefsBySongs(ctx context.Context, songIds []stri
 	return items, nil
 }
 
+const findArtist = `-- name: FindArtist :one
+SELECT artists.id, artists.name, artists.created, artists.updated, artists.music_brainz_id, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
+LEFT JOIN artist_stars ON artist_stars.artist_id = artists.id AND artist_stars.user_name = $1
+LEFT JOIN (
+  SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id
+) avgr ON avgr.artist_id = artists.id
+LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
+WHERE artists.id = $2
+`
+
+type FindArtistParams struct {
+	UserName string
+	ID       string
+}
+
+type FindArtistRow struct {
+	ID            string
+	Name          string
+	Created       pgtype.Timestamptz
+	Updated       pgtype.Timestamptz
+	MusicBrainzID *string
+	Starred       pgtype.Timestamptz
+	UserRating    *int32
+	AvgRating     float64
+}
+
+func (q *Queries) FindArtist(ctx context.Context, arg FindArtistParams) (*FindArtistRow, error) {
+	row := q.db.QueryRow(ctx, findArtist, arg.UserName, arg.ID)
+	var i FindArtistRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Created,
+		&i.Updated,
+		&i.MusicBrainzID,
+		&i.Starred,
+		&i.UserRating,
+		&i.AvgRating,
+	)
+	return &i, err
+}
+
 const findArtistRefsByAlbums = `-- name: FindArtistRefsByAlbums :many
 SELECT album_artist.album_id, artists.id, artists.name FROM album_artist
 JOIN artists ON album_artist.artist_id = artists.id

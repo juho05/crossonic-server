@@ -670,7 +670,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 		Albums: mapData(albumIds, func(albumID string) *responses.Album {
 			album := albums[albumID]
 			if hasCoverArt(album.ID) {
-				album.CoverID = &album.ID
+				album.CoverArt = &album.ID
 			}
 			album.IsDir = true
 			album.Type = "music"

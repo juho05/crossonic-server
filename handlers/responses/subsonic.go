@@ -50,6 +50,7 @@ type Artist struct {
 	MusicBrainzID *string    `xml:"musicBrainzID,omitempty" json:"musicBrainzID,omitempty"`
 	UserRating    *int       `xml:"userRating,attr,omitempty"    json:"userRating,omitempty"`
 	AverageRating *float64   `xml:"averageRating,attr,omitempty" json:"averageRating,omitempty"`
+	Albums        []*Album   `xml:"album,omitempty" json:"album,omitempty"`
 }
 
 type AlbumList2 struct {
@@ -62,7 +63,7 @@ type Album struct {
 	ArtistID      *string        `xml:"artistId,attr,omitempty" json:"artistId,omitempty"`
 	Artist        *string        `xml:"artist,attr"             json:"artist"`
 	Artists       []*ArtistRef   `xml:"artists"           json:"artists"`
-	CoverID       *string        `xml:"coverArt,attr,omitempty" json:"coverArt,omitempty"`
+	CoverArt      *string        `xml:"coverArt,attr,omitempty" json:"coverArt,omitempty"`
 	Title         string         `xml:"title,attr"  json:"title"`
 	Name          string         `xml:"name,attr"              json:"name"`
 	SongCount     int            `xml:"songCount,attr"         json:"songCount"`

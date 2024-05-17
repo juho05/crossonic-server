@@ -16,6 +16,159 @@ import (
 	"github.com/juho05/log"
 )
 
+func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
+	query := getQuery(r)
+	user := query.Get("u")
+	id := query.Get("id")
+	if id == "" {
+		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+		return
+	}
+	artist, err := h.Store.FindArtist(r.Context(), db.FindArtistParams{
+		UserName: user,
+		ID:       id,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		} else {
+			log.Errorf("get artist: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		}
+		return
+	}
+	dbAlbums, err := h.Store.FindAlbumsByArtist(r.Context(), db.FindAlbumsByArtistParams{
+		UserName: user,
+		ArtistID: artist.ID,
+	})
+	if err != nil {
+		log.Errorf("get artist: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+
+	var coverArt *string
+	if hasCoverArt(artist.ID) {
+		coverArt = &artist.ID
+	}
+
+	var starred *time.Time
+	if artist.Starred.Valid {
+		starred = &artist.Starred.Time
+	}
+
+	var averageRating *float64
+	if artist.AvgRating != 0 {
+		averageRating = &artist.AvgRating
+	}
+
+	albumIds := make([]string, 0, len(dbAlbums))
+	albumsMap := make(map[string]*responses.Album, len(dbAlbums))
+	albums := mapData(dbAlbums, func(a *db.FindAlbumsByArtistRow) *responses.Album {
+		var coverArt *string
+		if hasCoverArt(a.ID) {
+			coverArt = &a.ID
+		}
+
+		var starred *time.Time
+		if a.Starred.Valid {
+			starred = &a.Starred.Time
+		}
+
+		var averageRating *float64
+		if a.AvgRating > 0 {
+			averageRating = &a.AvgRating
+		}
+
+		var releaseTypes []string
+		if a.ReleaseTypes != nil {
+			releaseTypes = strings.Split(*a.ReleaseTypes, "\003")
+		}
+		var recordLabels []*responses.RecordLabel
+		if a.RecordLabels != nil {
+			recordLabels = mapData(strings.Split(*a.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+				return &responses.RecordLabel{
+					Name: l,
+				}
+			})
+		}
+
+		album := &responses.Album{
+			ID:            a.ID,
+			Created:       a.Created.Time,
+			CoverArt:      coverArt,
+			Title:         a.Name,
+			Name:          a.Name,
+			SongCount:     int(a.TrackCount),
+			Duration:      int(a.DurationMs / 1000),
+			Year:          int32PtrToIntPtr(a.Year),
+			Starred:       starred,
+			UserRating:    int32PtrToIntPtr(a.UserRating),
+			AverageRating: averageRating,
+			IsDir:         true,
+			Type:          "music",
+			MediaType:     "album",
+			MusicBrainzID: a.MusicBrainzID,
+			RecordLabels:  recordLabels,
+			ReleaseTypes:  releaseTypes,
+			IsCompilation: a.IsCompilation,
+		}
+		albumIds = append(albumIds, album.ID)
+		albumsMap[album.ID] = album
+		return album
+	})
+
+	artistRefs, err := h.Store.FindArtistRefsByAlbums(r.Context(), albumIds)
+	if err != nil {
+		log.Errorf("get artist: get albums: get artist refs: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	for _, a := range artistRefs {
+		album := albumsMap[a.AlbumID]
+		if album.Artist == nil && album.ArtistID == nil {
+			album.Artist = &a.Name
+			album.ArtistID = &a.ID
+		}
+		album.Artists = append(album.Artists, &responses.ArtistRef{
+			ID:   a.ID,
+			Name: a.Name,
+		})
+	}
+
+	genreRefs, err := h.Store.FindGenresByAlbums(r.Context(), albumIds)
+	if err != nil {
+		log.Errorf("get artist: get albums: get genres: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	for _, g := range genreRefs {
+		album := albumsMap[g.AlbumID]
+		if album.Genre == nil {
+			album.Genre = &g.Name
+		}
+		album.Genres = append(album.Genres, &responses.GenreRef{
+			Name: g.Name,
+		})
+	}
+
+	albumCount := len(albums)
+
+	res := responses.New()
+	res.Artist = &responses.Artist{
+		ID:            artist.ID,
+		Name:          artist.Name,
+		CoverArt:      coverArt,
+		Starred:       starred,
+		MusicBrainzID: artist.MusicBrainzID,
+		UserRating:    int32PtrToIntPtr(artist.UserRating),
+		AverageRating: averageRating,
+		Albums:        albums,
+		AlbumCount:    &albumCount,
+	}
+	res.EncodeOrLog(w, query.Get("f"))
+}
+
 func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
@@ -202,7 +355,7 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 			ArtistID:      artistID,
 			Artist:        artistName,
 			Artists:       artistRefs,
-			CoverID:       coverID,
+			CoverArt:      coverID,
 			Title:         album.Name,
 			Name:          album.Name,
 			SongCount:     int(album.TrackCount),
