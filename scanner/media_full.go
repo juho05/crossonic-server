@@ -695,6 +695,14 @@ func (s *Scanner) scanFile(path, img string, c chan<- mediaFile) (newImg string)
 		coverPath = &newImg
 	}
 
+	isCompilation := readSingleBoolTag(tags, "compilation")
+
+	artists := readStringTags(tags, "artists", "artist")
+	albumArtists := readStringTags(tags, "albumartists", "album_artists", "albumartist", "album_artist")
+	if !isCompilation && len(albumArtists) == 0 && len(artists) > 0 {
+		albumArtists = []string{artists[0]}
+	}
+
 	c <- mediaFile{
 		id:                        id,
 		path:                      path,
@@ -708,10 +716,10 @@ func (s *Scanner) scanFile(path, img string, c chan<- mediaFile) (newImg string)
 		sampleRate:                props.Samplerate,
 		title:                     title,
 		album:                     readSingleTagOptional(tags, "album"),
-		artists:                   readStringTags(tags, "artists", "artist"),
-		albumArtists:              readStringTags(tags, "albumartists", "album_artists", "albumartist", "album_artist"),
+		artists:                   artists,
+		albumArtists:              albumArtists,
 		bpm:                       readSingleIntTagOptional(tags, "bpm"),
-		compilation:               readSingleBoolTag(tags, "compilation"),
+		compilation:               isCompilation,
 		year:                      readSingleIntTagFirstOptional(tags, "-", "originalyear", "year", "originaldate", "date"),
 		track:                     readSingleIntTagFirstOptional(tags, "/", "tracknumber"),
 		disc:                      readSingleIntTagFirstOptional(tags, "/", "discnumber"),
