@@ -563,6 +563,109 @@ func (q *Queries) GetSongPath(ctx context.Context, id string) (string, error) {
 	return path, err
 }
 
+const searchSongs = `-- name: SearchSongs :many
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, albums.replay_gain as album_replay_gain, albums.replay_gain_peak as album_replay_gain_peak, song_stars.created as starred, song_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM songs
+LEFT JOIN albums ON albums.id = songs.album_id
+LEFT JOIN song_stars ON song_stars.song_id = songs.id AND song_stars.user_name = $1
+LEFT JOIN (
+  SELECT song_id, AVG(song_ratings.rating) AS rating FROM song_ratings GROUP BY song_id
+) avgr ON avgr.song_id = songs.id
+LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_name = $1
+WHERE position(lower($4) in lower(songs.title)) > 0
+ORDER BY position(lower($4) in lower(songs.title)), lower(songs.title)
+OFFSET $2 LIMIT $3
+`
+
+type SearchSongsParams struct {
+	UserName  string
+	Offset    int32
+	Limit     int32
+	SearchStr string
+}
+
+type SearchSongsRow struct {
+	ID                  string
+	Path                string
+	AlbumID             *string
+	Title               string
+	Track               *int32
+	Year                *int32
+	Size                int64
+	ContentType         string
+	DurationMs          int32
+	BitRate             int32
+	SamplingRate        int32
+	ChannelCount        int32
+	DiscNumber          *int32
+	Created             pgtype.Timestamptz
+	Updated             pgtype.Timestamptz
+	Bpm                 *int32
+	MusicBrainzID       *string
+	ReplayGain          *float32
+	ReplayGainPeak      *float32
+	Lyrics              *string
+	CoverID             *string
+	AlbumName           *string
+	AlbumReplayGain     *float32
+	AlbumReplayGainPeak *float32
+	Starred             pgtype.Timestamptz
+	UserRating          *int32
+	AvgRating           float64
+}
+
+func (q *Queries) SearchSongs(ctx context.Context, arg SearchSongsParams) ([]*SearchSongsRow, error) {
+	rows, err := q.db.Query(ctx, searchSongs,
+		arg.UserName,
+		arg.Offset,
+		arg.Limit,
+		arg.SearchStr,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*SearchSongsRow
+	for rows.Next() {
+		var i SearchSongsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Path,
+			&i.AlbumID,
+			&i.Title,
+			&i.Track,
+			&i.Year,
+			&i.Size,
+			&i.ContentType,
+			&i.DurationMs,
+			&i.BitRate,
+			&i.SamplingRate,
+			&i.ChannelCount,
+			&i.DiscNumber,
+			&i.Created,
+			&i.Updated,
+			&i.Bpm,
+			&i.MusicBrainzID,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.Lyrics,
+			&i.CoverID,
+			&i.AlbumName,
+			&i.AlbumReplayGain,
+			&i.AlbumReplayGainPeak,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateSong = `-- name: UpdateSong :exec
 UPDATE songs SET path=$2,album_id=$3,title=$4,track=$5,year=$6,size=$7,content_type=$8,duration_ms=$9,bit_rate=$10,sampling_rate=$11,channel_count=$12,disc_number=$13,updated=NOW(),bpm=$14,music_brainz_id=$15,replay_gain=$16,replay_gain_peak=$17,lyrics=$18,cover_id=$19
 WHERE id = $1

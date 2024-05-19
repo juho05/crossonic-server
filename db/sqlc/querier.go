@@ -69,6 +69,9 @@ type Querier interface {
 	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error
 	RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error
 	RemoveSongRating(ctx context.Context, arg RemoveSongRatingParams) error
+	SearchAlbums(ctx context.Context, arg SearchAlbumsParams) ([]*SearchAlbumsRow, error)
+	SearchArtists(ctx context.Context, arg SearchArtistsParams) ([]*SearchArtistsRow, error)
+	SearchSongs(ctx context.Context, arg SearchSongsParams) ([]*SearchSongsRow, error)
 	SetAlbumRating(ctx context.Context, arg SetAlbumRatingParams) error
 	SetArtistRating(ctx context.Context, arg SetArtistRatingParams) error
 	SetSongRating(ctx context.Context, arg SetSongRatingParams) error

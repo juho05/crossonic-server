@@ -252,11 +252,16 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 		}
 		a, err := h.Store.FindAlbumsRandom(r.Context(), db.FindAlbumsRandomParams{
 			UserName:    user,
-			Offset:      int32(offset),
+			Limit:       int32(limit),
 			FromYear:    fromYear,
 			ToYear:      toYear,
 			GenresLower: genres,
 		})
+		if err != nil {
+			log.Errorf("get album list 2: random: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
 		for _, album := range a {
 			var starred *time.Time
 			if album.Starred.Valid {
@@ -296,11 +301,6 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
-		}
-		if err != nil {
-			log.Errorf("get album list 2: random: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
 		}
 	case "newest":
 		a, err := h.Store.FindAlbumsNewest(r.Context(), db.FindAlbumsNewestParams{
@@ -311,6 +311,11 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			ToYear:      toYear,
 			GenresLower: genres,
 		})
+		if err != nil {
+			log.Errorf("get album list 2: newest: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
 		for _, album := range a {
 			var starred *time.Time
 			if album.Starred.Valid {
@@ -350,11 +355,6 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
-		}
-		if err != nil {
-			log.Errorf("get album list 2: newest: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
 		}
 	case "highest":
 		a, err := h.Store.FindAlbumsHighestRated(r.Context(), db.FindAlbumsHighestRatedParams{
@@ -365,6 +365,11 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			ToYear:      toYear,
 			GenresLower: genres,
 		})
+		if err != nil {
+			log.Errorf("get album list 2: highest: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
 		for _, album := range a {
 			var starred *time.Time
 			if album.Starred.Valid {
@@ -404,11 +409,6 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
-		}
-		if err != nil {
-			log.Errorf("get album list 2: highest: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
 		}
 	case "alphabeticalByName":
 		a, err := h.Store.FindAlbumsAlphabeticalByName(r.Context(), db.FindAlbumsAlphabeticalByNameParams{
@@ -419,6 +419,11 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			ToYear:      toYear,
 			GenresLower: genres,
 		})
+		if err != nil {
+			log.Errorf("get album list 2: alphabetical by name: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
 		for _, album := range a {
 			var starred *time.Time
 			if album.Starred.Valid {
@@ -458,11 +463,6 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
-		}
-		if err != nil {
-			log.Errorf("get album list 2: alphabetical by name: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
 		}
 	case "starred":
 		a, err := h.Store.FindAlbumsStarred(r.Context(), db.FindAlbumsStarredParams{
@@ -473,6 +473,11 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			ToYear:      toYear,
 			GenresLower: genres,
 		})
+		if err != nil {
+			log.Errorf("get album list 2: starred: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
 		for _, album := range a {
 			var starred *time.Time
 			if album.Starred.Valid {
@@ -512,11 +517,6 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
-		}
-		if err != nil {
-			log.Errorf("get album list 2: starred: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
 		}
 	case "byYear":
 		a, err := h.Store.FindAlbumsByYear(r.Context(), db.FindAlbumsByYearParams{
@@ -527,6 +527,11 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			ToYear:      toYear,
 			GenresLower: genres,
 		})
+		if err != nil {
+			log.Errorf("get album list 2: by year: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
 		for _, album := range a {
 			var starred *time.Time
 			if album.Starred.Valid {
@@ -566,11 +571,6 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
-		}
-		if err != nil {
-			log.Errorf("get album list 2: by year: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
 		}
 	case "byGenre":
 		a, err := h.Store.FindAlbumsByGenre(r.Context(), db.FindAlbumsByGenreParams{
@@ -581,6 +581,11 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			ToYear:      toYear,
 			GenresLower: genres,
 		})
+		if err != nil {
+			log.Errorf("get album list 2: by genre: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
 		for _, album := range a {
 			var starred *time.Time
 			if album.Starred.Valid {
@@ -620,11 +625,6 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				RecordLabels:  recordLabels,
 			}
 			albumIds = append(albumIds, album.ID)
-		}
-		if err != nil {
-			log.Errorf("get album list 2: by genre: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
 		}
 	default:
 		responses.EncodeError(w, query.Get("f"), "unsupported list type: "+listType, responses.SubsonicErrorGeneric)

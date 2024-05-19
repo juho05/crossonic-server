@@ -52,7 +52,7 @@
 
 - [ ] [search](https://opensubsonic.netlify.app/docs/endpoints/search)
 - [ ] [search2](https://opensubsonic.netlify.app/docs/endpoints/search2)
-- [ ] [search3](https://opensubsonic.netlify.app/docs/endpoints/search3)
+- [x] [search3](https://opensubsonic.netlify.app/docs/endpoints/search3)
 
 ### Playlists
 

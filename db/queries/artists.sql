@@ -42,3 +42,16 @@ LEFT JOIN (
 ) avgr ON avgr.artist_id = artists.id
 LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
 WHERE artists.id = $2;
+-- name: SearchArtists :many
+SELECT artists.*, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
+LEFT JOIN (
+  SELECT artist_id, COUNT(*) AS count FROM album_artist GROUP BY artist_id
+) aa ON aa.artist_id = artists.id
+LEFT JOIN artist_stars ON artist_stars.artist_id = artists.id AND artist_stars.user_name = $1
+LEFT JOIN (
+  SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id
+) avgr ON avgr.artist_id = artists.id
+LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
+WHERE position(lower(sqlc.arg(search_str)) in lower(artists.name)) > 0
+ORDER BY position(lower(sqlc.arg(search_str)) in lower(artists.name)), lower(artists.name)
+OFFSET $2 LIMIT $3;

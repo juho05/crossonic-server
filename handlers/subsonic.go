@@ -30,6 +30,7 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/download", h.handleDownload)
 	registerRoute(r, "/scrobble", h.handleScrobble)
 	registerRoute(r, "/getNowPlaying", h.handleGetNowPlaying)
+	registerRoute(r, "/search3", h.handleSearch3)
 }
 
 func int32PtrToIntPtr(ptr *int32) *int {
