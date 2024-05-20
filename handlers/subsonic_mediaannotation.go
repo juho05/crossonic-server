@@ -23,29 +23,55 @@ import (
 func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
-	id := query.Get("id")
-	if id == "" {
+	ids := query["id"]
+	idTypes := make([]crossonic.IDType, len(ids))
+	for i, id := range ids {
+		idType, ok := crossonic.GetIDType(id)
+		if !ok {
+			responses.EncodeError(w, query.Get("f"), "unknown id type", responses.SubsonicErrorNotFound)
+			return
+		}
+		if idType != crossonic.IDTypeSong {
+			responses.EncodeError(w, query.Get("f"), "scrobbles are not supported for id type "+string(idType), responses.SubsonicErrorNotFound)
+			return
+		}
+		idTypes[i] = idType
+	}
+	if len(ids) == 0 {
 		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
-	idType, ok := crossonic.GetIDType(id)
-	if !ok {
-		responses.EncodeError(w, query.Get("f"), "unknown id type", responses.SubsonicErrorNotFound)
-		return
-	}
-	if idType != crossonic.IDTypeSong {
-		responses.EncodeError(w, query.Get("f"), "scrobbles are not supported for id type "+string(idType), responses.SubsonicErrorNotFound)
-		return
-	}
-	timeStr := query.Get("time")
-	scrobbleTime := time.Now()
-	if timeStr != "" {
-		timeInt, err := strconv.Atoi(timeStr)
-		if err != nil {
-			responses.EncodeError(w, query.Get("f"), "invalid time value", responses.SubsonicErrorGeneric)
-			return
+	timeStrs := query["time"]
+	times := make([]time.Time, 0, len(ids))
+	for i := range ids {
+		if i < len(timeStrs) {
+			timeInt, err := strconv.Atoi(timeStrs[i])
+			if err != nil {
+				responses.EncodeError(w, query.Get("f"), "invalid time value", responses.SubsonicErrorGeneric)
+				return
+			}
+			times = append(times, time.UnixMilli(int64(timeInt)))
+		} else {
+			times = append(times, time.Now())
 		}
-		scrobbleTime = time.UnixMilli(int64(timeInt))
+	}
+	durationMsStrs := query["duration_ms"]
+	durationsMs := make([]*int, 0, len(durationMsStrs))
+	for i := range ids {
+		if i < len(durationMsStrs) {
+			d, err := strconv.Atoi(durationMsStrs[i])
+			if err != nil {
+				responses.EncodeError(w, query.Get("f"), "invalid duration_ms value", responses.SubsonicErrorGeneric)
+				return
+			}
+			if d > 0 {
+				durationsMs = append(durationsMs, &d)
+			} else {
+				durationsMs = append(durationsMs, nil)
+			}
+		} else {
+			durationsMs = append(durationsMs, nil)
+		}
 	}
 
 	submissionStr := query.Get("submission")
@@ -59,28 +85,6 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		submission = s
 	}
 
-	durationMsStr := query.Get("duration_ms")
-	var durationMs *int
-	if durationMsStr != "" {
-		d, err := strconv.Atoi(durationMsStr)
-		if err != nil {
-			responses.EncodeError(w, query.Get("f"), "invalid duration_ms value", responses.SubsonicErrorGeneric)
-			return
-		}
-		durationMs = &d
-	}
-
-	song, err := h.Store.FindSong(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		} else {
-			log.Errorf("scrobble: get song: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		}
-		return
-	}
-
 	tx, err := h.Store.BeginTransaction(r.Context())
 	if err != nil {
 		log.Errorf("scrobble: %s", err)
@@ -88,32 +92,44 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if !submission {
-		err = tx.DeleteNowPlaying(r.Context(), user)
+	for i, id := range ids {
+		if !submission {
+			err = tx.DeleteNowPlaying(r.Context(), user)
+			if err != nil {
+				log.Errorf("scrobble: delete old now playing: %s", err)
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				return
+			}
+		}
+		song, err := h.Store.FindSong(r.Context(), id)
 		if err != nil {
-			log.Errorf("scrobble: delete old now playing: %s", err)
+			if errors.Is(err, pgx.ErrNoRows) {
+				responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			} else {
+				log.Errorf("scrobble: get song: %s", err)
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			}
+			return
+		}
+
+		_, err = tx.CreateScrobble(r.Context(), db.CreateScrobbleParams{
+			UserName: user,
+			SongID:   song.ID,
+			AlbumID:  song.AlbumID,
+			Time: pgtype.Timestamptz{
+				Time:  times[i],
+				Valid: true,
+			},
+			SongDurationMs:          song.DurationMs,
+			DurationMs:              intPtrToInt32Ptr(durationsMs[i]),
+			SubmittedToListenbrainz: false,
+			NowPlaying:              !submission,
+		})
+		if err != nil {
+			log.Errorf("scrobble: create scrobble: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-	}
-
-	_, err = tx.CreateScrobble(r.Context(), db.CreateScrobbleParams{
-		UserName: user,
-		SongID:   song.ID,
-		AlbumID:  song.AlbumID,
-		Time: pgtype.Timestamptz{
-			Time:  scrobbleTime,
-			Valid: true,
-		},
-		SongDurationMs:          song.DurationMs,
-		DurationMs:              intPtrToInt32Ptr(durationMs),
-		SubmittedToListenbrainz: false,
-		NowPlaying:              !submission,
-	})
-	if err != nil {
-		log.Errorf("scrobble: create scrobble: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
 	}
 
 	err = tx.Commit(r.Context())
