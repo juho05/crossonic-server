@@ -1,3 +1,4 @@
+# docker buildx build --platform linux/arm64,linux/amd64 --tag ghcr.io/juho05/crossonic-server:latest --push .
 FROM alpine:3.19 AS builder-taglib
 WORKDIR /tmp
 COPY alpine/taglib/APKBUILD .

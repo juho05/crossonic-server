@@ -81,7 +81,7 @@ type body struct {
 	Payload    []payload `json:"payload"`
 }
 
-func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, listen Listen, mediaPlayer string) error {
+func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, listen *Listen, mediaPlayer string) error {
 	_, err := listenBrainzRequest[any](ctx, "/1/submit-listens", http.MethodPost, con.Token, body{
 		ListenType: "playing_now",
 		Payload: []payload{
@@ -111,7 +111,7 @@ func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, lis
 	return nil
 }
 
-func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen Listen, mediaPlayer string) error {
+func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen *Listen, mediaPlayer string) error {
 	_, err := listenBrainzRequest[any](ctx, "/1/submit-listens", http.MethodPost, con.Token, body{
 		ListenType: "single",
 		Payload: []payload{
@@ -142,7 +142,7 @@ func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen 
 	return nil
 }
 
-func (l *ListenBrainz) SubmitImport(ctx context.Context, con Connection, listens []Listen, mediaPlayer string) error {
+func (l *ListenBrainz) SubmitImport(ctx context.Context, con Connection, listens []*Listen, mediaPlayer string) error {
 	payloads := make([]payload, 0, len(listens))
 	for _, listen := range listens {
 		payloads = append(payloads, payload{
@@ -217,6 +217,104 @@ func (l *ListenBrainz) GetListenbrainzConnection(ctx context.Context, user strin
 	}, nil
 }
 
+func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
+	scrobbles, err := l.Store.FindUnsubmittedLBScrobbles(ctx)
+	if err != nil {
+		return fmt.Errorf("submit missing listenbrainz scrobbles: find unsubmitted scrobbles: %w", err)
+	}
+	if len(scrobbles) == 0 {
+		log.Trace("no unsubmitted scrobbles")
+		return nil
+	}
+	ids := make([]string, len(scrobbles))
+	for i, s := range scrobbles {
+		ids[i] = s.SongID
+	}
+	songs, err := l.Store.FindSongs(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("submit missing listenbrainz scrobbles: find songs: %w", err)
+	}
+	type song struct {
+		ID          string
+		Name        string
+		MBID        *string
+		AlbumName   *string
+		AlbumMBID   *string
+		ReleaseMBID *string
+		ArtistName  *string
+		ArtistMBIDs []string
+		TrackNumber *int
+		DurationMS  int
+	}
+	songMap := make(map[string]*song, len(songs))
+	for _, s := range songs {
+		songMap[s.ID] = &song{
+			ID:          s.ID,
+			Name:        s.Title,
+			MBID:        s.MusicBrainzID,
+			AlbumName:   s.AlbumName,
+			AlbumMBID:   s.AlbumMusicBrainzID,
+			ReleaseMBID: s.AlbumReleaseMbid,
+			TrackNumber: int32PtrToIntPtr(s.Track),
+			DurationMS:  int(s.DurationMs),
+		}
+	}
+	artists, err := l.Store.FindArtistRefsBySongs(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("submit missing listenbrainz scrobbles: find artist refs: %s", err)
+	}
+	for _, a := range artists {
+		song := songMap[a.SongID]
+		if song.ArtistName == nil {
+			song.ArtistName = &a.Name
+		}
+		if a.MusicBrainzID != nil {
+			song.ArtistMBIDs = append(song.ArtistMBIDs, *a.MusicBrainzID)
+		}
+	}
+	listensPerUser := make(map[string][]*Listen, len(scrobbles))
+	for _, s := range scrobbles {
+		if _, ok := listensPerUser[s.UserName]; !ok {
+			listensPerUser[s.UserName] = make([]*Listen, 0, 10)
+		}
+		song := songMap[s.SongID]
+		listensPerUser[s.UserName] = append(listensPerUser[s.UserName], &Listen{
+			ListenedAt:  s.Time.Time,
+			SongName:    song.Name,
+			AlbumName:   song.AlbumName,
+			ArtistName:  song.ArtistName,
+			SongMBID:    song.MBID,
+			AlbumMBID:   song.AlbumMBID,
+			ReleaseMBID: song.ReleaseMBID,
+			ArtistMBIDs: song.ArtistMBIDs,
+			TrackNumber: song.TrackNumber,
+			DurationMS:  &song.DurationMS,
+		})
+	}
+
+	successfulUsernames := make([]string, 0, len(listensPerUser))
+	var count int
+	for user, listens := range listensPerUser {
+		con, err := l.GetListenbrainzConnection(ctx, user)
+		if err != nil {
+			return fmt.Errorf("submit missing listenbrainz scrobbles: get listenbrainz connection for user %s: %w", user, err)
+		}
+		err = l.SubmitImport(ctx, con, listens, "")
+		if err != nil {
+			return fmt.Errorf("submit missing listenbrainz scrobbles: submit: %w", err)
+		}
+		successfulUsernames = append(successfulUsernames, user)
+		count += len(listens)
+	}
+	err = l.Store.SetLBSubmittedByUsers(context.Background(), successfulUsernames)
+	if err != nil {
+		return fmt.Errorf("submit missing listenbrainz scrobbles: set submitted status in db: %w", err)
+	}
+
+	log.Tracef("Submitted %d/%d unsubmitted listens to ListenBrainz", count, len(scrobbles))
+	return nil
+}
+
 func (l *ListenBrainz) StartPeriodicallySubmittingListens(period time.Duration) {
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -228,107 +326,11 @@ func (l *ListenBrainz) StartPeriodicallySubmittingListens(period time.Duration) 
 				break loop
 			default:
 			}
-			scrobbles, err := l.Store.FindUnsubmittedLBScrobbles(ctx)
-			if err != nil {
-				log.Errorf("periodically submit missing listenbrainz scrobbles: find unsubmitted scrobbles: %w", err)
-				continue
-			}
-			if len(scrobbles) == 0 {
-				log.Trace("no unsubmitted scrobbles")
-				time.Sleep(period)
-				continue
-			}
-			ids := make([]string, len(scrobbles))
-			for i, s := range scrobbles {
-				ids[i] = s.SongID
-			}
-			songs, err := l.Store.FindSongs(ctx, ids)
-			if err != nil {
-				log.Errorf("periodically submit missing listenbrainz scrobbles: find songs: %w", err)
-				continue
-			}
-			type song struct {
-				ID          string
-				Name        string
-				MBID        *string
-				AlbumName   *string
-				AlbumMBID   *string
-				ReleaseMBID *string
-				ArtistName  *string
-				ArtistMBIDs []string
-				TrackNumber *int
-				DurationMS  int
-			}
-			songMap := make(map[string]*song, len(songs))
-			for _, s := range songs {
-				songMap[s.ID] = &song{
-					ID:          s.ID,
-					Name:        s.Title,
-					MBID:        s.MusicBrainzID,
-					AlbumName:   s.AlbumName,
-					AlbumMBID:   s.AlbumMusicBrainzID,
-					ReleaseMBID: s.AlbumReleaseMbid,
-					TrackNumber: int32PtrToIntPtr(s.Track),
-					DurationMS:  int(s.DurationMs),
-				}
-			}
-			artists, err := l.Store.FindArtistRefsBySongs(ctx, ids)
-			if err != nil {
-				log.Errorf("periodically submit missing listenbrainz scrobbles: find artist refs: %s", err)
-				continue
-			}
-			for _, a := range artists {
-				song := songMap[a.SongID]
-				if song.ArtistName == nil {
-					song.ArtistName = &a.Name
-				}
-				if a.MusicBrainzID != nil {
-					song.ArtistMBIDs = append(song.ArtistMBIDs, *a.MusicBrainzID)
-				}
-			}
-			listensPerUser := make(map[string][]Listen, len(scrobbles))
-			for _, s := range scrobbles {
-				if _, ok := listensPerUser[s.UserName]; !ok {
-					listensPerUser[s.UserName] = make([]Listen, 0, 10)
-				}
-				song := songMap[s.SongID]
-				listensPerUser[s.UserName] = append(listensPerUser[s.UserName], Listen{
-					ListenedAt:  s.Time.Time,
-					SongName:    song.Name,
-					AlbumName:   song.AlbumName,
-					ArtistName:  song.ArtistName,
-					SongMBID:    song.MBID,
-					AlbumMBID:   song.AlbumMBID,
-					ReleaseMBID: song.ReleaseMBID,
-					ArtistMBIDs: song.ArtistMBIDs,
-					TrackNumber: song.TrackNumber,
-					DurationMS:  &song.DurationMS,
-				})
-			}
 
-			successfulUsernames := make([]string, 0, len(listensPerUser))
-			var count int
-			for user, listens := range listensPerUser {
-				con, err := l.GetListenbrainzConnection(ctx, user)
-				if err != nil {
-					log.Errorf("periodically submit missing listenbrainz scrobbles: get listenbrainz connection for user %s: %s", user, err)
-					continue
-				}
-				err = l.SubmitImport(ctx, con, listens, "")
-				if err != nil {
-					log.Errorf("periodically submit missing listenbrainz scrobbles: submit: %s", err)
-					continue
-				}
-				successfulUsernames = append(successfulUsernames, user)
-				count += len(listens)
-			}
-			err = l.Store.SetLBSubmittedByUsers(context.Background(), successfulUsernames)
+			err := l.SubmitMissingListens(ctx)
 			if err != nil {
-				log.Errorf("periodically submit missing listenbrainz scrobbles: set submitted status in db: %s", err)
-				continue
+				log.Error(err)
 			}
-
-			log.Tracef("Submitted %d/%d unsubmitted listens to ListenBrainz", count, len(scrobbles))
 
 			select {
 			case <-ctx.Done():

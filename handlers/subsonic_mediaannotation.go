@@ -98,7 +98,8 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(r.Context())
-	listens := make([]listenbrainz.Listen, 0, len(ids))
+	listens := make([]*listenbrainz.Listen, 0, len(ids))
+	listenMap := make(map[string]*listenbrainz.Listen, len(ids))
 	createScrobblesParams := make([]db.CreateScrobblesParams, 0, len(ids))
 	for i, id := range ids {
 		if !submission {
@@ -135,7 +136,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 			NowPlaying:              !submission,
 		})
 		if shouldSubmit {
-			listens = append(listens, listenbrainz.Listen{
+			listen := &listenbrainz.Listen{
 				ListenedAt:  times[i],
 				SongName:    song.Title,
 				AlbumName:   song.AlbumName,
@@ -144,7 +145,9 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 				ReleaseMBID: song.AlbumReleaseMbid,
 				TrackNumber: int32PtrToIntPtr(song.Track),
 				DurationMS:  int32PtrToIntPtr(&song.DurationMs),
-			})
+			}
+			listens = append(listens, listen)
+			listenMap[song.ID] = listen
 		}
 	}
 
@@ -157,22 +160,12 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, a := range artists {
-			index := -1
-			for i := range ids {
-				if ids[i] == a.SongID {
-					index = i
-					break
-				}
-			}
-			if index == -1 {
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-				return
-			}
-			if listens[index].ArtistName == nil {
-				listens[index].ArtistName = &a.Name
+			listen := listenMap[a.SongID]
+			if listen.ArtistName == nil {
+				listen.ArtistName = &a.Name
 			}
 			if a.MusicBrainzID != nil {
-				listens[index].ArtistMBIDs = append(listens[index].ArtistMBIDs, *a.MusicBrainzID)
+				listen.ArtistMBIDs = append(listen.ArtistMBIDs, *a.MusicBrainzID)
 			}
 		}
 

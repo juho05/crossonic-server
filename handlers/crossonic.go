@@ -13,11 +13,11 @@ import (
 
 func (h *Handler) registerCrossonicRoutes(r chi.Router) {
 	r.Use(h.subsonicMiddleware)
-	registerRoute(r, "/setListenBrainzConfig", h.handleSetListenbrainzConfig)
+	registerRoute(r, "/connectListenBrainz", h.handleConnectListenbrainz)
 	registerRoute(r, "/getListenBrainzConfig", h.handleGetListenbrainzConfig)
 }
 
-func (h *Handler) handleSetListenbrainzConfig(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleConnectListenbrainz(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	username := query.Get("u")
 	token := query.Get("token")
@@ -33,7 +33,7 @@ func (h *Handler) handleSetListenbrainzConfig(w http.ResponseWriter, r *http.Req
 			if errors.Is(err, listenbrainz.ErrUnauthenticated) {
 				responses.EncodeError(w, query.Get("f"), "invalid token", responses.SubsonicErrorGeneric)
 			} else {
-				log.Errorf("set listenbrainz config: %s", err)
+				log.Errorf("connect listenbrainz: %s", err)
 				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			}
 			return
@@ -41,7 +41,7 @@ func (h *Handler) handleSetListenbrainzConfig(w http.ResponseWriter, r *http.Req
 		lbUsername = &con.LBUsername
 		encryptedListenbrainzToken, err = db.EncryptPassword(token)
 		if err != nil {
-			log.Errorf("set listenbrainz config: %s", err)
+			log.Errorf("connect listenbrainz: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
@@ -52,13 +52,19 @@ func (h *Handler) handleSetListenbrainzConfig(w http.ResponseWriter, r *http.Req
 		ListenbrainzUsername:       lbUsername,
 	})
 	if err != nil {
-		log.Errorf("set listenbrainz config: %s", err)
+		log.Errorf("connect listenbrainz: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return
 	}
+
+	err = h.ListenBrainz.SubmitMissingListens(r.Context())
+	if err != nil {
+		log.Error(err)
+	}
+
 	res := responses.New()
 	res.ListenBrainzConfig = &responses.ListenBrainzConfig{
-		ListenbrainzUsername: lbUsername,
+		ListenBrainzUsername: lbUsername,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
 }
@@ -74,7 +80,7 @@ func (h *Handler) handleGetListenbrainzConfig(w http.ResponseWriter, r *http.Req
 	}
 	res := responses.New()
 	res.ListenBrainzConfig = &responses.ListenBrainzConfig{
-		ListenbrainzUsername: user.ListenbrainzUsername,
+		ListenBrainzUsername: user.ListenbrainzUsername,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
 }

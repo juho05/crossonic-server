@@ -140,5 +140,5 @@
 
 ## Crossonic
 
-- [x] setListenbrainzConfig
-- [x] getListenbrainzConfig
+- [x] connectListenBrainz
+- [x] getListenBrainzConfig
