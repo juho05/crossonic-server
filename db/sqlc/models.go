@@ -20,6 +20,7 @@ type Album struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 }
 
 type AlbumArtist struct {

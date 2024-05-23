@@ -6,12 +6,12 @@ WHERE albums.name = $1
 GROUP BY albums.id, albums.music_brainz_id;
 -- name: CreateAlbum :one
 INSERT INTO albums
-(id, name, created, updated, year, record_labels, music_brainz_id, release_types, is_compilation, replay_gain, replay_gain_peak)
-VALUES($1, $2, NOW(), NOW(), $3, $4, $5, $6, $7, $8, $9)
+(id, name, created, updated, year, record_labels, music_brainz_id, release_mbid, release_types, is_compilation, replay_gain, replay_gain_peak)
+VALUES($1, $2, NOW(), NOW(), $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 -- name: UpdateAlbum :exec
 UPDATE albums
-SET name = $2, year = $3, record_labels = $4, release_types = $5, is_compilation = $6, replay_gain = $7, replay_gain_peak = $8, updated = NOW()
+SET name = $2, year = $3, record_labels = $4, music_brainz_id = $5, release_mbid = $6, release_types = $7, is_compilation = $8, replay_gain = $9, replay_gain_peak = $10, updated = NOW()
 WHERE id = $1;
 -- name: DeleteAlbumsLastUpdatedBefore :exec
 DELETE FROM albums WHERE updated < $1;

@@ -49,6 +49,7 @@ type mediaFile struct {
 	labels                    []string
 	musicBrainzSongID         *string
 	musicBrainzAlbumID        *string
+	musicBrainzAlbumReleaseID *string
 	musicBrainzArtistIDs      []string
 	musicBrainzAlbumArtistIDs []string
 	replayGainTrack           *float32
@@ -205,6 +206,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 						Year:           intPtrToInt32Ptr(media.year),
 						RecordLabels:   recordLabels,
 						MusicBrainzID:  media.musicBrainzAlbumID,
+						ReleaseMbid:    media.musicBrainzAlbumReleaseID,
 						ReleaseTypes:   releaseTypes,
 						IsCompilation:  &media.compilation,
 						ReplayGain:     media.replayGainAlbum,
@@ -229,6 +231,8 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 					IsCompilation:  &media.compilation,
 					ReplayGain:     media.replayGainAlbum,
 					ReplayGainPeak: media.replayGainAlbumPeak,
+					MusicBrainzID:  media.musicBrainzAlbumID,
+					ReleaseMbid:    media.musicBrainzAlbumReleaseID,
 				})
 				if err != nil {
 					log.Errorf("failed to update album of %s: %s", media.path, err)
@@ -727,6 +731,7 @@ func (s *Scanner) scanFile(path, img string, c chan<- mediaFile) (newImg string)
 		labels:                    readStringTags(tags, "labels", "label"),
 		musicBrainzSongID:         readSingleTagOptional(tags, "musicbrainz_trackid"),
 		musicBrainzAlbumID:        readSingleTagOptional(tags, "musicbrainz_releasegroupid"),
+		musicBrainzAlbumReleaseID: readSingleTagOptional(tags, "musicbrainz_albumid"),
 		musicBrainzArtistIDs:      readStringTags(tags, "musicbrainz_artistids", "musicbrainz_artistid"),
 		musicBrainzAlbumArtistIDs: readStringTags(tags, "musicbrainz_albumartistids", "musicbrainz_albumartistid"),
 		replayGainTrack:           readReplayGainTag(tags, "replaygain_track_gain"),

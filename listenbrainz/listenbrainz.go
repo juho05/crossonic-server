@@ -35,6 +35,7 @@ type Listen struct {
 	ArtistName  *string
 	SongMBID    *string
 	AlbumMBID   *string
+	ReleaseMBID *string
 	ArtistMBIDs []string
 	TrackNumber *int
 	DurationMS  *int
@@ -57,6 +58,7 @@ type additionalInfo struct {
 	SubmissionClientVersion string   `json:"submission_client_version"`
 	ArtistMBIDs             []string `json:"artist_mbids,omitempty"`
 	ReleaseGroupMBID        *string  `json:"release_group_mbid,omitempty"`
+	ReleaseMBID             *string  `json:"release_mbid,omitempty"`
 	RecordingMBID           *string  `json:"recording_mbid,omitempty"`
 	TrackNumber             *int     `json:"tracknumber,omitempty"`
 	DurationMS              *int     `json:"duration_ms,omitempty"`
@@ -94,6 +96,7 @@ func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, lis
 						SubmissionClientVersion: crossonic.Version,
 						ArtistMBIDs:             listen.ArtistMBIDs,
 						ReleaseGroupMBID:        listen.AlbumMBID,
+						ReleaseMBID:             listen.ReleaseMBID,
 						RecordingMBID:           listen.SongMBID,
 						TrackNumber:             listen.TrackNumber,
 						DurationMS:              listen.DurationMS,
@@ -124,6 +127,7 @@ func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen 
 						SubmissionClientVersion: crossonic.Version,
 						ArtistMBIDs:             listen.ArtistMBIDs,
 						ReleaseGroupMBID:        listen.AlbumMBID,
+						ReleaseMBID:             listen.ReleaseMBID,
 						RecordingMBID:           listen.SongMBID,
 						TrackNumber:             listen.TrackNumber,
 						DurationMS:              listen.DurationMS,
@@ -153,6 +157,7 @@ func (l *ListenBrainz) SubmitImport(ctx context.Context, con Connection, listens
 					SubmissionClientVersion: crossonic.Version,
 					ArtistMBIDs:             listen.ArtistMBIDs,
 					ReleaseGroupMBID:        listen.AlbumMBID,
+					ReleaseMBID:             listen.ReleaseMBID,
 					RecordingMBID:           listen.SongMBID,
 					TrackNumber:             listen.TrackNumber,
 					DurationMS:              listen.DurationMS,
@@ -248,6 +253,7 @@ func (l *ListenBrainz) StartPeriodicallySubmittingListens(period time.Duration) 
 				MBID        *string
 				AlbumName   *string
 				AlbumMBID   *string
+				ReleaseMBID *string
 				ArtistName  *string
 				ArtistMBIDs []string
 				TrackNumber *int
@@ -261,6 +267,7 @@ func (l *ListenBrainz) StartPeriodicallySubmittingListens(period time.Duration) 
 					MBID:        s.MusicBrainzID,
 					AlbumName:   s.AlbumName,
 					AlbumMBID:   s.AlbumMusicBrainzID,
+					ReleaseMBID: s.AlbumReleaseMbid,
 					TrackNumber: int32PtrToIntPtr(s.Track),
 					DurationMS:  int(s.DurationMs),
 				}
@@ -292,6 +299,7 @@ func (l *ListenBrainz) StartPeriodicallySubmittingListens(period time.Duration) 
 					ArtistName:  song.ArtistName,
 					SongMBID:    song.MBID,
 					AlbumMBID:   song.AlbumMBID,
+					ReleaseMBID: song.ReleaseMBID,
 					ArtistMBIDs: song.ArtistMBIDs,
 					TrackNumber: song.TrackNumber,
 					DurationMS:  &song.DurationMS,

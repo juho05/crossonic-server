@@ -237,7 +237,7 @@ func (q *Queries) FindRandomSongs(ctx context.Context, arg FindRandomSongsParams
 }
 
 const findSong = `-- name: FindSong :one
-SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = $1
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id, albums.release_mbid as album_release_mbid FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = $1
 `
 
 type FindSongRow struct {
@@ -264,6 +264,7 @@ type FindSongRow struct {
 	CoverID            *string
 	AlbumName          *string
 	AlbumMusicBrainzID *string
+	AlbumReleaseMbid   *string
 }
 
 func (q *Queries) FindSong(ctx context.Context, id string) (*FindSongRow, error) {
@@ -293,6 +294,7 @@ func (q *Queries) FindSong(ctx context.Context, id string) (*FindSongRow, error)
 		&i.CoverID,
 		&i.AlbumName,
 		&i.AlbumMusicBrainzID,
+		&i.AlbumReleaseMbid,
 	)
 	return &i, err
 }
@@ -460,7 +462,7 @@ func (q *Queries) FindSongWithoutAlbum(ctx context.Context, id string) (*Song, e
 }
 
 const findSongs = `-- name: FindSongs :many
-SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = any($1::text[])
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id, albums.release_mbid as album_release_mbid FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = any($1::text[])
 `
 
 type FindSongsRow struct {
@@ -487,6 +489,7 @@ type FindSongsRow struct {
 	CoverID            *string
 	AlbumName          *string
 	AlbumMusicBrainzID *string
+	AlbumReleaseMbid   *string
 }
 
 func (q *Queries) FindSongs(ctx context.Context, songIds []string) ([]*FindSongsRow, error) {
@@ -522,6 +525,7 @@ func (q *Queries) FindSongs(ctx context.Context, songIds []string) ([]*FindSongs
 			&i.CoverID,
 			&i.AlbumName,
 			&i.AlbumMusicBrainzID,
+			&i.AlbumReleaseMbid,
 		); err != nil {
 			return nil, err
 		}

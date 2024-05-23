@@ -141,6 +141,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 				AlbumName:   song.AlbumName,
 				SongMBID:    song.MusicBrainzID,
 				AlbumMBID:   song.AlbumMusicBrainzID,
+				ReleaseMBID: song.AlbumReleaseMbid,
 				TrackNumber: int32PtrToIntPtr(song.Track),
 				DurationMS:  int32PtrToIntPtr(&song.DurationMs),
 			})

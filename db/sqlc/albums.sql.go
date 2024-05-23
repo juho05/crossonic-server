@@ -13,9 +13,9 @@ import (
 
 const createAlbum = `-- name: CreateAlbum :one
 INSERT INTO albums
-(id, name, created, updated, year, record_labels, music_brainz_id, release_types, is_compilation, replay_gain, replay_gain_peak)
-VALUES($1, $2, NOW(), NOW(), $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, name, created, updated, year, record_labels, music_brainz_id, release_types, is_compilation, replay_gain, replay_gain_peak
+(id, name, created, updated, year, record_labels, music_brainz_id, release_mbid, release_types, is_compilation, replay_gain, replay_gain_peak)
+VALUES($1, $2, NOW(), NOW(), $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, name, created, updated, year, record_labels, music_brainz_id, release_types, is_compilation, replay_gain, replay_gain_peak, release_mbid
 `
 
 type CreateAlbumParams struct {
@@ -24,6 +24,7 @@ type CreateAlbumParams struct {
 	Year           *int32
 	RecordLabels   *string
 	MusicBrainzID  *string
+	ReleaseMbid    *string
 	ReleaseTypes   *string
 	IsCompilation  *bool
 	ReplayGain     *float32
@@ -37,6 +38,7 @@ func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (*Albu
 		arg.Year,
 		arg.RecordLabels,
 		arg.MusicBrainzID,
+		arg.ReleaseMbid,
 		arg.ReleaseTypes,
 		arg.IsCompilation,
 		arg.ReplayGain,
@@ -55,6 +57,7 @@ func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (*Albu
 		&i.IsCompilation,
 		&i.ReplayGain,
 		&i.ReplayGainPeak,
+		&i.ReleaseMbid,
 	)
 	return &i, err
 }
@@ -97,7 +100,7 @@ func (q *Queries) DeleteAlbumsLastUpdatedBefore(ctx context.Context, updated pgt
 }
 
 const findAlbum = `-- name: FindAlbum :one
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -126,6 +129,7 @@ type FindAlbumRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -148,6 +152,7 @@ func (q *Queries) FindAlbum(ctx context.Context, arg FindAlbumParams) (*FindAlbu
 		&i.IsCompilation,
 		&i.ReplayGain,
 		&i.ReplayGainPeak,
+		&i.ReleaseMbid,
 		&i.TrackCount,
 		&i.DurationMs,
 		&i.Starred,
@@ -158,7 +163,7 @@ func (q *Queries) FindAlbum(ctx context.Context, arg FindAlbumParams) (*FindAlbu
 }
 
 const findAlbumsAlphabeticalByName = `-- name: FindAlbumsAlphabeticalByName :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -199,6 +204,7 @@ type FindAlbumsAlphabeticalByNameRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -234,6 +240,7 @@ func (q *Queries) FindAlbumsAlphabeticalByName(ctx context.Context, arg FindAlbu
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -251,7 +258,7 @@ func (q *Queries) FindAlbumsAlphabeticalByName(ctx context.Context, arg FindAlbu
 }
 
 const findAlbumsByArtist = `-- name: FindAlbumsByArtist :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -283,6 +290,7 @@ type FindAlbumsByArtistRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -311,6 +319,7 @@ func (q *Queries) FindAlbumsByArtist(ctx context.Context, arg FindAlbumsByArtist
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -328,7 +337,7 @@ func (q *Queries) FindAlbumsByArtist(ctx context.Context, arg FindAlbumsByArtist
 }
 
 const findAlbumsByGenre = `-- name: FindAlbumsByGenre :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -369,6 +378,7 @@ type FindAlbumsByGenreRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -404,6 +414,7 @@ func (q *Queries) FindAlbumsByGenre(ctx context.Context, arg FindAlbumsByGenrePa
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -460,7 +471,7 @@ func (q *Queries) FindAlbumsByNameWithArtistMatchCount(ctx context.Context, arg 
 }
 
 const findAlbumsByYear = `-- name: FindAlbumsByYear :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -502,6 +513,7 @@ type FindAlbumsByYearRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -537,6 +549,7 @@ func (q *Queries) FindAlbumsByYear(ctx context.Context, arg FindAlbumsByYearPara
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -554,7 +567,7 @@ func (q *Queries) FindAlbumsByYear(ctx context.Context, arg FindAlbumsByYearPara
 }
 
 const findAlbumsHighestRated = `-- name: FindAlbumsHighestRated :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -595,6 +608,7 @@ type FindAlbumsHighestRatedRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -630,6 +644,7 @@ func (q *Queries) FindAlbumsHighestRated(ctx context.Context, arg FindAlbumsHigh
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -647,7 +662,7 @@ func (q *Queries) FindAlbumsHighestRated(ctx context.Context, arg FindAlbumsHigh
 }
 
 const findAlbumsNewest = `-- name: FindAlbumsNewest :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -688,6 +703,7 @@ type FindAlbumsNewestRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -723,6 +739,7 @@ func (q *Queries) FindAlbumsNewest(ctx context.Context, arg FindAlbumsNewestPara
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -740,7 +757,7 @@ func (q *Queries) FindAlbumsNewest(ctx context.Context, arg FindAlbumsNewestPara
 }
 
 const findAlbumsRandom = `-- name: FindAlbumsRandom :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -780,6 +797,7 @@ type FindAlbumsRandomRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -814,6 +832,7 @@ func (q *Queries) FindAlbumsRandom(ctx context.Context, arg FindAlbumsRandomPara
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -831,7 +850,7 @@ func (q *Queries) FindAlbumsRandom(ctx context.Context, arg FindAlbumsRandomPara
 }
 
 const findAlbumsStarred = `-- name: FindAlbumsStarred :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -873,6 +892,7 @@ type FindAlbumsStarredRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -908,6 +928,7 @@ func (q *Queries) FindAlbumsStarred(ctx context.Context, arg FindAlbumsStarredPa
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -925,7 +946,7 @@ func (q *Queries) FindAlbumsStarred(ctx context.Context, arg FindAlbumsStarredPa
 }
 
 const searchAlbums = `-- name: SearchAlbums :many
-SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
+SELECT albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.release_mbid, COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms, album_stars.created as starred, album_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM albums
 LEFT JOIN (
   SELECT album_id, COUNT(*) AS count, SUM(duration_ms) AS duration_ms FROM songs GROUP BY album_id
 ) tracks ON tracks.album_id = albums.id
@@ -958,6 +979,7 @@ type SearchAlbumsRow struct {
 	IsCompilation  *bool
 	ReplayGain     *float32
 	ReplayGainPeak *float32
+	ReleaseMbid    *string
 	TrackCount     int64
 	DurationMs     int64
 	Starred        pgtype.Timestamptz
@@ -991,6 +1013,7 @@ func (q *Queries) SearchAlbums(ctx context.Context, arg SearchAlbumsParams) ([]*
 			&i.IsCompilation,
 			&i.ReplayGain,
 			&i.ReplayGainPeak,
+			&i.ReleaseMbid,
 			&i.TrackCount,
 			&i.DurationMs,
 			&i.Starred,
@@ -1009,7 +1032,7 @@ func (q *Queries) SearchAlbums(ctx context.Context, arg SearchAlbumsParams) ([]*
 
 const updateAlbum = `-- name: UpdateAlbum :exec
 UPDATE albums
-SET name = $2, year = $3, record_labels = $4, release_types = $5, is_compilation = $6, replay_gain = $7, replay_gain_peak = $8, updated = NOW()
+SET name = $2, year = $3, record_labels = $4, music_brainz_id = $5, release_mbid = $6, release_types = $7, is_compilation = $8, replay_gain = $9, replay_gain_peak = $10, updated = NOW()
 WHERE id = $1
 `
 
@@ -1018,6 +1041,8 @@ type UpdateAlbumParams struct {
 	Name           string
 	Year           *int32
 	RecordLabels   *string
+	MusicBrainzID  *string
+	ReleaseMbid    *string
 	ReleaseTypes   *string
 	IsCompilation  *bool
 	ReplayGain     *float32
@@ -1030,6 +1055,8 @@ func (q *Queries) UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error 
 		arg.Name,
 		arg.Year,
 		arg.RecordLabels,
+		arg.MusicBrainzID,
+		arg.ReleaseMbid,
 		arg.ReleaseTypes,
 		arg.IsCompilation,
 		arg.ReplayGain,
