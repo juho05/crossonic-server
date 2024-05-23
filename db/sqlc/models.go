@@ -131,6 +131,8 @@ type System struct {
 }
 
 type User struct {
-	Name              string
-	EncryptedPassword []byte
+	Name                       string
+	EncryptedPassword          []byte
+	EncryptedListenbrainzToken []byte
+	ListenbrainzUsername       *string
 }

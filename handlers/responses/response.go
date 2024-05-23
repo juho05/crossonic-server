@@ -31,6 +31,7 @@ type Response struct {
 	OpenSubsonic  bool   `xml:"openSubsonic,attr" json:"openSubsonic"`
 	Crossonic     bool   `xml:"crossonic,attr" json:"crossonic"`
 
+	// Subsonic
 	Error                  *Error                  `xml:"error,omitempty" json:"error,omitempty"`
 	OpenSubsonicExtensions *OpenSubsonicExtensions `xml:"openSubsonicExtensions,omitempty" json:"openSubsonicExtensions,omitempty"`
 	License                *License                `xml:"license,omitempty" json:"license,omitempty"`
@@ -43,6 +44,9 @@ type Response struct {
 	Artist                 *Artist                 `xml:"artist,omitempty" json:"artist,omitempty"`
 	NowPlaying             *NowPlaying             `xml:"nowPlaying,omitempty" json:"nowPlaying,omitempty"`
 	SearchResult3          *SearchResult3          `xml:"searchResult3,omitempty" json:"searchResult3,omitempty"`
+
+	// Crossonic
+	ListenBrainzConfig *ListenBrainzConfig `xml:"listenBrainzConfig,omitempty" json:"listenBrainzConfig,omitempty"`
 }
 
 func New() Response {

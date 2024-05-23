@@ -16,6 +16,7 @@ import (
 	"github.com/juho05/crossonic-server/config"
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/log"
 )
 
@@ -85,6 +86,11 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		submission = s
 	}
 
+	if !submission && len(ids) != 1 {
+		responses.EncodeError(w, query.Get("f"), "now playing scrobble requests must contain EXACTLY one id parameter", responses.SubsonicErrorGeneric)
+		return
+	}
+
 	tx, err := h.Store.BeginTransaction(r.Context())
 	if err != nil {
 		log.Errorf("scrobble: %s", err)
@@ -92,6 +98,8 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	listens := make([]listenbrainz.Listen, 0, len(ids))
+	createScrobblesParams := make([]db.CreateScrobblesParams, 0, len(ids))
 	for i, id := range ids {
 		if !submission {
 			err = tx.DeleteNowPlaying(r.Context(), user)
@@ -112,7 +120,8 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err = tx.CreateScrobble(r.Context(), db.CreateScrobbleParams{
+		shouldSubmit := !submission || durationsMs[i] == nil || *durationsMs[i] > 4*60*1000 || float64(*durationsMs[i]) > float64(song.DurationMs)*0.5
+		createScrobblesParams = append(createScrobblesParams, db.CreateScrobblesParams{
 			UserName: user,
 			SongID:   song.ID,
 			AlbumID:  song.AlbumID,
@@ -122,14 +131,79 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 			},
 			SongDurationMs:          song.DurationMs,
 			DurationMs:              intPtrToInt32Ptr(durationsMs[i]),
-			SubmittedToListenbrainz: false,
+			SubmittedToListenbrainz: shouldSubmit,
 			NowPlaying:              !submission,
 		})
+		if shouldSubmit {
+			listens = append(listens, listenbrainz.Listen{
+				ListenedAt:  times[i],
+				SongName:    song.Title,
+				AlbumName:   song.AlbumName,
+				SongMBID:    song.MusicBrainzID,
+				AlbumMBID:   song.AlbumMusicBrainzID,
+				TrackNumber: int32PtrToIntPtr(song.Track),
+				DurationMS:  int32PtrToIntPtr(&song.DurationMs),
+			})
+		}
+	}
+
+	var listenbrainzSuccess bool
+	if len(listens) > 0 {
+		artists, err := tx.FindArtistRefsBySongs(r.Context(), ids)
 		if err != nil {
-			log.Errorf("scrobble: create scrobble: %s", err)
+			log.Errorf("scrobble: find artist refs: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
+		for _, a := range artists {
+			index := -1
+			for i := range ids {
+				if ids[i] == a.SongID {
+					index = i
+					break
+				}
+			}
+			if index == -1 {
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				return
+			}
+			if listens[index].ArtistName == nil {
+				listens[index].ArtistName = &a.Name
+			}
+			if a.MusicBrainzID != nil {
+				listens[index].ArtistMBIDs = append(listens[index].ArtistMBIDs, *a.MusicBrainzID)
+			}
+		}
+
+		if lbCon, err := h.ListenBrainz.GetListenbrainzConnection(r.Context(), user); err == nil {
+			var err error
+			if !submission {
+				err = h.ListenBrainz.SubmitPlayingNow(r.Context(), lbCon, listens[0], query.Get("c"))
+			} else {
+				if len(listens) == 1 {
+					err = h.ListenBrainz.SubmitSingle(r.Context(), lbCon, listens[0], query.Get("c"))
+				} else {
+					err = h.ListenBrainz.SubmitImport(r.Context(), lbCon, listens, query.Get("c"))
+				}
+			}
+			listenbrainzSuccess = err == nil
+			if !listenbrainzSuccess {
+				log.Errorf("failed to scrobble to listenbrainz: %s", err)
+			}
+		} else if !errors.Is(err, listenbrainz.ErrUnauthenticated) {
+			log.Errorf("failed to get listenbrainz connection for user %s: %s", user, err)
+		}
+	}
+
+	for i := range createScrobblesParams {
+		createScrobblesParams[i].SubmittedToListenbrainz = createScrobblesParams[i].SubmittedToListenbrainz && listenbrainzSuccess
+	}
+
+	_, err = tx.CreateScrobbles(r.Context(), createScrobblesParams)
+	if err != nil {
+		log.Errorf("scrobble: create scrobble(s): %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
 	}
 
 	err = tx.Commit(r.Context())

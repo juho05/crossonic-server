@@ -38,18 +38,23 @@ func (q *Queries) DeleteUser(ctx context.Context, name string) (string, error) {
 }
 
 const findUser = `-- name: FindUser :one
-SELECT name, encrypted_password FROM users WHERE name = $1
+SELECT name, encrypted_password, encrypted_listenbrainz_token, listenbrainz_username FROM users WHERE name = $1
 `
 
 func (q *Queries) FindUser(ctx context.Context, name string) (*User, error) {
 	row := q.db.QueryRow(ctx, findUser, name)
 	var i User
-	err := row.Scan(&i.Name, &i.EncryptedPassword)
+	err := row.Scan(
+		&i.Name,
+		&i.EncryptedPassword,
+		&i.EncryptedListenbrainzToken,
+		&i.ListenbrainzUsername,
+	)
 	return &i, err
 }
 
 const findUsers = `-- name: FindUsers :many
-SELECT name, encrypted_password FROM users
+SELECT name, encrypted_password, encrypted_listenbrainz_token, listenbrainz_username FROM users
 `
 
 func (q *Queries) FindUsers(ctx context.Context) ([]*User, error) {
@@ -61,7 +66,12 @@ func (q *Queries) FindUsers(ctx context.Context) ([]*User, error) {
 	var items []*User
 	for rows.Next() {
 		var i User
-		if err := rows.Scan(&i.Name, &i.EncryptedPassword); err != nil {
+		if err := rows.Scan(
+			&i.Name,
+			&i.EncryptedPassword,
+			&i.EncryptedListenbrainzToken,
+			&i.ListenbrainzUsername,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -70,4 +80,26 @@ func (q *Queries) FindUsers(ctx context.Context) ([]*User, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateUserListenBrainzConnection = `-- name: UpdateUserListenBrainzConnection :one
+UPDATE users SET encrypted_listenbrainz_token = $2, listenbrainz_username = $3 WHERE name = $1 RETURNING name, encrypted_password, encrypted_listenbrainz_token, listenbrainz_username
+`
+
+type UpdateUserListenBrainzConnectionParams struct {
+	Name                       string
+	EncryptedListenbrainzToken []byte
+	ListenbrainzUsername       *string
+}
+
+func (q *Queries) UpdateUserListenBrainzConnection(ctx context.Context, arg UpdateUserListenBrainzConnectionParams) (*User, error) {
+	row := q.db.QueryRow(ctx, updateUserListenBrainzConnection, arg.Name, arg.EncryptedListenbrainzToken, arg.ListenbrainzUsername)
+	var i User
+	err := row.Scan(
+		&i.Name,
+		&i.EncryptedPassword,
+		&i.EncryptedListenbrainzToken,
+		&i.ListenbrainzUsername,
+	)
+	return &i, err
 }

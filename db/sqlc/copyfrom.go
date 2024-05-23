@@ -75,6 +75,45 @@ func (q *Queries) CreateAlbumGenres(ctx context.Context, arg []CreateAlbumGenres
 	return q.db.CopyFrom(ctx, []string{"album_genre"}, []string{"album_id", "genre_name"}, &iteratorForCreateAlbumGenres{rows: arg})
 }
 
+// iteratorForCreateScrobbles implements pgx.CopyFromSource.
+type iteratorForCreateScrobbles struct {
+	rows                 []CreateScrobblesParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForCreateScrobbles) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForCreateScrobbles) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].UserName,
+		r.rows[0].SongID,
+		r.rows[0].AlbumID,
+		r.rows[0].Time,
+		r.rows[0].SongDurationMs,
+		r.rows[0].DurationMs,
+		r.rows[0].SubmittedToListenbrainz,
+		r.rows[0].NowPlaying,
+	}, nil
+}
+
+func (r iteratorForCreateScrobbles) Err() error {
+	return nil
+}
+
+func (q *Queries) CreateScrobbles(ctx context.Context, arg []CreateScrobblesParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"scrobbles"}, []string{"user_name", "song_id", "album_id", "time", "song_duration_ms", "duration_ms", "submitted_to_listenbrainz", "now_playing"}, &iteratorForCreateScrobbles{rows: arg})
+}
+
 // iteratorForCreateSongArtists implements pgx.CopyFromSource.
 type iteratorForCreateSongArtists struct {
 	rows                 []CreateSongArtistsParams

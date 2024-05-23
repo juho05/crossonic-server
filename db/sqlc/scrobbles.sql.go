@@ -11,15 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createScrobble = `-- name: CreateScrobble :one
-INSERT INTO scrobbles
-(user_name,song_id,album_id,time,song_duration_ms,duration_ms,submitted_to_listenbrainz,now_playing)
-VALUES
-($1,$2,$3,$4,$5,$6,$7,$8)
-RETURNING user_name, song_id, album_id, time, song_duration_ms, duration_ms, submitted_to_listenbrainz, now_playing
-`
-
-type CreateScrobbleParams struct {
+type CreateScrobblesParams struct {
 	UserName                string
 	SongID                  string
 	AlbumID                 *string
@@ -30,31 +22,6 @@ type CreateScrobbleParams struct {
 	NowPlaying              bool
 }
 
-func (q *Queries) CreateScrobble(ctx context.Context, arg CreateScrobbleParams) (*Scrobble, error) {
-	row := q.db.QueryRow(ctx, createScrobble,
-		arg.UserName,
-		arg.SongID,
-		arg.AlbumID,
-		arg.Time,
-		arg.SongDurationMs,
-		arg.DurationMs,
-		arg.SubmittedToListenbrainz,
-		arg.NowPlaying,
-	)
-	var i Scrobble
-	err := row.Scan(
-		&i.UserName,
-		&i.SongID,
-		&i.AlbumID,
-		&i.Time,
-		&i.SongDurationMs,
-		&i.DurationMs,
-		&i.SubmittedToListenbrainz,
-		&i.NowPlaying,
-	)
-	return &i, err
-}
-
 const deleteNowPlaying = `-- name: DeleteNowPlaying :exec
 DELETE FROM scrobbles WHERE now_playing = true AND (user_name = $1 OR EXTRACT(EPOCH FROM (NOW() - time))*1000 > song_duration_ms*3)
 `
@@ -62,6 +29,58 @@ DELETE FROM scrobbles WHERE now_playing = true AND (user_name = $1 OR EXTRACT(EP
 func (q *Queries) DeleteNowPlaying(ctx context.Context, userName string) error {
 	_, err := q.db.Exec(ctx, deleteNowPlaying, userName)
 	return err
+}
+
+const findUnsubmittedLBScrobbles = `-- name: FindUnsubmittedLBScrobbles :many
+SELECT user_name, song_id, album_id, time, song_duration_ms, duration_ms, submitted_to_listenbrainz, now_playing, name, encrypted_password, encrypted_listenbrainz_token, listenbrainz_username FROM scrobbles JOIN users ON scrobbles.user_name = users.name WHERE users.listenbrainz_username IS NOT NULL AND now_playing = false AND submitted_to_listenbrainz = false AND (duration_ms >= 4*60*1000 OR duration_ms >= song_duration_ms*0.5)
+`
+
+type FindUnsubmittedLBScrobblesRow struct {
+	UserName                   string
+	SongID                     string
+	AlbumID                    *string
+	Time                       pgtype.Timestamptz
+	SongDurationMs             int32
+	DurationMs                 *int32
+	SubmittedToListenbrainz    bool
+	NowPlaying                 bool
+	Name                       string
+	EncryptedPassword          []byte
+	EncryptedListenbrainzToken []byte
+	ListenbrainzUsername       *string
+}
+
+func (q *Queries) FindUnsubmittedLBScrobbles(ctx context.Context) ([]*FindUnsubmittedLBScrobblesRow, error) {
+	rows, err := q.db.Query(ctx, findUnsubmittedLBScrobbles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindUnsubmittedLBScrobblesRow
+	for rows.Next() {
+		var i FindUnsubmittedLBScrobblesRow
+		if err := rows.Scan(
+			&i.UserName,
+			&i.SongID,
+			&i.AlbumID,
+			&i.Time,
+			&i.SongDurationMs,
+			&i.DurationMs,
+			&i.SubmittedToListenbrainz,
+			&i.NowPlaying,
+			&i.Name,
+			&i.EncryptedPassword,
+			&i.EncryptedListenbrainzToken,
+			&i.ListenbrainzUsername,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getNowPlaying = `-- name: GetNowPlaying :one
@@ -177,4 +196,13 @@ func (q *Queries) GetNowPlayingSongs(ctx context.Context, userName string) ([]*G
 		return nil, err
 	}
 	return items, nil
+}
+
+const setLBSubmittedByUsers = `-- name: SetLBSubmittedByUsers :exec
+UPDATE scrobbles SET submitted_to_listenbrainz = true WHERE user_name = any($1::text[]) AND now_playing = false AND (duration_ms >= 4*60*1000 OR duration_ms >= song_duration_ms*0.5)
+`
+
+func (q *Queries) SetLBSubmittedByUsers(ctx context.Context, userNames []string) error {
+	_, err := q.db.Exec(ctx, setLBSubmittedByUsers, userNames)
+	return err
 }

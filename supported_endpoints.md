@@ -137,3 +137,8 @@
 
 - [x] [getScanStatus](https://opensubsonic.netlify.app/docs/endpoints/getscanstatus)
 - [x] [startScan](https://opensubsonic.netlify.app/docs/endpoints/startscan)
+
+## Crossonic
+
+- [x] setListenbrainzConfig
+- [x] getListenbrainzConfig

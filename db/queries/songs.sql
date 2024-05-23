@@ -1,7 +1,9 @@
 -- name: FindSongCount :one
 SELECT COUNT(*) as song_count FROM songs;
 -- name: FindSong :one
-SELECT songs.*, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = $1;
+SELECT songs.*, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = $1;
+-- name: FindSongs :many
+SELECT songs.*, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = any(sqlc.arg('song_ids')::text[]);
 -- name: FindSongWithoutAlbum :one
 SELECT songs.* FROM songs WHERE songs.id = $1;
 -- name: FindSongByMusicBrainzID :one

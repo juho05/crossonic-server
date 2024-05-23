@@ -16,6 +16,7 @@ import (
 	"github.com/juho05/crossonic-server/config"
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers"
+	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/crossonic-server/scanner"
 	"github.com/juho05/log"
 )
@@ -58,7 +59,10 @@ func run() error {
 		}
 	}
 
-	handler := handlers.New(store, scanner)
+	lBrainz := listenbrainz.New(store)
+	lBrainz.StartPeriodicallySubmittingListens(24 * time.Hour)
+
+	handler := handlers.New(store, scanner, lBrainz)
 
 	addr := config.ListenAddr()
 
@@ -87,6 +91,7 @@ func run() error {
 		<-sigint
 		timeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
 		log.Info("Shutting down...")
+		lBrainz.Close()
 		server.Shutdown(timeout)
 		cancelTimeout()
 		close(closed)

@@ -25,7 +25,7 @@ SELECT album_artist.album_id, artists.id, artists.name FROM album_artist
 JOIN artists ON album_artist.artist_id = artists.id
 WHERE album_artist.album_id = any(sqlc.arg('album_ids')::text[]);
 -- name: FindArtistRefsBySongs :many
-SELECT song_artist.song_id, artists.id, artists.name FROM song_artist
+SELECT song_artist.song_id, artists.id, artists.name, artists.music_brainz_id FROM song_artist
 JOIN artists ON song_artist.artist_id = artists.id
 WHERE song_artist.song_id = any(sqlc.arg('song_ids')::text[]);
 -- name: FindAlbumArtistRefsBySongs :many

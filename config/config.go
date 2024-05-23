@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/juho05/log"
 )
@@ -24,6 +25,7 @@ func LoadAll() {
 	LogFile()
 	ReplayGainFallback()
 	DisableStartupScan()
+	ListenBrainzURL()
 }
 
 var values = make(map[string]any)
@@ -150,6 +152,10 @@ func ReplayGainFallback() float32 {
 
 func DisableStartupScan() bool {
 	return boolean("DISABLE_STARTUP_SCAN", false)
+}
+
+func ListenBrainzURL() string {
+	return strings.TrimSuffix(optionalString("LISTENBRAINZ_URL", "https://api.listenbrainz.org"), "/")
 }
 
 func optionalString(key, def string) (str string) {

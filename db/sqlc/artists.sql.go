@@ -155,15 +155,16 @@ func (q *Queries) FindArtistRefsByAlbums(ctx context.Context, albumIds []string)
 }
 
 const findArtistRefsBySongs = `-- name: FindArtistRefsBySongs :many
-SELECT song_artist.song_id, artists.id, artists.name FROM song_artist
+SELECT song_artist.song_id, artists.id, artists.name, artists.music_brainz_id FROM song_artist
 JOIN artists ON song_artist.artist_id = artists.id
 WHERE song_artist.song_id = any($1::text[])
 `
 
 type FindArtistRefsBySongsRow struct {
-	SongID string
-	ID     string
-	Name   string
+	SongID        string
+	ID            string
+	Name          string
+	MusicBrainzID *string
 }
 
 func (q *Queries) FindArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindArtistRefsBySongsRow, error) {
@@ -175,7 +176,12 @@ func (q *Queries) FindArtistRefsBySongs(ctx context.Context, songIds []string) (
 	var items []*FindArtistRefsBySongsRow
 	for rows.Next() {
 		var i FindArtistRefsBySongsRow
-		if err := rows.Scan(&i.SongID, &i.ID, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.SongID,
+			&i.ID,
+			&i.Name,
+			&i.MusicBrainzID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

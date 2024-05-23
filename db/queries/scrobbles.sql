@@ -1,9 +1,8 @@
--- name: CreateScrobble :one
+-- name: CreateScrobbles :copyfrom
 INSERT INTO scrobbles
 (user_name,song_id,album_id,time,song_duration_ms,duration_ms,submitted_to_listenbrainz,now_playing)
 VALUES
-($1,$2,$3,$4,$5,$6,$7,$8)
-RETURNING *;
+($1,$2,$3,$4,$5,$6,$7,$8);
 -- name: DeleteNowPlaying :exec
 DELETE FROM scrobbles WHERE now_playing = true AND (user_name = $1 OR EXTRACT(EPOCH FROM (NOW() - time))*1000 > song_duration_ms*3);
 -- name: GetNowPlaying :one
@@ -19,3 +18,7 @@ LEFT JOIN (
 LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_name = $1
 WHERE scrobbles.now_playing = true AND EXTRACT(EPOCH FROM (NOW() - time))*1000 < scrobbles.song_duration_ms*3
 ORDER BY scrobbles.time DESC;
+-- name: FindUnsubmittedLBScrobbles :many
+SELECT * FROM scrobbles JOIN users ON scrobbles.user_name = users.name WHERE users.listenbrainz_username IS NOT NULL AND now_playing = false AND submitted_to_listenbrainz = false AND (duration_ms >= 4*60*1000 OR duration_ms >= song_duration_ms*0.5);
+-- name: SetLBSubmittedByUsers :exec
+UPDATE scrobbles SET submitted_to_listenbrainz = true WHERE user_name = any(sqlc.arg('user_names')::text[]) AND now_playing = false AND (duration_ms >= 4*60*1000 OR duration_ms >= song_duration_ms*0.5);

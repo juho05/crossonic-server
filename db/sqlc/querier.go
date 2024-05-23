@@ -16,7 +16,7 @@ type Querier interface {
 	CreateAlbumGenres(ctx context.Context, arg []CreateAlbumGenresParams) (int64, error)
 	CreateArtist(ctx context.Context, arg CreateArtistParams) (*Artist, error)
 	CreateGenre(ctx context.Context, name string) error
-	CreateScrobble(ctx context.Context, arg CreateScrobbleParams) (*Scrobble, error)
+	CreateScrobbles(ctx context.Context, arg []CreateScrobblesParams) (int64, error)
 	CreateSong(ctx context.Context, arg CreateSongParams) (*Song, error)
 	CreateSongArtists(ctx context.Context, arg []CreateSongArtistsParams) (int64, error)
 	CreateSongGenres(ctx context.Context, arg []CreateSongGenresParams) (int64, error)
@@ -59,7 +59,9 @@ type Querier interface {
 	FindSongByPath(ctx context.Context, path string) (*FindSongByPathRow, error)
 	FindSongCount(ctx context.Context) (int64, error)
 	FindSongWithoutAlbum(ctx context.Context, id string) (*Song, error)
+	FindSongs(ctx context.Context, songIds []string) ([]*FindSongsRow, error)
 	FindSongsByAlbum(ctx context.Context, arg FindSongsByAlbumParams) ([]*FindSongsByAlbumRow, error)
+	FindUnsubmittedLBScrobbles(ctx context.Context) ([]*FindUnsubmittedLBScrobblesRow, error)
 	FindUser(ctx context.Context, name string) (*User, error)
 	FindUsers(ctx context.Context) ([]*User, error)
 	GetNowPlaying(ctx context.Context, userName string) (*Scrobble, error)
@@ -74,6 +76,7 @@ type Querier interface {
 	SearchSongs(ctx context.Context, arg SearchSongsParams) ([]*SearchSongsRow, error)
 	SetAlbumRating(ctx context.Context, arg SetAlbumRatingParams) error
 	SetArtistRating(ctx context.Context, arg SetArtistRatingParams) error
+	SetLBSubmittedByUsers(ctx context.Context, userNames []string) error
 	SetSongRating(ctx context.Context, arg SetSongRatingParams) error
 	StarAlbum(ctx context.Context, arg StarAlbumParams) error
 	StarArtist(ctx context.Context, arg StarArtistParams) error
@@ -84,6 +87,7 @@ type Querier interface {
 	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error
 	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
 	UpdateSong(ctx context.Context, arg UpdateSongParams) error
+	UpdateUserListenBrainzConnection(ctx context.Context, arg UpdateUserListenBrainzConnectionParams) (*User, error)
 }
 
 var _ Querier = (*Queries)(nil)
