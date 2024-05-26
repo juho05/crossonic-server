@@ -15,6 +15,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/juho05/crossonic-server/config"
 	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/crossonic-server/scanner"
@@ -51,6 +52,11 @@ func run() error {
 		return err
 	}
 
+	transcoder, err := ffmpeg.NewTranscoder()
+	if err != nil {
+		return err
+	}
+
 	scanner := scanner.New(config.MusicDir(), store)
 	if !config.DisableStartupScan() {
 		err = scanner.ScanMediaFull(true)
@@ -62,7 +68,7 @@ func run() error {
 	lBrainz := listenbrainz.New(store)
 	lBrainz.StartPeriodicallySubmittingListens(24 * time.Hour)
 
-	handler := handlers.New(store, scanner, lBrainz)
+	handler := handlers.New(store, scanner, lBrainz, transcoder)
 
 	addr := config.ListenAddr()
 

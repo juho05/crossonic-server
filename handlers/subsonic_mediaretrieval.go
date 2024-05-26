@@ -2,17 +2,21 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/disintegration/imaging"
 	"github.com/jackc/pgx/v5"
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
+	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/log"
 )
@@ -26,14 +30,6 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	format := query.Get("format")
-	if format == "" {
-		format = "raw"
-	}
-	if format != "raw" {
-		responses.EncodeError(w, query.Get("f"), "transcoding is currently not supported", responses.SubsonicErrorGeneric)
-		return
-	}
-
 	maxBitRateStr := query.Get("maxBitRate")
 	var maxBitRate int
 	var err error
@@ -43,10 +39,6 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "invalid maxBitRate parameter", responses.SubsonicErrorGeneric)
 			return
 		}
-	}
-	if maxBitRate != 0 {
-		responses.EncodeError(w, query.Get("f"), "transcoding is currently not supported", responses.SubsonicErrorGeneric)
-		return
 	}
 
 	timeOffsetStr := query.Get("timeOffset")
@@ -58,23 +50,67 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if timeOffset != 0 {
-		responses.EncodeError(w, query.Get("f"), "time offset is currently not supported", responses.SubsonicErrorGeneric)
-		return
-	}
 
-	path, err := h.Store.GetSongPath(r.Context(), id)
+	info, err := h.Store.GetStreamInfo(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		} else {
-			log.Errorf("stream: get path: %s", err)
+			log.Errorf("stream: get info: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		}
 		return
 	}
 
-	http.ServeFile(w, r, path)
+	if maxBitRate > int(info.BitRate) {
+		maxBitRate = int(info.BitRate)
+	}
+
+	contentType, bitRate := ffmpeg.GetContentTypeFromFormatString(format, maxBitRate)
+	if format == "raw" {
+		w.Header().Set("Content-Type", info.ContentType)
+		contentType = info.ContentType
+	} else {
+		w.Header().Set("Content-Type", contentType)
+	}
+
+	if format == "raw" || (contentType == info.ContentType && (maxBitRate == 0 || maxBitRate == int(info.BitRate))) {
+		path := info.Path
+		if timeOffset != 0 {
+			path, err = h.Transcoder.SeekRaw(path, time.Duration(timeOffset)*time.Second)
+			if err != nil {
+				log.Errorf("stream: %s", err)
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				return
+			}
+			defer func() {
+				err := os.Remove(path)
+				if err != nil {
+					log.Errorf("failed to delete seek-raw temp file %s: %s", path, err)
+				}
+			}()
+		}
+		http.ServeFile(w, r, path)
+		return
+	}
+
+	w.Header().Set("Accept-Ranges", "none")
+
+	if estimate, _ := strconv.ParseBool(query.Get("estimateContentLength")); estimate {
+		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.DurationMs)/1000*float64(bitRate)/8*1024)))
+	}
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	out, _, err := h.Transcoder.Transcode(info.Path, format, maxBitRate, time.Duration(timeOffset)*time.Second)
+	if err != nil {
+		log.Errorf("stream: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	io.Copy(w, out)
 }
 
 func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
@@ -84,17 +120,17 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
-	path, err := h.Store.GetSongPath(r.Context(), id)
+	info, err := h.Store.GetStreamInfo(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		} else {
-			log.Errorf("stream: get path: %s", err)
+			log.Errorf("stream: get info: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		}
 		return
 	}
-	http.ServeFile(w, r, path)
+	http.ServeFile(w, r, info.Path)
 }
 
 func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {

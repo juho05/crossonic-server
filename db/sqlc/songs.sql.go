@@ -632,15 +632,27 @@ func (q *Queries) FindSongsByAlbum(ctx context.Context, arg FindSongsByAlbumPara
 	return items, nil
 }
 
-const getSongPath = `-- name: GetSongPath :one
-SELECT songs.path FROM songs WHERE songs.id = $1
+const getStreamInfo = `-- name: GetStreamInfo :one
+SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms FROM songs WHERE songs.id = $1
 `
 
-func (q *Queries) GetSongPath(ctx context.Context, id string) (string, error) {
-	row := q.db.QueryRow(ctx, getSongPath, id)
-	var path string
-	err := row.Scan(&path)
-	return path, err
+type GetStreamInfoRow struct {
+	Path        string
+	BitRate     int32
+	ContentType string
+	DurationMs  int32
+}
+
+func (q *Queries) GetStreamInfo(ctx context.Context, id string) (*GetStreamInfoRow, error) {
+	row := q.db.QueryRow(ctx, getStreamInfo, id)
+	var i GetStreamInfoRow
+	err := row.Scan(
+		&i.Path,
+		&i.BitRate,
+		&i.ContentType,
+		&i.DurationMs,
+	)
+	return &i, err
 }
 
 const searchSongs = `-- name: SearchSongs :many

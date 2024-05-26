@@ -66,8 +66,9 @@
 
 - [x] [stream](https://opensubsonic.netlify.app/docs/endpoints/stream)
   - [x] raw
-  - [ ] transcoding
-  - [ ] timeOffset
+  - [x] transcoding (mp3,opus,vorbis,aac), maxBitRate
+  - [x] timeOffset
+  - [x] estimateContentLength (results in a too large Content-Length value, because it cannot take compression into account)
 - [x] [download](https://opensubsonic.netlify.app/docs/endpoints/download)
 - [ ] [hls](https://opensubsonic.netlify.app/docs/endpoints/hls)
 - [ ] [getCaptions](https://opensubsonic.netlify.app/docs/endpoints/getcaptions)

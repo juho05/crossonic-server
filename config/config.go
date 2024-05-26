@@ -18,6 +18,7 @@ func LoadAll() {
 	MusicDir()
 	PlaylistsDir()
 	DataDir()
+	CacheDir()
 	PasswordEncryptionKey()
 	ListenAddr()
 	AutoMigrate()
@@ -60,6 +61,10 @@ func PlaylistsDir() string {
 
 func DataDir() string {
 	return requiredString("DATA_DIR")
+}
+
+func CacheDir() string {
+	return requiredString("CACHE_DIR")
 }
 
 func PasswordEncryptionKey() (k []byte) {

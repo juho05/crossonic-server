@@ -66,7 +66,7 @@ type Querier interface {
 	FindUsers(ctx context.Context) ([]*User, error)
 	GetNowPlaying(ctx context.Context, userName string) (*Scrobble, error)
 	GetNowPlayingSongs(ctx context.Context, userName string) ([]*GetNowPlayingSongsRow, error)
-	GetSongPath(ctx context.Context, id string) (string, error)
+	GetStreamInfo(ctx context.Context, id string) (*GetStreamInfoRow, error)
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)
 	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error
 	RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error
