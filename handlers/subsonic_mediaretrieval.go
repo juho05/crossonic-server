@@ -90,6 +90,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 				}
 			}()
 		}
+		log.Tracef("Streaming %s raw (%s %dkbps) to %s (user: %s)...", id, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
 		http.ServeFile(w, r, path)
 		return
 	}
@@ -104,12 +105,13 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, _, err := h.Transcoder.Transcode(info.Path, format, maxBitRate, time.Duration(timeOffset)*time.Second)
+	out, bitRate, err := h.Transcoder.Transcode(info.Path, format, maxBitRate, time.Duration(timeOffset)*time.Second)
 	if err != nil {
 		log.Errorf("stream: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return
 	}
+	log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s)...", id, contentType, bitRate, query.Get("c"), query.Get("u"))
 	io.Copy(w, out)
 }
 
