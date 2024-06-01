@@ -3,6 +3,8 @@ INSERT INTO scrobbles
 (user_name,song_id,album_id,time,song_duration_ms,duration_ms,submitted_to_listenbrainz,now_playing)
 VALUES
 ($1,$2,$3,$4,$5,$6,$7,$8);
+-- name: FindPossibleScrobbleConflicts :many
+SELECT * FROM scrobbles WHERE user_name = $1 AND now_playing = false AND song_id = any(sqlc.arg('song_ids')::text[]) AND time = any(sqlc.arg('times')::timestamptz[]);
 -- name: DeleteNowPlaying :exec
 DELETE FROM scrobbles WHERE now_playing = true AND (user_name = $1 OR EXTRACT(EPOCH FROM (NOW() - time))*1000 > song_duration_ms*3);
 -- name: GetNowPlaying :one

@@ -31,6 +31,45 @@ func (q *Queries) DeleteNowPlaying(ctx context.Context, userName string) error {
 	return err
 }
 
+const findPossibleScrobbleConflicts = `-- name: FindPossibleScrobbleConflicts :many
+SELECT user_name, song_id, album_id, time, song_duration_ms, duration_ms, submitted_to_listenbrainz, now_playing FROM scrobbles WHERE user_name = $1 AND now_playing = false AND song_id = any($2::text[]) AND time = any($3::timestamptz[])
+`
+
+type FindPossibleScrobbleConflictsParams struct {
+	UserName string
+	SongIds  []string
+	Times    []pgtype.Timestamptz
+}
+
+func (q *Queries) FindPossibleScrobbleConflicts(ctx context.Context, arg FindPossibleScrobbleConflictsParams) ([]*Scrobble, error) {
+	rows, err := q.db.Query(ctx, findPossibleScrobbleConflicts, arg.UserName, arg.SongIds, arg.Times)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Scrobble
+	for rows.Next() {
+		var i Scrobble
+		if err := rows.Scan(
+			&i.UserName,
+			&i.SongID,
+			&i.AlbumID,
+			&i.Time,
+			&i.SongDurationMs,
+			&i.DurationMs,
+			&i.SubmittedToListenbrainz,
+			&i.NowPlaying,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findUnsubmittedLBScrobbles = `-- name: FindUnsubmittedLBScrobbles :many
 SELECT user_name, song_id, album_id, time, song_duration_ms, duration_ms, submitted_to_listenbrainz, now_playing, name, encrypted_password, encrypted_listenbrainz_token, listenbrainz_username FROM scrobbles JOIN users ON scrobbles.user_name = users.name WHERE users.listenbrainz_username IS NOT NULL AND now_playing = false AND submitted_to_listenbrainz = false AND (duration_ms >= 4*60*1000 OR duration_ms >= song_duration_ms*0.5)
 `

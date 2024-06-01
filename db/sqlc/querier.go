@@ -53,6 +53,7 @@ type Querier interface {
 	FindGenresByAlbums(ctx context.Context, albumIds []string) ([]*FindGenresByAlbumsRow, error)
 	FindGenresBySongs(ctx context.Context, songIds []string) ([]*FindGenresBySongsRow, error)
 	FindGenresWithCount(ctx context.Context) ([]*FindGenresWithCountRow, error)
+	FindPossibleScrobbleConflicts(ctx context.Context, arg FindPossibleScrobbleConflictsParams) ([]*Scrobble, error)
 	FindRandomSongs(ctx context.Context, arg FindRandomSongsParams) ([]*FindRandomSongsRow, error)
 	FindSong(ctx context.Context, id string) (*FindSongRow, error)
 	FindSongByMusicBrainzID(ctx context.Context, musicBrainzID *string) (*FindSongByMusicBrainzIDRow, error)

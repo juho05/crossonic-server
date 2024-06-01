@@ -98,6 +98,49 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+
+	if submission {
+		pgTimes := make([]pgtype.Timestamptz, len(times))
+		for i, t := range times {
+			pgTimes[i] = pgtype.Timestamptz{
+				Time:  t,
+				Valid: true,
+			}
+		}
+		possibleConflicts, err := h.Store.FindPossibleScrobbleConflicts(r.Context(), db.FindPossibleScrobbleConflictsParams{
+			UserName: user,
+			SongIds:  ids,
+			Times:    pgTimes,
+		})
+		if err != nil {
+			log.Errorf("scrobble: find possible conflicts: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
+		if len(possibleConflicts) > 0 {
+			newIds := make([]string, 0, len(ids))
+			newTimes := make([]time.Time, 0, len(times))
+			newDurationsMs := make([]*int, 0, len(durationsMs))
+			for i, songID := range ids {
+				var isConflict bool
+				for _, c := range possibleConflicts {
+					if c.SongID == songID && times[i].Compare(c.Time.Time) == 0 {
+						isConflict = true
+						break
+					}
+				}
+				if !isConflict {
+					newIds = append(newIds, ids[i])
+					newTimes = append(newTimes, times[i])
+					newDurationsMs = append(newDurationsMs, durationsMs[i])
+				}
+			}
+			ids = newIds
+			times = newTimes
+			durationsMs = newDurationsMs
+		}
+	}
+
 	listens := make([]*listenbrainz.Listen, 0, len(ids))
 	listenMap := make(map[string]*listenbrainz.Listen, len(ids))
 	createScrobblesParams := make([]db.CreateScrobblesParams, 0, len(ids))
