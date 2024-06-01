@@ -160,7 +160,10 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, a := range artists {
-			listen := listenMap[a.SongID]
+			listen, ok := listenMap[a.SongID]
+			if !ok {
+				continue
+			}
 			if listen.ArtistName == nil {
 				listen.ArtistName = &a.Name
 			}
