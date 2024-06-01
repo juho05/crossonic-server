@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -133,6 +134,69 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(w, r, info.Path)
+}
+
+var lyricsTimestampRegex = regexp.MustCompile(`^\[([0-9]+[:.]?)+\]`)
+
+func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request) {
+	query := getQuery(r)
+	id := query.Get("id")
+	if id == "" {
+		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+		return
+	}
+	song, err := h.Store.FindSong(r.Context(), id)
+	if err != nil {
+		responses.EncodeError(w, query.Get("f"), "song not found", responses.SubsonicErrorNotFound)
+		return
+	}
+
+	res := responses.New()
+
+	if song.Lyrics == nil {
+		res.LyricsList = &responses.LyricsList{
+			StructuredLyrics: make([]*responses.StructuredLyrics, 0),
+		}
+		res.EncodeOrLog(w, query.Get("f"))
+		return
+	}
+
+	lines := strings.Split(*song.Lyrics, "\n")
+	for i, l := range lines {
+		l = strings.TrimSpace(l)
+		loc := lyricsTimestampRegex.FindStringIndex(l)
+		if loc != nil {
+			l = strings.TrimSpace(l[loc[1]:])
+		}
+		lines[i] = l
+	}
+	first := 0
+	for ; first < len(lines); first++ {
+		if len(lines[first]) > 0 {
+			break
+		}
+	}
+	last := len(lines) - 1
+	for ; last >= 0; last-- {
+		if len(lines[last]) > 0 {
+			break
+		}
+	}
+	lines = lines[first : last+1]
+	res.LyricsList = &responses.LyricsList{
+		StructuredLyrics: []*responses.StructuredLyrics{
+			{
+				Lang:   "und",
+				Synced: false,
+				Line: mapData(lines, func(l string) *responses.Line {
+					return &responses.Line{
+						Value: l,
+					}
+				}),
+			},
+		},
+	}
+	res.EncodeOrLog(w, query.Get("f"))
 }
 
 func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {

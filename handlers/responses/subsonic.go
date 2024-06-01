@@ -165,3 +165,21 @@ type SearchResult3 struct {
 	Albums  []*Album  `xml:"album" json:"album"`
 	Songs   []*Song   `xml:"song" json:"song"`
 }
+
+type LyricsList struct {
+	StructuredLyrics []*StructuredLyrics `xml:"structuredLyrics" json:"structuredLyrics"`
+}
+
+type StructuredLyrics struct {
+	Lang          string  `xml:"lang" json:"lang"`
+	Synced        bool    `xml:"synced" json:"synced"`
+	DisplayArtist string  `xml:"displayArtist,omitempty" json:"displayArtist,omitempty"`
+	DisplayTitle  string  `xml:"displayTitle,omitempty" json:"displayTitle,omitempty"`
+	Offset        int     `xml:"offset,omitempty" json:"offset,omitempty"`
+	Line          []*Line `xml:"line" json:"line"`
+}
+
+type Line struct {
+	Value string `xml:"value" json:"value"`
+	Start *int   `xml:"start,omitempty" json:"start,omitempty"`
+}

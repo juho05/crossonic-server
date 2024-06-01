@@ -74,7 +74,7 @@
 - [ ] [getCaptions](https://opensubsonic.netlify.app/docs/endpoints/getcaptions)
 - [x] [getCoverArt](https://opensubsonic.netlify.app/docs/endpoints/getcoverart)
 - [ ] [getLyrics](https://opensubsonic.netlify.app/docs/endpoints/getlyrics)
-- [ ] [getLyricsBySongId](https://opensubsonic.netlify.app/docs/endpoints/getlyricsbysongid)
+- [x] [getLyricsBySongId](https://opensubsonic.netlify.app/docs/endpoints/getlyricsbysongid)
 - [ ] [getAvatar](https://opensubsonic.netlify.app/docs/endpoints/getavatar)
 
 ### Media Annotation
