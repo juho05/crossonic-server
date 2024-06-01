@@ -59,10 +59,12 @@ func run() error {
 
 	scanner := scanner.New(config.MusicDir(), store)
 	if !config.DisableStartupScan() {
-		err = scanner.ScanMediaFull(true)
-		if err != nil {
-			return err
-		}
+		go func() {
+			err = scanner.ScanMediaFull()
+			if err != nil {
+				log.Errorf("scan media: %s", err)
+			}
+		}()
 	}
 
 	lBrainz := listenbrainz.New(store)

@@ -66,7 +66,7 @@ type song struct {
 	albumName *string
 }
 
-func (s *Scanner) ScanMediaFull(printStatus bool) error {
+func (s *Scanner) ScanMediaFull() error {
 	if !s.lock.TryLock() {
 		return ErrAlreadyScanning
 	}
@@ -93,7 +93,7 @@ func (s *Scanner) ScanMediaFull(printStatus bool) error {
 	go s.scanMediaDir(ctx, s.mediaDir, c)
 
 	processDone := make(chan bool)
-	go s.processMediaFiles(ctx, c, processDone, printStatus)
+	go s.processMediaFiles(ctx, c, processDone)
 	s.waitGroup.Wait()
 	close(c)
 	success := <-processDone
@@ -105,13 +105,13 @@ func (s *Scanner) ScanMediaFull(printStatus bool) error {
 		log.Error("Scan failed.")
 		return errors.New("scan error")
 	}
-	log.Info("Scan complete.")
+	log.Infof("Scanned %d files.", s.Count)
 	return nil
 }
 
 var imagePrios = []string{"front", "folder", "cover"}
 
-func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, done chan<- bool, printStatus bool) {
+func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, done chan<- bool) {
 	startTime := time.Now()
 	s.originalStore = s.store
 	var err error
@@ -154,9 +154,6 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 	}
 
 	for media := range c {
-		if printStatus && s.Count%5 == 0 {
-			fmt.Print("\rScanned: ", s.Count)
-		}
 		song, err := s.findOrCreateSong(ctx, media)
 		if err != nil {
 			log.Errorf("failed to find/create song in db for %s: %s", media.path, err)
@@ -356,9 +353,6 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 			return
 		}
 		s.Count++
-	}
-	if printStatus {
-		fmt.Println("\rScanned:", s.Count)
 	}
 
 	err = s.clean(ctx, startTime)
