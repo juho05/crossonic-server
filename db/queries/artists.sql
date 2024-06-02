@@ -42,6 +42,8 @@ LEFT JOIN (
 ) avgr ON avgr.artist_id = artists.id
 LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
 WHERE artists.id = $2;
+-- name: FindArtistSimple :one
+SELECT * FROM artists WHERE id = $1;
 -- name: SearchArtists :many
 SELECT artists.*, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
 LEFT JOIN (

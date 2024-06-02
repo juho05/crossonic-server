@@ -163,6 +163,10 @@ func ListenBrainzURL() string {
 	return strings.TrimSuffix(optionalString("LISTENBRAINZ_URL", "https://api.listenbrainz.org"), "/")
 }
 
+func LastFMApiKey() string {
+	return optionalString("LASTFM_API_KEY", "")
+}
+
 func optionalString(key, def string) (str string) {
 	if s, ok := values[key]; ok {
 		return s.(string)

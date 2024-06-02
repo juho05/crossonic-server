@@ -2,8 +2,10 @@ package crossonic
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"log"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -21,6 +23,7 @@ var MigrationsFS fs.FS
 
 var GenID func() string
 var IDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-~"
+var IDRegex = regexp.MustCompile(fmt.Sprintf("^(tr)|(al)|(ar)_[%s]{12}$", strings.ReplaceAll(IDAlphabet, "-", "\\-")))
 
 func init() {
 	var err error

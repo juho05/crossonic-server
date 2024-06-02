@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/cors"
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
+	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/crossonic-server/scanner"
 )
@@ -17,14 +18,16 @@ type Handler struct {
 	Store        db.Store
 	Scanner      *scanner.Scanner
 	ListenBrainz *listenbrainz.ListenBrainz
+	LastFM       *lastfm.LastFm
 	Transcoder   *ffmpeg.Transcoder
 }
 
-func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, transcoder *ffmpeg.Transcoder) *Handler {
+func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder) *Handler {
 	h := &Handler{
 		Store:        store,
 		Scanner:      scanner,
 		ListenBrainz: listenBrainz,
+		LastFM:       lastFM,
 		Transcoder:   transcoder,
 	}
 	h.registerRoutes()

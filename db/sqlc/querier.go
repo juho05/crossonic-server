@@ -47,6 +47,7 @@ type Querier interface {
 	FindArtist(ctx context.Context, arg FindArtistParams) (*FindArtistRow, error)
 	FindArtistRefsByAlbums(ctx context.Context, albumIds []string) ([]*FindArtistRefsByAlbumsRow, error)
 	FindArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindArtistRefsBySongsRow, error)
+	FindArtistSimple(ctx context.Context, id string) (*Artist, error)
 	FindArtists(ctx context.Context, userName string) ([]*FindArtistsRow, error)
 	FindArtistsByName(ctx context.Context, artistNames []string) ([]*Artist, error)
 	FindGenre(ctx context.Context, name string) (string, error)

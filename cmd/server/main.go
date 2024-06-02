@@ -17,6 +17,7 @@ import (
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers"
+	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/crossonic-server/scanner"
 	"github.com/juho05/log"
@@ -70,7 +71,9 @@ func run() error {
 	lBrainz := listenbrainz.New(store)
 	lBrainz.StartPeriodicallySubmittingListens(24 * time.Hour)
 
-	handler := handlers.New(store, scanner, lBrainz, transcoder)
+	lfm := lastfm.New(config.LastFMApiKey(), store)
+
+	handler := handlers.New(store, scanner, lBrainz, lfm, transcoder)
 
 	addr := config.ListenAddr()
 

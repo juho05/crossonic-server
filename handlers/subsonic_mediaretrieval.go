@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/log"
 )
 
@@ -213,7 +215,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.Contains(id, "/") || strings.Contains(id, ".") {
+	if !crossonic.IDRegex.MatchString(id) {
 		responses.EncodeError(w, query.Get("f"), "invalid id", responses.SubsonicErrorNotFound)
 		return
 	}
@@ -229,22 +231,57 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var fileFS fs.FS
+	var dir string
 	switch idType {
 	case crossonic.IDTypeSong:
-		fileFS = os.DirFS(filepath.Join(config.DataDir(), "covers", "songs"))
+		dir = filepath.Join(config.DataDir(), "covers", "songs")
 	case crossonic.IDTypeAlbum:
-		fileFS = os.DirFS(filepath.Join(config.DataDir(), "covers", "albums"))
+		dir = filepath.Join(config.DataDir(), "covers", "albums")
 	case crossonic.IDTypeArtist:
-		fileFS = os.DirFS(filepath.Join(config.DataDir(), "covers", "artists"))
+		dir = filepath.Join(config.DataDir(), "covers", "artists")
 	}
+	fileFS := os.DirFS(dir)
 	file, err := fileFS.Open(id)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) {
+		if config.LastFMApiKey() == "" {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		} else {
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
 		}
+		err = h.loadArtistCoverFromLastFMByID(r.Context(), id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			return
+		}
+		if errors.Is(err, lastfm.ErrNotFound) {
+			file, err := os.Create(filepath.Join(dir, id))
+			if err != nil {
+				log.Errorf("get cover art: create placeholder for %s: %s", id, err)
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				return
+			}
+			file.Close()
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			return
+		}
+		if err == nil {
+			file, err = fileFS.Open(id)
+		}
+	}
+	if err != nil {
+		log.Errorf("get cover art: open %s: %s", id, err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	stat, err := file.Stat()
+	if err != nil {
+		file.Close()
+		log.Errorf("get cover art: stat %s: %s", id, err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	if stat.Size() == 0 || stat.IsDir() {
+		file.Close()
+		responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		return
 	}
 	img, err := imaging.Decode(file, imaging.AutoOrientation(true))
@@ -264,4 +301,45 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("get cover art: encode %s: %s", id, err)
 		}
 	}
+}
+
+func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) error {
+	artist, err := h.Store.FindArtistSimple(ctx, id)
+	if err != nil {
+		return fmt.Errorf("load artist cover from last fm by id: %w", err)
+	}
+	info, err := h.LastFM.GetArtistInfo(ctx, artist.Name, artist.MusicBrainzID)
+	if err != nil {
+		return fmt.Errorf("load artist cover from last fm by id: %w", err)
+	}
+	imageURL, err := h.LastFM.GetArtistImageURL(ctx, info.URL)
+	if err != nil {
+		return fmt.Errorf("load artist cover from last fm by id: %w", err)
+	}
+	if imageURL == "" {
+		return lastfm.ErrNotFound
+	}
+	res, err := http.Get(imageURL)
+	if err != nil {
+		return fmt.Errorf("load artist cover from last fm by id: download image: %w", err)
+	}
+	defer res.Body.Close()
+	img, err := imaging.Decode(res.Body, imaging.AutoOrientation(true))
+	if err != nil {
+		return fmt.Errorf("load artist cover from last fm by id: decode image: %w", err)
+	}
+	if img.Bounds().Dx() != img.Bounds().Dy() {
+		size := min(img.Bounds().Dx(), img.Bounds().Dy())
+		img = imaging.CropCenter(img, size, size)
+	}
+	file, err := os.Create(filepath.Join(config.DataDir(), "covers", "artists", id))
+	if err != nil {
+		return fmt.Errorf("load artist cover from last fm by id: create file: %w", err)
+	}
+	defer file.Close()
+	err = imaging.Encode(file, img, imaging.JPEG)
+	if err != nil {
+		return fmt.Errorf("load artist cover from last fm by id: encode image: %w", err)
+	}
+	return nil
 }

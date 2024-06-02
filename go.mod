@@ -3,15 +3,17 @@ module github.com/juho05/crossonic-server
 go 1.22.2
 
 require (
+	github.com/andybalholm/cascadia v1.3.2
 	github.com/disintegration/imaging v1.6.2
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/cors v1.2.1
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
-	github.com/jackc/pgx/v5 v5.5.5
+	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jaevor/go-nanoid v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/juho05/log v0.0.0-20230224211948-f9bad0acae34
 	github.com/rubenv/sql-migrate v1.6.1
+	golang.org/x/net v0.25.0
 )
 
 require (

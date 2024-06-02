@@ -192,6 +192,23 @@ func (q *Queries) FindArtistRefsBySongs(ctx context.Context, songIds []string) (
 	return items, nil
 }
 
+const findArtistSimple = `-- name: FindArtistSimple :one
+SELECT id, name, created, updated, music_brainz_id FROM artists WHERE id = $1
+`
+
+func (q *Queries) FindArtistSimple(ctx context.Context, id string) (*Artist, error) {
+	row := q.db.QueryRow(ctx, findArtistSimple, id)
+	var i Artist
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Created,
+		&i.Updated,
+		&i.MusicBrainzID,
+	)
+	return &i, err
+}
+
 const findArtists = `-- name: FindArtists :many
 SELECT artists.id, artists.name, artists.created, artists.updated, artists.music_brainz_id, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
 LEFT JOIN (
