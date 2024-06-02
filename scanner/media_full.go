@@ -374,7 +374,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		return
 	}
 
-	err = s.cleanCovers(albumCovers, songCovers)
+	err = s.cleanCovers(updatedArtists, albumCovers, songCovers)
 	if err != nil {
 		log.Errorf("process media files: %s", err)
 		return
@@ -403,9 +403,23 @@ func (s *Scanner) clean(ctx context.Context, startTime time.Time) error {
 	return nil
 }
 
-func (s *Scanner) cleanCovers(albums, songs map[string]struct{}) error {
+func (s *Scanner) cleanCovers(artists map[string]bool, albums, songs map[string]struct{}) error {
+	artistCoverDir := filepath.Join(s.coverDir, "artists")
+	entries, err := os.ReadDir(artistCoverDir)
+	if err != nil {
+		return fmt.Errorf("clean covers: %w", err)
+	}
+	for _, e := range entries {
+		if _, ok := artists[e.Name()]; !ok {
+			err = os.Remove(filepath.Join(artistCoverDir, e.Name()))
+			if err != nil {
+				return fmt.Errorf("clean covers: %w", err)
+			}
+		}
+	}
+
 	albumCoverDir := filepath.Join(s.coverDir, "albums")
-	entries, err := os.ReadDir(albumCoverDir)
+	entries, err = os.ReadDir(albumCoverDir)
 	if err != nil {
 		return fmt.Errorf("clean covers: %w", err)
 	}
@@ -476,6 +490,9 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 	}()
 	if media.musicBrainzSongID != nil {
 		ss, err := s.store.FindSongsByMusicBrainzID(ctx, media.musicBrainzSongID)
+		if err != nil {
+			return nil, fmt.Errorf("find or create song by musicbrainz ID: %w", err)
+		}
 		var sn *song
 		for _, s := range ss {
 			if media.musicBrainzAlbumID != nil && s.AlbumMusicBrainzID == media.musicBrainzAlbumID {
@@ -505,10 +522,8 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 				break
 			}
 		}
-		if err == nil {
+		if sn != nil {
 			return sn, nil
-		} else if !errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("find or create song by musicbrainz ID: %w", err)
 		}
 	}
 
@@ -602,6 +617,9 @@ func (s *Scanner) findAlbumID(ctx context.Context, albumName *string, albumArtis
 
 func (s *Scanner) scanMediaDir(ctx context.Context, path string, c chan<- mediaFile) {
 	defer s.waitGroup.Done()
+	if !config.ScanHidden() && filepath.Base(path)[0] == '.' {
+		return
+	}
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		log.Errorf("scan media dir: %s: %s", path, err)

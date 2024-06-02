@@ -27,6 +27,7 @@ func LoadAll() {
 	ReplayGainFallback()
 	DisableStartupScan()
 	ListenBrainzURL()
+	LastFMApiKey()
 }
 
 var values = make(map[string]any)
@@ -165,6 +166,10 @@ func ListenBrainzURL() string {
 
 func LastFMApiKey() string {
 	return optionalString("LASTFM_API_KEY", "")
+}
+
+func ScanHidden() bool {
+	return boolean("SCAN_HIDDEN", false)
 }
 
 func optionalString(key, def string) (str string) {
