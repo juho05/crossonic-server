@@ -299,65 +299,6 @@ func (q *Queries) FindSong(ctx context.Context, id string) (*FindSongRow, error)
 	return &i, err
 }
 
-const findSongByMusicBrainzID = `-- name: FindSongByMusicBrainzID :one
-SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.music_brainz_id = $1
-`
-
-type FindSongByMusicBrainzIDRow struct {
-	ID             string
-	Path           string
-	AlbumID        *string
-	Title          string
-	Track          *int32
-	Year           *int32
-	Size           int64
-	ContentType    string
-	DurationMs     int32
-	BitRate        int32
-	SamplingRate   int32
-	ChannelCount   int32
-	DiscNumber     *int32
-	Created        pgtype.Timestamptz
-	Updated        pgtype.Timestamptz
-	Bpm            *int32
-	MusicBrainzID  *string
-	ReplayGain     *float32
-	ReplayGainPeak *float32
-	Lyrics         *string
-	CoverID        *string
-	AlbumName      *string
-}
-
-func (q *Queries) FindSongByMusicBrainzID(ctx context.Context, musicBrainzID *string) (*FindSongByMusicBrainzIDRow, error) {
-	row := q.db.QueryRow(ctx, findSongByMusicBrainzID, musicBrainzID)
-	var i FindSongByMusicBrainzIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.Path,
-		&i.AlbumID,
-		&i.Title,
-		&i.Track,
-		&i.Year,
-		&i.Size,
-		&i.ContentType,
-		&i.DurationMs,
-		&i.BitRate,
-		&i.SamplingRate,
-		&i.ChannelCount,
-		&i.DiscNumber,
-		&i.Created,
-		&i.Updated,
-		&i.Bpm,
-		&i.MusicBrainzID,
-		&i.ReplayGain,
-		&i.ReplayGainPeak,
-		&i.Lyrics,
-		&i.CoverID,
-		&i.AlbumName,
-	)
-	return &i, err
-}
-
 const findSongByPath = `-- name: FindSongByPath :one
 SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.path = $1
 `
@@ -621,6 +562,82 @@ func (q *Queries) FindSongsByAlbum(ctx context.Context, arg FindSongsByAlbumPara
 			&i.Starred,
 			&i.UserRating,
 			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findSongsByMusicBrainzID = `-- name: FindSongsByMusicBrainzID :many
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id, albums.release_mbid as album_release_mbid FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.music_brainz_id = $1
+`
+
+type FindSongsByMusicBrainzIDRow struct {
+	ID                 string
+	Path               string
+	AlbumID            *string
+	Title              string
+	Track              *int32
+	Year               *int32
+	Size               int64
+	ContentType        string
+	DurationMs         int32
+	BitRate            int32
+	SamplingRate       int32
+	ChannelCount       int32
+	DiscNumber         *int32
+	Created            pgtype.Timestamptz
+	Updated            pgtype.Timestamptz
+	Bpm                *int32
+	MusicBrainzID      *string
+	ReplayGain         *float32
+	ReplayGainPeak     *float32
+	Lyrics             *string
+	CoverID            *string
+	AlbumName          *string
+	AlbumMusicBrainzID *string
+	AlbumReleaseMbid   *string
+}
+
+func (q *Queries) FindSongsByMusicBrainzID(ctx context.Context, musicBrainzID *string) ([]*FindSongsByMusicBrainzIDRow, error) {
+	rows, err := q.db.Query(ctx, findSongsByMusicBrainzID, musicBrainzID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindSongsByMusicBrainzIDRow
+	for rows.Next() {
+		var i FindSongsByMusicBrainzIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Path,
+			&i.AlbumID,
+			&i.Title,
+			&i.Track,
+			&i.Year,
+			&i.Size,
+			&i.ContentType,
+			&i.DurationMs,
+			&i.BitRate,
+			&i.SamplingRate,
+			&i.ChannelCount,
+			&i.DiscNumber,
+			&i.Created,
+			&i.Updated,
+			&i.Bpm,
+			&i.MusicBrainzID,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.Lyrics,
+			&i.CoverID,
+			&i.AlbumName,
+			&i.AlbumMusicBrainzID,
+			&i.AlbumReleaseMbid,
 		); err != nil {
 			return nil, err
 		}

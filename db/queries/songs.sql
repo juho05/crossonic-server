@@ -6,8 +6,8 @@ SELECT songs.*, albums.name as album_name, albums.music_brainz_id as album_music
 SELECT songs.*, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id, albums.release_mbid as album_release_mbid FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.id = any(sqlc.arg('song_ids')::text[]);
 -- name: FindSongWithoutAlbum :one
 SELECT songs.* FROM songs WHERE songs.id = $1;
--- name: FindSongByMusicBrainzID :one
-SELECT songs.*, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.music_brainz_id = $1;
+-- name: FindSongsByMusicBrainzID :many
+SELECT songs.*, albums.name as album_name, albums.music_brainz_id as album_music_brainz_id, albums.release_mbid as album_release_mbid FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.music_brainz_id = $1;
 -- name: FindSongByPath :one
 SELECT songs.*, albums.name as album_name FROM songs LEFT JOIN albums ON songs.album_id = albums.id WHERE songs.path = $1;
 -- name: CreateSong :one

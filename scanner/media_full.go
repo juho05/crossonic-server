@@ -475,13 +475,38 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 		}
 	}()
 	if media.musicBrainzSongID != nil {
-		s, err := s.store.FindSongByMusicBrainzID(ctx, media.musicBrainzSongID)
+		ss, err := s.store.FindSongsByMusicBrainzID(ctx, media.musicBrainzSongID)
+		var sn *song
+		for _, s := range ss {
+			if media.musicBrainzAlbumID != nil && s.AlbumMusicBrainzID == media.musicBrainzAlbumID {
+				if sn == nil || (media.musicBrainzAlbumReleaseID != nil && s.AlbumReleaseMbid == media.musicBrainzAlbumReleaseID) {
+					done := sn != nil
+					sn = &song{
+						id:        s.ID,
+						albumID:   s.AlbumID,
+						albumName: s.AlbumName,
+					}
+					if done {
+						break
+					}
+				}
+			} else if media.album != nil && s.AlbumName == media.album {
+				sn = &song{
+					id:        s.ID,
+					albumID:   s.AlbumID,
+					albumName: s.AlbumName,
+				}
+			} else {
+				sn = &song{
+					id:        s.ID,
+					albumID:   s.AlbumID,
+					albumName: s.AlbumName,
+				}
+				break
+			}
+		}
 		if err == nil {
-			return &song{
-				id:        s.ID,
-				albumName: s.AlbumName,
-				albumID:   s.AlbumID,
-			}, nil
+			return sn, nil
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("find or create song by musicbrainz ID: %w", err)
 		}
