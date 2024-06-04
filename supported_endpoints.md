@@ -143,3 +143,4 @@
 
 - [x] connectListenBrainz
 - [x] getListenBrainzConfig
+- [x] connect

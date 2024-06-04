@@ -15,6 +15,7 @@ func (h *Handler) registerCrossonicRoutes(r chi.Router) {
 	r.Use(h.subsonicMiddleware)
 	registerRoute(r, "/connectListenBrainz", h.handleConnectListenbrainz)
 	registerRoute(r, "/getListenBrainzConfig", h.handleGetListenbrainzConfig)
+	registerRoute(r, "/connect", h.handleConnect)
 }
 
 func (h *Handler) handleConnectListenbrainz(w http.ResponseWriter, r *http.Request) {
