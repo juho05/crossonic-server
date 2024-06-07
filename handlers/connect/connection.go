@@ -105,8 +105,8 @@ func (c *Connection) handleListenMessage(msg message) {
 
 	if payload.ID != nil {
 		log.Tracef("connect: %s (%s) of %s started listening to %s", c.Name, c.ID, c.User, *payload.ID)
-	} else {
-		log.Tracef("connect: %s (%s) of %s stopped listening to anything", c.Name, c.ID, c.User)
+	} else if c.listenID != nil {
+		log.Tracef("connect: %s (%s) of %s stopped listening to %s", c.Name, c.ID, c.User, *c.listenID)
 	}
 	c.listenID = payload.ID
 
