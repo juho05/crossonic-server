@@ -31,7 +31,7 @@ func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.Li
 		ListenBrainz:      listenBrainz,
 		LastFM:            lastFM,
 		Transcoder:        transcoder,
-		ConnectionManager: connect.NewConnectionManager(),
+		ConnectionManager: connect.NewConnectionManager(store),
 	}
 	h.registerRoutes()
 	return h
@@ -53,5 +53,5 @@ func (h *Handler) registerRoutes() {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	middleware.StripSlashes(h.router).ServeHTTP(w, r)
+	middleware.StripSlashes(ignoreExtension(h.router)).ServeHTTP(w, r)
 }

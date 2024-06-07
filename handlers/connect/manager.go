@@ -1,23 +1,44 @@
 package connect
 
 import (
+	"context"
 	"net"
 	"sync"
 
 	"github.com/gobwas/ws/wsutil"
 	"github.com/juho05/crossonic-server"
+	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/sonos"
 	"github.com/juho05/log"
 )
 
-type ConnectionManager struct {
-	userConnections map[string]*connections
-	lock            sync.RWMutex
+type sonosListeners struct {
+	ctx           context.Context
+	cancel        context.CancelFunc
+	listeners     map[string]struct{}
+	listenersLock sync.RWMutex
 }
 
-func NewConnectionManager() *ConnectionManager {
-	return &ConnectionManager{
+type ConnectionManager struct {
+	userConnections map[string]*connections
+	connectionCount int
+	lock            sync.RWMutex
+
+	sonosListeners     map[string]*sonosListeners
+	sonosListenersLock sync.RWMutex
+
+	store db.Store
+	sonos *sonos.SonosController
+}
+
+func NewConnectionManager(store db.Store) *ConnectionManager {
+	cm := &ConnectionManager{
 		userConnections: make(map[string]*connections),
+		store:           store,
+		sonosListeners:  make(map[string]*sonosListeners),
 	}
+	cm.sonos = sonos.NewController(cm.onNewSonosDevice, cm.onSonosDeviceRemoved)
+	return cm
 }
 
 type connections struct {
@@ -50,6 +71,11 @@ func (c *ConnectionManager) Connect(user, name string, platform DevicePlatform, 
 		userConns.connections[id] = connection
 		userConns.lock.Unlock()
 	}
+	var startSonosTimer bool
+	c.connectionCount++
+	if c.connectionCount == 1 {
+		startSonosTimer = true
+	}
 	c.lock.Unlock()
 	log.Tracef("connect: new device for user %s: %s (%s)", user, name, id)
 	userConns.lock.RLock()
@@ -66,6 +92,18 @@ func (c *ConnectionManager) Connect(user, name string, platform DevicePlatform, 
 		}
 	}
 	userConns.lock.RUnlock()
+	for _, d := range c.sonos.Devices() {
+		msg, err := newNewDeviceNotification(d, sonosNameToID(d), DevicePlatformSpeaker)
+		if err != nil {
+			log.Errorf("connect: send new sonos device notification: %s", err)
+		} else {
+			msg.Target = id
+			c.sendMessage(user, msg, "")
+		}
+	}
+	if startSonosTimer {
+		c.sonos.StartRefreshDevicesTimer()
+	}
 	msg, err := newNewDeviceNotification(name, id, platform)
 	if err != nil {
 		log.Errorf("connect: send new device notification: %s", err)
@@ -85,7 +123,32 @@ func (c *ConnectionManager) Disconnect(user, id string) {
 		if ok {
 			cn.Close()
 			delete(conns.connections, id)
+			log.Tracef("connect: device of user %s disconnected: %s (%s)", user, cn.Name, id)
+			c.connectionCount--
+			if c.connectionCount < 0 {
+				log.Errorf("connect: connection count is negative: %d", c.connectionCount)
+				c.connectionCount = 0
+			}
+			if c.connectionCount == 0 {
+				c.sonos.StopRefreshDevicesTimer()
+			}
 			conns.lock.Unlock()
+
+			if cn.listenID != nil && isSonosID(*cn.listenID) {
+				name := sonosNameFromID(*cn.listenID)
+				c.sonosListenersLock.Lock()
+				l, ok := c.sonosListeners[name]
+				if ok {
+					l.listenersLock.Lock()
+					delete(l.listeners, id)
+					if len(l.listeners) == 0 {
+						l.cancel()
+						delete(c.sonosListeners, name)
+					}
+					l.listenersLock.Unlock()
+				}
+				c.sonosListenersLock.Unlock()
+			}
 
 			msg, err := newDeviceDisconnectedNotification(id)
 			if err != nil {
@@ -96,6 +159,38 @@ func (c *ConnectionManager) Disconnect(user, id string) {
 		} else {
 			conns.lock.Unlock()
 		}
+	}
+}
+
+func (c *ConnectionManager) broadcastMessageToAllUsers(msg message) {
+	data, err := msg.encode()
+	if err != nil {
+		log.Errorf("connect: broadcast message to all users: %s", err)
+		return
+	}
+	c.lock.RLock()
+	for _, userConn := range c.userConnections {
+		userConn.lock.RLock()
+		for _, c := range userConn.connections {
+			err = wsutil.WriteServerText(c.conn, data)
+			if err != nil {
+				log.Errorf("connect: broadcast message to all users: write text to %s (%s): %s", c.Name, c.ID, err)
+			}
+		}
+		userConn.lock.RUnlock()
+	}
+	c.lock.RUnlock()
+}
+
+func (c *ConnectionManager) sendMessageAllUsers(msg message, excludeID string) {
+	c.lock.RLock()
+	users := make([]string, 0, len(c.userConnections))
+	for u := range c.userConnections {
+		users = append(users, u)
+	}
+	c.lock.RUnlock()
+	for _, u := range users {
+		c.sendMessage(u, msg, excludeID)
 	}
 }
 
@@ -149,6 +244,11 @@ func (c *ConnectionManager) sendMessage(user string, msg message, excludeID stri
 }
 
 func (c *ConnectionManager) Close() error {
+	c.sonosListenersLock.Lock()
+	for _, l := range c.sonosListeners {
+		l.cancel()
+	}
+	c.sonosListenersLock.Unlock()
 	c.lock.Lock()
 	for _, conns := range c.userConnections {
 		conns.lock.Lock()

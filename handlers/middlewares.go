@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	db "github.com/juho05/crossonic-server/db/sqlc"
@@ -21,6 +23,15 @@ type ContextKey int
 const (
 	ContextKeyQuery ContextKey = iota
 )
+
+func ignoreExtension(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := path.Base(r.URL.Path)
+		parts := strings.Split(name, ".")
+		r.URL.Path = strings.TrimSuffix(r.URL.Path, name) + parts[0]
+		next.ServeHTTP(w, r)
+	})
+}
 
 func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

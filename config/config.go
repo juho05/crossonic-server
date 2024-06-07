@@ -10,6 +10,7 @@ import (
 )
 
 func LoadAll() {
+	BaseURL()
 	DBUser()
 	DBPassword()
 	DBHost()
@@ -28,9 +29,18 @@ func LoadAll() {
 	DisableStartupScan()
 	ListenBrainzURL()
 	LastFMApiKey()
+	SonosControllerURL()
 }
 
 var values = make(map[string]any)
+
+func BaseURL() string {
+	return strings.TrimSuffix(requiredString("BASE_URL"), "/")
+}
+
+func SonosControllerURL() string {
+	return optionalString("SONOS_CONTROLLER_URL", "")
+}
 
 func DBUser() string {
 	return requiredString("DB_USER")

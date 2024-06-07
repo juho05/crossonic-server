@@ -3,6 +3,7 @@ package connect
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 type messageOp string
@@ -13,6 +14,14 @@ const (
 	msgOpUpdateListener     messageOp = "update-listener"
 
 	msgOpListen messageOp = "listen"
+
+	msgOpPlay  messageOp = "play"
+	msgOpPause messageOp = "pause"
+	msgOpStop  messageOp = "stop"
+
+	msgOpSpeakerSetCurrent messageOp = "speaker-set-current"
+	msgOpSpeakerSetNext    messageOp = "speaker-set-next"
+	msgOpSpeakerState      messageOp = "speaker-state"
 )
 
 type messageType string
@@ -50,6 +59,21 @@ type listenPayload struct {
 
 type updateListenerPayload struct {
 	ID string `json:"id"`
+}
+
+type speakerSetCurrentPayload struct {
+	SongID     string  `json:"songId"`
+	NextID     *string `json:"nextId"`
+	TimeOffset int     `json:"timeOffset"`
+}
+
+type speakerSetNextPayload struct {
+	SongID *string `json:"songId"`
+}
+
+type speakerState struct {
+	State      speakerStatus `json:"state"`
+	PositionMS int64         `json:"positionMs"`
 }
 
 func newNewDeviceNotification(name, id string, platform DevicePlatform) (message, error) {
@@ -98,6 +122,33 @@ func newUpdateListenerRequest(id, listenerID string) (message, error) {
 		Type:    msgTypeRequest,
 		Source:  sourceServer,
 		Target:  id,
+		Payload: data,
+	}, nil
+}
+
+type speakerStatus string
+
+const (
+	speakerStatusLoading speakerStatus = "loading"
+	speakerStatusStopped speakerStatus = "stopped"
+	speakerStatusPaused  speakerStatus = "paused"
+	speakerStatusPlaying speakerStatus = "playing"
+	speakerStatusAdvance speakerStatus = "advance"
+)
+
+func newSpeakerStateNotification(speakerID string, state speakerStatus, position time.Duration) (message, error) {
+	data, err := json.Marshal(speakerState{
+		State:      state,
+		PositionMS: position.Milliseconds(),
+	})
+	if err != nil {
+		return message{}, fmt.Errorf("speaker state notification: %w", err)
+	}
+	return message{
+		Op:      msgOpSpeakerState,
+		Type:    msgTypeNotification,
+		Source:  speakerID,
+		Target:  targetAll,
 		Payload: data,
 	}, nil
 }
