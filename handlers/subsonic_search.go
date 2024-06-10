@@ -66,7 +66,7 @@ func (h *Handler) searchArtists(ctx context.Context, w http.ResponseWriter, quer
 		}
 	}
 
-	artists, err := h.Store.SearchArtists(ctx, db.SearchArtistsParams{
+	artists, err := h.Store.SearchAlbumArtists(ctx, db.SearchAlbumArtistsParams{
 		UserName:  user,
 		Offset:    int32(offset),
 		Limit:     int32(limit),
@@ -77,7 +77,7 @@ func (h *Handler) searchArtists(ctx context.Context, w http.ResponseWriter, quer
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return nil, false
 	}
-	return mapData(artists, func(a *db.SearchArtistsRow) *responses.Artist {
+	return mapData(artists, func(a *db.SearchAlbumArtistsRow) *responses.Artist {
 		var coverArt *string
 		if hasCoverArt(a.ID) {
 			coverArt = &a.ID

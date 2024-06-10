@@ -34,6 +34,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, name string) (string, error)
 	FindAlbum(ctx context.Context, arg FindAlbumParams) (*FindAlbumRow, error)
 	FindAlbumArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindAlbumArtistRefsBySongsRow, error)
+	FindAlbumArtists(ctx context.Context, userName string) ([]*FindAlbumArtistsRow, error)
 	FindAlbumsAlphabeticalByName(ctx context.Context, arg FindAlbumsAlphabeticalByNameParams) ([]*FindAlbumsAlphabeticalByNameRow, error)
 	FindAlbumsByArtist(ctx context.Context, arg FindAlbumsByArtistParams) ([]*FindAlbumsByArtistRow, error)
 	FindAlbumsByGenre(ctx context.Context, arg FindAlbumsByGenreParams) ([]*FindAlbumsByGenreRow, error)
@@ -48,7 +49,6 @@ type Querier interface {
 	FindArtistRefsByAlbums(ctx context.Context, albumIds []string) ([]*FindArtistRefsByAlbumsRow, error)
 	FindArtistRefsBySongs(ctx context.Context, songIds []string) ([]*FindArtistRefsBySongsRow, error)
 	FindArtistSimple(ctx context.Context, id string) (*Artist, error)
-	FindArtists(ctx context.Context, userName string) ([]*FindArtistsRow, error)
 	FindArtistsByName(ctx context.Context, artistNames []string) ([]*Artist, error)
 	FindGenre(ctx context.Context, name string) (string, error)
 	FindGenresByAlbums(ctx context.Context, albumIds []string) ([]*FindGenresByAlbumsRow, error)
@@ -73,8 +73,8 @@ type Querier interface {
 	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error
 	RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error
 	RemoveSongRating(ctx context.Context, arg RemoveSongRatingParams) error
+	SearchAlbumArtists(ctx context.Context, arg SearchAlbumArtistsParams) ([]*SearchAlbumArtistsRow, error)
 	SearchAlbums(ctx context.Context, arg SearchAlbumsParams) ([]*SearchAlbumsRow, error)
-	SearchArtists(ctx context.Context, arg SearchArtistsParams) ([]*SearchArtistsRow, error)
 	SearchSongs(ctx context.Context, arg SearchSongsParams) ([]*SearchSongsRow, error)
 	SetAlbumRating(ctx context.Context, arg SetAlbumRatingParams) error
 	SetArtistRating(ctx context.Context, arg SetArtistRatingParams) error

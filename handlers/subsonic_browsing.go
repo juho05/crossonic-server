@@ -407,7 +407,7 @@ var ignoredArticles = []string{"The", "An", "A", "Der", "Die", "Das", "Ein", "Ei
 func (h *Handler) handleGetArtists(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 
-	artists, err := h.Store.FindArtists(r.Context(), query.Get("u"))
+	artists, err := h.Store.FindAlbumArtists(r.Context(), query.Get("u"))
 	if err != nil {
 		log.Errorf("get artists: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)

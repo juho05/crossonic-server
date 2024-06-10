@@ -80,6 +80,62 @@ func (q *Queries) FindAlbumArtistRefsBySongs(ctx context.Context, songIds []stri
 	return items, nil
 }
 
+const findAlbumArtists = `-- name: FindAlbumArtists :many
+SELECT artists.id, artists.name, artists.created, artists.updated, artists.music_brainz_id, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
+LEFT JOIN (
+  SELECT artist_id, COUNT(*) AS count FROM album_artist GROUP BY artist_id
+) aa ON aa.artist_id = artists.id
+LEFT JOIN artist_stars ON artist_stars.artist_id = artists.id AND artist_stars.user_name = $1
+LEFT JOIN (
+  SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id
+) avgr ON avgr.artist_id = artists.id
+LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
+WHERE COALESCE(aa.count, 0) > 0
+ORDER BY lower(artists.name)
+`
+
+type FindAlbumArtistsRow struct {
+	ID            string
+	Name          string
+	Created       pgtype.Timestamptz
+	Updated       pgtype.Timestamptz
+	MusicBrainzID *string
+	AlbumCount    int64
+	Starred       pgtype.Timestamptz
+	UserRating    *int32
+	AvgRating     float64
+}
+
+func (q *Queries) FindAlbumArtists(ctx context.Context, userName string) ([]*FindAlbumArtistsRow, error) {
+	rows, err := q.db.Query(ctx, findAlbumArtists, userName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindAlbumArtistsRow
+	for rows.Next() {
+		var i FindAlbumArtistsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Created,
+			&i.Updated,
+			&i.MusicBrainzID,
+			&i.AlbumCount,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findArtist = `-- name: FindArtist :one
 SELECT artists.id, artists.name, artists.created, artists.updated, artists.music_brainz_id, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
 LEFT JOIN artist_stars ON artist_stars.artist_id = artists.id AND artist_stars.user_name = $1
@@ -209,61 +265,6 @@ func (q *Queries) FindArtistSimple(ctx context.Context, id string) (*Artist, err
 	return &i, err
 }
 
-const findArtists = `-- name: FindArtists :many
-SELECT artists.id, artists.name, artists.created, artists.updated, artists.music_brainz_id, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
-LEFT JOIN (
-  SELECT artist_id, COUNT(*) AS count FROM album_artist GROUP BY artist_id
-) aa ON aa.artist_id = artists.id
-LEFT JOIN artist_stars ON artist_stars.artist_id = artists.id AND artist_stars.user_name = $1
-LEFT JOIN (
-  SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id
-) avgr ON avgr.artist_id = artists.id
-LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
-ORDER BY lower(artists.name)
-`
-
-type FindArtistsRow struct {
-	ID            string
-	Name          string
-	Created       pgtype.Timestamptz
-	Updated       pgtype.Timestamptz
-	MusicBrainzID *string
-	AlbumCount    int64
-	Starred       pgtype.Timestamptz
-	UserRating    *int32
-	AvgRating     float64
-}
-
-func (q *Queries) FindArtists(ctx context.Context, userName string) ([]*FindArtistsRow, error) {
-	rows, err := q.db.Query(ctx, findArtists, userName)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*FindArtistsRow
-	for rows.Next() {
-		var i FindArtistsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Created,
-			&i.Updated,
-			&i.MusicBrainzID,
-			&i.AlbumCount,
-			&i.Starred,
-			&i.UserRating,
-			&i.AvgRating,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const findArtistsByName = `-- name: FindArtistsByName :many
 SELECT id, name, created, updated, music_brainz_id FROM artists WHERE name = any($1::text[])
 `
@@ -294,7 +295,7 @@ func (q *Queries) FindArtistsByName(ctx context.Context, artistNames []string) (
 	return items, nil
 }
 
-const searchArtists = `-- name: SearchArtists :many
+const searchAlbumArtists = `-- name: SearchAlbumArtists :many
 SELECT artists.id, artists.name, artists.created, artists.updated, artists.music_brainz_id, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
 LEFT JOIN (
   SELECT artist_id, COUNT(*) AS count FROM album_artist GROUP BY artist_id
@@ -304,19 +305,19 @@ LEFT JOIN (
   SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id
 ) avgr ON avgr.artist_id = artists.id
 LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
-WHERE position(lower($4) in lower(artists.name)) > 0
+WHERE COALESCE(aa.count, 0) > 0 AND position(lower($4) in lower(artists.name)) > 0
 ORDER BY position(lower($4) in lower(artists.name)), lower(artists.name)
 OFFSET $2 LIMIT $3
 `
 
-type SearchArtistsParams struct {
+type SearchAlbumArtistsParams struct {
 	UserName  string
 	Offset    int32
 	Limit     int32
 	SearchStr string
 }
 
-type SearchArtistsRow struct {
+type SearchAlbumArtistsRow struct {
 	ID            string
 	Name          string
 	Created       pgtype.Timestamptz
@@ -328,8 +329,8 @@ type SearchArtistsRow struct {
 	AvgRating     float64
 }
 
-func (q *Queries) SearchArtists(ctx context.Context, arg SearchArtistsParams) ([]*SearchArtistsRow, error) {
-	rows, err := q.db.Query(ctx, searchArtists,
+func (q *Queries) SearchAlbumArtists(ctx context.Context, arg SearchAlbumArtistsParams) ([]*SearchAlbumArtistsRow, error) {
+	rows, err := q.db.Query(ctx, searchAlbumArtists,
 		arg.UserName,
 		arg.Offset,
 		arg.Limit,
@@ -339,9 +340,9 @@ func (q *Queries) SearchArtists(ctx context.Context, arg SearchArtistsParams) ([
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*SearchArtistsRow
+	var items []*SearchAlbumArtistsRow
 	for rows.Next() {
-		var i SearchArtistsRow
+		var i SearchAlbumArtistsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,

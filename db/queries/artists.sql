@@ -9,7 +9,7 @@ UPDATE artists SET name = $2, music_brainz_id = $3, updated = NOW() WHERE id = $
 DELETE FROM artists WHERE updated < $1;
 -- name: FindArtistsByName :many
 SELECT * FROM artists WHERE name = any(sqlc.arg('artist_names')::text[]);
--- name: FindArtists :many
+-- name: FindAlbumArtists :many
 SELECT artists.*, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
 LEFT JOIN (
   SELECT artist_id, COUNT(*) AS count FROM album_artist GROUP BY artist_id
@@ -19,6 +19,7 @@ LEFT JOIN (
   SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id
 ) avgr ON avgr.artist_id = artists.id
 LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
+WHERE COALESCE(aa.count, 0) > 0
 ORDER BY lower(artists.name);
 -- name: FindArtistRefsByAlbums :many
 SELECT album_artist.album_id, artists.id, artists.name FROM album_artist
@@ -44,7 +45,7 @@ LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_rat
 WHERE artists.id = $2;
 -- name: FindArtistSimple :one
 SELECT * FROM artists WHERE id = $1;
--- name: SearchArtists :many
+-- name: SearchAlbumArtists :many
 SELECT artists.*, COALESCE(aa.count, 0) AS album_count, artist_stars.created as starred, artist_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM artists
 LEFT JOIN (
   SELECT artist_id, COUNT(*) AS count FROM album_artist GROUP BY artist_id
@@ -54,6 +55,6 @@ LEFT JOIN (
   SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id
 ) avgr ON avgr.artist_id = artists.id
 LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = $1
-WHERE position(lower(sqlc.arg(search_str)) in lower(artists.name)) > 0
+WHERE COALESCE(aa.count, 0) > 0 AND position(lower(sqlc.arg(search_str)) in lower(artists.name)) > 0
 ORDER BY position(lower(sqlc.arg(search_str)) in lower(artists.name)), lower(artists.name)
 OFFSET $2 LIMIT $3;

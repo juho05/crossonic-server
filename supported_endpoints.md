@@ -15,6 +15,7 @@
 - [ ] [getMusicDirectory](https://opensubsonic.netlify.app/docs/endpoints/getmusicdirectory)
 - [x] [getGenres](https://opensubsonic.netlify.app/docs/endpoints/getgenres)
 - [x] [getArtists](https://opensubsonic.netlify.app/docs/endpoints/getartists)
+  - only album artists are returned
 - [x] [getArtist](https://opensubsonic.netlify.app/docs/endpoints/getartist)
 - [x] [getAlbum](https://opensubsonic.netlify.app/docs/endpoints/getalbum)
 - [ ] [getSong](https://opensubsonic.netlify.app/docs/endpoints/getsong)
@@ -53,6 +54,7 @@
 - [ ] [search](https://opensubsonic.netlify.app/docs/endpoints/search)
 - [ ] [search2](https://opensubsonic.netlify.app/docs/endpoints/search2)
 - [x] [search3](https://opensubsonic.netlify.app/docs/endpoints/search3)
+  - only album artists are returned
 
 ### Playlists
 
