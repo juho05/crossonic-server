@@ -60,12 +60,19 @@ func run() error {
 		return err
 	}
 
+	// 5 GB
 	transcodeCache, err := cache.New(filepath.Join(config.CacheDir(), "transcode"), 5e9, 7*24*time.Hour)
 	if err != nil {
 		return err
 	}
 
-	scanner := scanner.New(config.MusicDir(), store)
+	// 1 GB
+	coverCache, err := cache.New(filepath.Join(config.CacheDir(), "covers"), 1e9, 30*24*time.Hour)
+	if err != nil {
+		return err
+	}
+
+	scanner := scanner.New(config.MusicDir(), store, coverCache)
 	if !config.DisableStartupScan() {
 		go func() {
 			err = scanner.ScanMediaFull()
@@ -80,7 +87,7 @@ func run() error {
 
 	lfm := lastfm.New(config.LastFMApiKey(), store)
 
-	handler := handlers.New(store, scanner, lBrainz, lfm, transcoder, transcodeCache)
+	handler := handlers.New(store, scanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
 
 	addr := config.ListenAddr()
 

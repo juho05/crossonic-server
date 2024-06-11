@@ -69,10 +69,12 @@ type Querier interface {
 	GetNowPlaying(ctx context.Context, userName string) (*Scrobble, error)
 	GetNowPlayingSongs(ctx context.Context, userName string) ([]*GetNowPlayingSongsRow, error)
 	GetStreamInfo(ctx context.Context, id string) (*GetStreamInfoRow, error)
+	GetSystemValue(ctx context.Context, key string) (*System, error)
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)
 	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error
 	RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error
 	RemoveSongRating(ctx context.Context, arg RemoveSongRatingParams) error
+	ReplaceSystemValue(ctx context.Context, arg ReplaceSystemValueParams) (*System, error)
 	SearchAlbumArtists(ctx context.Context, arg SearchAlbumArtistsParams) ([]*SearchAlbumArtistsRow, error)
 	SearchAlbums(ctx context.Context, arg SearchAlbumsParams) ([]*SearchAlbumsRow, error)
 	SearchSongs(ctx context.Context, arg SearchSongsParams) ([]*SearchSongsRow, error)

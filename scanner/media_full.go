@@ -127,6 +127,19 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		s.store = s.originalStore
 	}()
 
+	var lastScan time.Time
+	lastScanStr, err := s.store.GetSystemValue(ctx, "last-scan")
+	if err == nil {
+		lastScan, _ = time.Parse(time.RFC3339, lastScanStr.Value)
+	}
+
+	cachedCoverKeys := make(map[string][]string)
+	for _, k := range s.coverCache.Keys() {
+		parts := strings.Split(k, "-")
+		id := strings.Join(parts[:len(parts)-1], "-")
+		cachedCoverKeys[id] = append(cachedCoverKeys[id], k)
+	}
+
 	updatedAlbums := make(map[string]struct{})
 	updatedArtists := make(map[string]bool)
 
@@ -259,42 +272,79 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 
 		var coverID *string
 		if media.coverPath != nil {
-			var file *os.File
-			if albumID != nil {
-				if _, ok := albumCovers[*albumID]; !ok {
-					file, err = os.Create(filepath.Join(albumCoverDir, *albumID))
-					if err != nil {
-						log.Errorf("failed to create cover art file for %s: %s", media.path, err)
-					}
-				}
-				coverID = albumID
+			originalFile, err := os.Open(*media.coverPath)
+			if err != nil {
+				log.Errorf("failed to open cover art file %s: %s", *media.coverPath, err)
 			} else {
-				if _, ok := songCovers[song.id]; !ok {
-					file, err = os.Create(filepath.Join(songCoverDir, song.id))
+				func() {
+					defer originalFile.Close()
+					stat, err := originalFile.Stat()
 					if err != nil {
-						log.Errorf("failed to create cover art file for %s: %s", media.path, err)
-					}
-				}
-				coverID = &song.id
-			}
-			if file != nil {
-				originalFile, err := os.Open(*media.coverPath)
-				if err != nil {
-					log.Errorf("failed to open cover art file %s: %s", *media.coverPath, err)
-				} else {
-					_, err = io.Copy(file, originalFile)
-					if err != nil {
-						log.Errorf("failed to copy cover art file %s: %s", *media.coverPath, err)
+						log.Errorf("failed to stat cover art file %s: %s", *media.coverPath, err)
+					} else if stat.ModTime().After(lastScan) {
+						if keys, ok := cachedCoverKeys[*media.id]; ok {
+							for _, k := range keys {
+								err := s.coverCache.DeleteObject(k)
+								if err != nil {
+									log.Errorf("scan: invalidate cover cache for %s: %s", *albumID)
+								}
+							}
+						}
+						var file *os.File
+						if albumID != nil {
+							if _, ok := albumCovers[*albumID]; !ok {
+								if keys, ok := cachedCoverKeys[*albumID]; ok {
+									for _, k := range keys {
+										err := s.coverCache.DeleteObject(k)
+										if err != nil {
+											log.Errorf("scan: invalidate cover cache for %s: %s", *albumID)
+										}
+									}
+								}
+								file, err = os.Create(filepath.Join(albumCoverDir, *albumID))
+								if err != nil {
+									log.Errorf("failed to create cover art file for %s: %s", media.path, err)
+								}
+							}
+							coverID = albumID
+						} else {
+							if _, ok := songCovers[song.id]; !ok {
+								file, err = os.Create(filepath.Join(songCoverDir, song.id))
+								if err != nil {
+									log.Errorf("failed to create cover art file for %s: %s", media.path, err)
+								}
+							}
+							coverID = &song.id
+						}
+						if file != nil {
+							originalFile, err := os.Open(*media.coverPath)
+							if err != nil {
+								log.Errorf("failed to open cover art file %s: %s", *media.coverPath, err)
+							} else {
+								_, err = io.Copy(file, originalFile)
+								if err != nil {
+									log.Errorf("failed to copy cover art file %s: %s", *media.coverPath, err)
+								} else {
+									if albumID != nil {
+										albumCovers[*albumID] = struct{}{}
+									} else {
+										songCovers[song.id] = struct{}{}
+									}
+								}
+								originalFile.Close()
+							}
+							file.Close()
+						}
 					} else {
 						if albumID != nil {
+							coverID = albumID
 							albumCovers[*albumID] = struct{}{}
 						} else {
+							coverID = &song.id
 							songCovers[song.id] = struct{}{}
 						}
 					}
-					originalFile.Close()
-				}
-				file.Close()
+				}()
 			}
 		}
 
@@ -363,6 +413,15 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 	}
 
 	err = s.clean(ctx, startTime)
+	if err != nil {
+		log.Errorf("process media files: %s", err)
+		return
+	}
+
+	_, err = s.store.ReplaceSystemValue(ctx, db.ReplaceSystemValueParams{
+		Key:   "last-scan",
+		Value: time.Now().Format(time.RFC3339),
+	})
 	if err != nil {
 		log.Errorf("process media files: %s", err)
 		return

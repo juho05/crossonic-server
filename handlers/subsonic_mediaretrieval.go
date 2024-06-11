@@ -150,6 +150,12 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return
 	}
+	defer func() {
+		err = cacheReader.Close()
+		if err != nil {
+			log.Errorf("stream: %s", err)
+		}
+	}()
 
 	if cacheObj.IsComplete() {
 		http.ServeContent(w, r, id, cacheObj.Modified(), cacheReader)
@@ -272,6 +278,34 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	cacheObj, exists, err := h.CoverCache.GetObject(fmt.Sprintf("%s-%d", id, size))
+	if err != nil {
+		log.Errorf("get cover art: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	cacheReader, err := cacheObj.Reader()
+	if err != nil {
+		log.Errorf("get cover art: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+	defer func() {
+		err = cacheReader.Close()
+		if err != nil {
+			log.Errorf("get cover art: %s", err)
+		}
+	}()
+	if exists {
+		w.Header().Set("Content-Type", "image/jpeg")
+		if cacheObj.IsComplete() {
+			http.ServeContent(w, r, id+".jpg", time.Now(), cacheReader)
+		} else {
+			io.Copy(w, cacheReader)
+		}
+		return
+	}
+
 	var dir string
 	switch idType {
 	case crossonic.IDTypeSong:
@@ -336,12 +370,17 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	img = imaging.Thumbnail(img, size, size, imaging.Linear)
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.WriteHeader(http.StatusOK)
-	err = imaging.Encode(w, img, imaging.JPEG)
-	if err != nil {
-		if !strings.Contains(err.Error(), "broken pipe") {
+	go func() {
+		err = imaging.Encode(cacheObj, img, imaging.JPEG)
+		if err != nil {
 			log.Errorf("get cover art: encode %s: %s", id, err)
 		}
-	}
+		err = cacheObj.SetComplete()
+		if err != nil {
+			log.Errorf("get cover art: %s", err)
+		}
+	}()
+	io.Copy(w, cacheReader)
 }
 
 func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) error {

@@ -24,10 +24,11 @@ type Handler struct {
 	Transcoder        *ffmpeg.Transcoder
 	ConnectionManager *connect.ConnectionManager
 
+	CoverCache     *cache.Cache
 	TranscodeCache *cache.Cache
 }
 
-func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache) *Handler {
+func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
 	h := &Handler{
 		Store:             store,
 		Scanner:           scanner,
@@ -36,6 +37,7 @@ func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.Li
 		Transcoder:        transcoder,
 		ConnectionManager: connect.NewConnectionManager(store),
 		TranscodeCache:    transcodeCache,
+		CoverCache:        coverCache,
 	}
 	h.registerRoutes()
 	return h

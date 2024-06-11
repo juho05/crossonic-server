@@ -9,6 +9,17 @@ import (
 	"context"
 )
 
+const getSystemValue = `-- name: GetSystemValue :one
+SELECT key, value FROM system WHERE key = $1
+`
+
+func (q *Queries) GetSystemValue(ctx context.Context, key string) (*System, error) {
+	row := q.db.QueryRow(ctx, getSystemValue, key)
+	var i System
+	err := row.Scan(&i.Key, &i.Value)
+	return &i, err
+}
+
 const insertSystemValueIfNotExists = `-- name: InsertSystemValueIfNotExists :one
 INSERT INTO system (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET key = $1 RETURNING key, value
 `
@@ -20,6 +31,22 @@ type InsertSystemValueIfNotExistsParams struct {
 
 func (q *Queries) InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error) {
 	row := q.db.QueryRow(ctx, insertSystemValueIfNotExists, arg.Key, arg.Value)
+	var i System
+	err := row.Scan(&i.Key, &i.Value)
+	return &i, err
+}
+
+const replaceSystemValue = `-- name: ReplaceSystemValue :one
+INSERT INTO system (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET key = $1, value = $2 RETURNING key, value
+`
+
+type ReplaceSystemValueParams struct {
+	Key   string
+	Value string
+}
+
+func (q *Queries) ReplaceSystemValue(ctx context.Context, arg ReplaceSystemValueParams) (*System, error) {
+	row := q.db.QueryRow(ctx, replaceSystemValue, arg.Key, arg.Value)
 	var i System
 	err := row.Scan(&i.Key, &i.Value)
 	return &i, err
