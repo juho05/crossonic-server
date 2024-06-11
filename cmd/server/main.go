@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
@@ -58,6 +60,11 @@ func run() error {
 		return err
 	}
 
+	transcodeCache, err := cache.New(filepath.Join(config.CacheDir(), "transcode"), 5e9, 7*24*time.Hour)
+	if err != nil {
+		return err
+	}
+
 	scanner := scanner.New(config.MusicDir(), store)
 	if !config.DisableStartupScan() {
 		go func() {
@@ -73,7 +80,7 @@ func run() error {
 
 	lfm := lastfm.New(config.LastFMApiKey(), store)
 
-	handler := handlers.New(store, scanner, lBrainz, lfm, transcoder)
+	handler := handlers.New(store, scanner, lBrainz, lfm, transcoder, transcodeCache)
 
 	addr := config.ListenAddr()
 

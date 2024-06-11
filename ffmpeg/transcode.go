@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -14,51 +15,57 @@ import (
 	"github.com/juho05/log"
 )
 
-type format struct {
+type Format struct {
+	Name            string
+	Mime            string
 	outFormat       string
-	mime            string
 	encoder         string
 	minBitRateK     int
 	defaultBitRateK int
 	maxBitRateK     int
 }
 
-var formats = map[string]format{
+var formats = map[string]Format{
 	"mp3": {
+		Name:            "mp3",
 		outFormat:       "mp3",
-		mime:            "audio/mpeg",
+		Mime:            "audio/mpeg",
 		encoder:         "libmp3lame",
 		minBitRateK:     64,
 		defaultBitRateK: 192,
 		maxBitRateK:     320,
 	},
 	"opus": {
+		Name:            "opus",
 		outFormat:       "ogg",
-		mime:            "audio/ogg",
+		Mime:            "audio/ogg",
 		encoder:         "libopus",
 		minBitRateK:     32,
 		defaultBitRateK: 192,
 		maxBitRateK:     512,
 	},
 	"ogg": {
+		Name:            "opus",
 		outFormat:       "ogg",
-		mime:            "audio/ogg",
+		Mime:            "audio/ogg",
 		encoder:         "libopus",
 		minBitRateK:     32,
 		defaultBitRateK: 192,
 		maxBitRateK:     500,
 	},
 	"vorbis": {
+		Name:            "vorbis",
 		outFormat:       "ogg",
-		mime:            "audio/ogg",
+		Mime:            "audio/ogg",
 		encoder:         "libvorbis",
 		minBitRateK:     96,
 		defaultBitRateK: 192,
 		maxBitRateK:     500,
 	},
 	"aac": {
+		Name:            "aac",
 		outFormat:       "adts",
-		mime:            "audio/aac",
+		Mime:            "audio/aac",
 		encoder:         "aac",
 		minBitRateK:     64,
 		defaultBitRateK: 192,
@@ -78,8 +85,11 @@ func NewTranscoder() (*Transcoder, error) {
 	return &Transcoder{}, nil
 }
 
-func (t *Transcoder) Transcode(path string, format string, maxBitRateK int, timeOffset time.Duration) (out io.Reader, bitRate int, err error) {
-	format = strings.ToLower(format)
+func (t *Transcoder) SelectFormat(name string, maxBitRateK int) (Format, int) {
+	if name == "raw" {
+		return Format{}, 0
+	}
+	format := strings.ToLower(name)
 	f, ok := formats[format]
 	if !ok {
 		if format != "" {
@@ -87,27 +97,43 @@ func (t *Transcoder) Transcode(path string, format string, maxBitRateK int, time
 		}
 		f = formats["opus"]
 	}
-	if maxBitRateK == 0 {
-		maxBitRateK = f.defaultBitRateK
-	}
 	maxBitRateK = min(f.maxBitRateK, maxBitRateK)
 	maxBitRateK = max(f.minBitRateK, maxBitRateK)
-	args := []string{"-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-b:a", fmt.Sprintf("%dk", maxBitRateK), "-c:a", f.encoder, "-f", f.outFormat, "-"}
+	return f, maxBitRateK
+}
 
-	pipeR, pipeW := io.Pipe()
+func (t *Transcoder) Transcode(path string, format Format, maxBitRateK int, timeOffset time.Duration, w io.Writer, onDone func()) (bitRate int, err error) {
+	if maxBitRateK == 0 {
+		maxBitRateK = format.defaultBitRateK
+	}
+	maxBitRateK = min(format.maxBitRateK, maxBitRateK)
+	maxBitRateK = max(format.minBitRateK, maxBitRateK)
+	args := []string{"-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-b:a", fmt.Sprintf("%dk", maxBitRateK), "-c:a", format.encoder, "-f", format.outFormat, "-"}
 
+	stderr := new(bytes.Buffer)
 	cmd := exec.Command(ffmpegPath, args...)
-	cmd.Stdout = pipeW
+	cmd.Stdout = w
+	cmd.Stderr = stderr
 
 	err = cmd.Start()
 	if err != nil {
-		return nil, 0, fmt.Errorf("ffmpeg: transcode: %w", err)
+		return 0, fmt.Errorf("ffmpeg: transcode: %w", err)
 	}
 	go func() {
-		cmd.Wait()
-		pipeW.Close()
+		err = cmd.Wait()
+		if err != nil {
+			if stderr != nil {
+				log.Errorf("ffmpeg: transcode: %s\n%s", err, stderr.String())
+			} else {
+				log.Errorf("ffmpeg: transcode: %s", err)
+			}
+			return
+		}
+		if onDone != nil {
+			onDone()
+		}
 	}()
-	return pipeR, maxBitRateK, nil
+	return maxBitRateK, nil
 }
 
 func (t *Transcoder) SeekRaw(path string, timeOffset time.Duration) (string, error) {
@@ -133,18 +159,4 @@ func cleanSeekRawCache() {
 	if err != nil {
 		log.Errorf("failed to clean seek-raw cache dir: %w", err)
 	}
-}
-
-func GetContentTypeFromFormatString(format string, maxBitRateK int) (string, int) {
-	format = strings.ToLower(format)
-	f, ok := formats[format]
-	if !ok {
-		f = formats["opus"]
-	}
-	if maxBitRateK == 0 {
-		maxBitRateK = f.defaultBitRateK
-	}
-	maxBitRateK = min(f.maxBitRateK, maxBitRateK)
-	maxBitRateK = max(f.minBitRateK, maxBitRateK)
-	return f.mime, maxBitRateK
 }

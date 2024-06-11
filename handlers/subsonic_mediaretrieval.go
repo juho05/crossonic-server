@@ -18,7 +18,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
-	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/log"
@@ -69,15 +68,14 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		maxBitRate = int(info.BitRate)
 	}
 
-	contentType, bitRate := ffmpeg.GetContentTypeFromFormatString(format, maxBitRate)
+	fileFormat, bitRate := h.Transcoder.SelectFormat(format, maxBitRate)
 	if format == "raw" {
-		w.Header().Set("Content-Type", info.ContentType)
-		contentType = info.ContentType
-	} else {
-		w.Header().Set("Content-Type", contentType)
+		fileFormat.Mime = info.ContentType
+		fileFormat.Name = strings.TrimPrefix(filepath.Ext(info.Path), ".")
 	}
+	w.Header().Set("Content-Type", fileFormat.Mime)
 
-	if format == "raw" || (contentType == info.ContentType && (maxBitRate == 0 || maxBitRate == int(info.BitRate))) {
+	if format == "raw" || (fileFormat.Mime == info.ContentType && (maxBitRate == 0 || maxBitRate == int(info.BitRate))) {
 		path := info.Path
 		if timeOffset != 0 {
 			path, err = h.Transcoder.SeekRaw(path, time.Duration(timeOffset)*time.Second)
@@ -93,12 +91,10 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 				}
 			}()
 		}
-		log.Tracef("Streaming %s raw (%s %dkbps) to %s (user: %s)...", id, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
+		log.Tracef("Streaming %s raw (%s %dkbps) to %s (user: %s) (range: %s)...", id, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"), r.Header.Get("Range"))
 		http.ServeFile(w, r, path)
 		return
 	}
-
-	w.Header().Set("Accept-Ranges", "none")
 
 	if estimate, _ := strconv.ParseBool(query.Get("estimateContentLength")); estimate {
 		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.DurationMs)/1000*float64(bitRate)/8*1024)))
@@ -108,14 +104,59 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, bitRate, err := h.Transcoder.Transcode(info.Path, format, maxBitRate, time.Duration(timeOffset)*time.Second)
+	if timeOffset != 0 {
+		done := make(chan struct{})
+		w.Header().Set("Accept-Ranges", "none")
+		bitRate, err = h.Transcoder.Transcode(info.Path, fileFormat, maxBitRate, time.Duration(timeOffset)*time.Second, w, func() {
+			close(done)
+		})
+		if err != nil {
+			log.Errorf("stream: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
+		log.Tracef("Streaming %s transcoded seek (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
+		<-done
+		return
+	}
+
+	cacheObj, exists, err := h.TranscodeCache.GetObject(fmt.Sprintf("%s-%s-%d", id, fileFormat.Name, bitRate))
 	if err != nil {
 		log.Errorf("stream: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return
 	}
-	log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s)...", id, contentType, bitRate, query.Get("c"), query.Get("u"))
-	io.Copy(w, out)
+
+	if !exists {
+		bitRate, err = h.Transcoder.Transcode(info.Path, fileFormat, maxBitRate, 0, cacheObj, func() {
+			err := cacheObj.SetComplete()
+			if err != nil {
+				log.Errorf("ffmpeg: transcode: %s", err)
+			}
+		})
+		if err != nil {
+			log.Errorf("stream: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
+		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s) (new transcode)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
+	} else {
+		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s) (cached (complete: %t)) (range: %s)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"), cacheObj.IsComplete(), r.Header.Get("Range"))
+	}
+
+	cacheReader, err := cacheObj.Reader()
+	if err != nil {
+		log.Errorf("stream: %s", err)
+		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		return
+	}
+
+	if cacheObj.IsComplete() {
+		http.ServeContent(w, r, id, cacheObj.Modified(), cacheReader)
+	} else {
+		w.Header().Set("Accept-Ranges", "none")
+		io.Copy(w, cacheReader)
+	}
 }
 
 func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {

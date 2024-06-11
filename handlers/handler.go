@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/juho05/crossonic-server/cache"
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers/connect"
@@ -22,9 +23,11 @@ type Handler struct {
 	LastFM            *lastfm.LastFm
 	Transcoder        *ffmpeg.Transcoder
 	ConnectionManager *connect.ConnectionManager
+
+	TranscodeCache *cache.Cache
 }
 
-func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder) *Handler {
+func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache) *Handler {
 	h := &Handler{
 		Store:             store,
 		Scanner:           scanner,
@@ -32,6 +35,7 @@ func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.Li
 		LastFM:            lastFM,
 		Transcoder:        transcoder,
 		ConnectionManager: connect.NewConnectionManager(store),
+		TranscodeCache:    transcodeCache,
 	}
 	h.registerRoutes()
 	return h
