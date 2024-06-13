@@ -69,6 +69,12 @@ type Genre struct {
 	Name string
 }
 
+type LbFeedbackUpdated struct {
+	SongID   string
+	UserName string
+	Mbid     string
+}
+
 type Scrobble struct {
 	UserName                string
 	SongID                  string

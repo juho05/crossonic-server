@@ -179,3 +179,71 @@ func (r iteratorForCreateSongGenres) Err() error {
 func (q *Queries) CreateSongGenres(ctx context.Context, arg []CreateSongGenresParams) (int64, error) {
 	return q.db.CopyFrom(ctx, []string{"song_genre"}, []string{"song_id", "genre_name"}, &iteratorForCreateSongGenres{rows: arg})
 }
+
+// iteratorForSetLBFeedbackUpdated implements pgx.CopyFromSource.
+type iteratorForSetLBFeedbackUpdated struct {
+	rows                 []SetLBFeedbackUpdatedParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForSetLBFeedbackUpdated) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForSetLBFeedbackUpdated) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].SongID,
+		r.rows[0].UserName,
+		r.rows[0].Mbid,
+	}, nil
+}
+
+func (r iteratorForSetLBFeedbackUpdated) Err() error {
+	return nil
+}
+
+func (q *Queries) SetLBFeedbackUpdated(ctx context.Context, arg []SetLBFeedbackUpdatedParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"lb_feedback_updated"}, []string{"song_id", "user_name", "mbid"}, &iteratorForSetLBFeedbackUpdated{rows: arg})
+}
+
+// iteratorForStarSongs implements pgx.CopyFromSource.
+type iteratorForStarSongs struct {
+	rows                 []StarSongsParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForStarSongs) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForStarSongs) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].SongID,
+		r.rows[0].UserName,
+		r.rows[0].Created,
+	}, nil
+}
+
+func (r iteratorForStarSongs) Err() error {
+	return nil
+}
+
+func (q *Queries) StarSongs(ctx context.Context, arg []StarSongsParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"song_stars"}, []string{"song_id", "user_name", "created"}, &iteratorForStarSongs{rows: arg})
+}

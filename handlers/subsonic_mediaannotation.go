@@ -474,125 +474,171 @@ func (h *Handler) handleSetRating(w http.ResponseWriter, r *http.Request) {
 
 // https://opensubsonic.netlify.app/docs/endpoints/star/
 func (h *Handler) handleStar(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
-
-	var ids []string
-	ids = append(ids, query["id"]...)
-	ids = append(ids, query["albumId"]...)
-	ids = append(ids, query["artistId"]...)
-
-	tx, err := h.Store.BeginTransaction(r.Context())
-	if err != nil {
-		log.Errorf("star: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	defer tx.Rollback(r.Context())
-	for _, id := range ids {
-		idType, ok := crossonic.GetIDType(id)
-		if !ok {
-			responses.EncodeError(w, query.Get("f"), "unknown id type", responses.SubsonicErrorNotFound)
-			return
-		}
-		var err error
-		switch idType {
-		case crossonic.IDTypeSong:
-			err = tx.StarSong(r.Context(), db.StarSongParams{
-				SongID:   id,
-				UserName: user,
-			})
-		case crossonic.IDTypeAlbum:
-			err = tx.StarAlbum(r.Context(), db.StarAlbumParams{
-				AlbumID:  id,
-				UserName: user,
-			})
-		case crossonic.IDTypeArtist:
-			err = tx.StarArtist(r.Context(), db.StarArtistParams{
-				ArtistID: id,
-				UserName: user,
-			})
-		}
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) {
-				if pgErr.Code == pgerrcode.ForeignKeyViolation {
-					responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-					return
-				}
-			}
-			log.Errorf("star: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-	}
-
-	err = tx.Commit(r.Context())
-	if err != nil {
-		log.Errorf("star: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-
-	res := responses.New()
-	res.EncodeOrLog(w, query.Get("f"))
+	h.handleStarUnstar(true)(w, r)
 }
 
 // https://opensubsonic.netlify.app/docs/endpoints/unstar/
 func (h *Handler) handleUnstar(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
+	h.handleStarUnstar(false)(w, r)
+}
 
-	var ids []string
-	ids = append(ids, query["id"]...)
-	ids = append(ids, query["albumId"]...)
-	ids = append(ids, query["artistId"]...)
+func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := getQuery(r)
+		user := query.Get("u")
 
-	tx, err := h.Store.BeginTransaction(r.Context())
-	if err != nil {
-		log.Errorf("unstar: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	defer tx.Rollback(r.Context())
-	for _, id := range ids {
-		idType, ok := crossonic.GetIDType(id)
-		if !ok {
-			responses.EncodeError(w, query.Get("f"), "unknown id type", responses.SubsonicErrorNotFound)
-			return
-		}
-		var err error
-		switch idType {
-		case crossonic.IDTypeSong:
-			err = tx.UnstarSong(r.Context(), db.UnstarSongParams{
-				SongID:   id,
-				UserName: user,
-			})
-		case crossonic.IDTypeAlbum:
-			err = tx.UnstarAlbum(r.Context(), db.UnstarAlbumParams{
-				AlbumID:  id,
-				UserName: user,
-			})
-		case crossonic.IDTypeArtist:
-			err = tx.UnstarArtist(r.Context(), db.UnstarArtistParams{
-				ArtistID: id,
-				UserName: user,
-			})
-		}
+		var ids []string
+		ids = append(ids, query["id"]...)
+		ids = append(ids, query["albumId"]...)
+		ids = append(ids, query["artistId"]...)
+
+		tx, err := h.Store.BeginTransaction(r.Context())
 		if err != nil {
-			log.Errorf("unstar: %s", err)
+			log.Errorf("(un)star: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-	}
+		defer tx.Rollback(r.Context())
 
-	err = tx.Commit(r.Context())
-	if err != nil {
-		log.Errorf("unstar: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
+		songIDs := make([]string, 0, len(ids))
+		for _, id := range ids {
+			idType, ok := crossonic.GetIDType(id)
+			if !ok {
+				responses.EncodeError(w, query.Get("f"), "unknown id type", responses.SubsonicErrorNotFound)
+				return
+			}
+			var err error
+			switch idType {
+			case crossonic.IDTypeSong:
+				songIDs = append(songIDs, id)
+				if star {
+					err = tx.StarSong(r.Context(), db.StarSongParams{
+						SongID:   id,
+						UserName: user,
+					})
+				} else {
+					err = tx.UnstarSong(r.Context(), db.UnstarSongParams{
+						SongID:   id,
+						UserName: user,
+					})
+				}
+			case crossonic.IDTypeAlbum:
+				if star {
+					err = tx.StarAlbum(r.Context(), db.StarAlbumParams{
+						AlbumID:  id,
+						UserName: user,
+					})
+				} else {
+					err = tx.UnstarAlbum(r.Context(), db.UnstarAlbumParams{
+						AlbumID:  id,
+						UserName: user,
+					})
+				}
+			case crossonic.IDTypeArtist:
+				if star {
+					err = tx.StarArtist(r.Context(), db.StarArtistParams{
+						ArtistID: id,
+						UserName: user,
+					})
+				} else {
+					err = tx.UnstarArtist(r.Context(), db.UnstarArtistParams{
+						ArtistID: id,
+						UserName: user,
+					})
+				}
+			}
+			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) {
+					if pgErr.Code == pgerrcode.ForeignKeyViolation {
+						responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+						return
+					}
+				}
+				log.Errorf("star: %s", err)
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				return
+			}
+		}
 
-	res := responses.New()
-	res.EncodeOrLog(w, query.Get("f"))
+		err = tx.RemoveLBFeedbackUpdated(r.Context(), db.RemoveLBFeedbackUpdatedParams{
+			UserName: user,
+			SongIds:  songIDs,
+		})
+		if err != nil {
+			log.Errorf("(un)star: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
+		}
+
+		if len(songIDs) > 0 {
+			songs, err := tx.FindSongs(r.Context(), songIDs)
+			if err != nil {
+				log.Errorf("(un)star: %s", err)
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				return
+			}
+			lbFeedback := make([]*listenbrainz.Feedback, 0, len(songs))
+			feedbackMap := make(map[string]*listenbrainz.Feedback, len(songs))
+			for _, s := range songs {
+				score := listenbrainz.FeedbackScoreNone
+				if star {
+					score = listenbrainz.FeedbackScoreLove
+				}
+				feedback := &listenbrainz.Feedback{
+					SongID:    s.ID,
+					SongName:  s.Title,
+					SongMBID:  s.MusicBrainzID,
+					AlbumName: s.AlbumName,
+					Score:     score,
+				}
+				lbFeedback = append(lbFeedback, feedback)
+				feedbackMap[s.ID] = feedback
+			}
+
+			if len(feedbackMap) > 0 {
+				artists, err := tx.FindArtistRefsBySongs(r.Context(), songIDs)
+				if err != nil {
+					log.Errorf("(un)star: %s", err)
+					responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+					return
+				}
+				for _, a := range artists {
+					feedback := feedbackMap[a.SongID]
+					if feedback.ArtistName == nil {
+						feedback.ArtistName = &a.Name
+					}
+				}
+			}
+
+			err = tx.Commit(r.Context())
+			if err != nil {
+				log.Errorf("(un)star: %s", err)
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				return
+			}
+
+			lbCon, err := h.ListenBrainz.GetListenbrainzConnection(r.Context(), user)
+			if err == nil {
+				_, err = h.ListenBrainz.UpdateSongFeedback(r.Context(), lbCon, lbFeedback)
+				if err != nil {
+					log.Errorf("(un)star: %s", err)
+				}
+			} else {
+				if !errors.Is(err, listenbrainz.ErrUnauthenticated) {
+					log.Errorf("(un)star: %s", err)
+				}
+			}
+		} else {
+			err = tx.Commit(r.Context())
+			if err != nil {
+				log.Errorf("(un)star: %s", err)
+				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				return
+			}
+		}
+
+		res := responses.New()
+		res.EncodeOrLog(w, query.Get("f"))
+	}
 }

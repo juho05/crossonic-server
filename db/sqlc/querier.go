@@ -7,6 +7,7 @@ package db
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -27,6 +28,7 @@ type Querier interface {
 	DeleteAllGenres(ctx context.Context) error
 	DeleteArtistsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
 	DeleteGenre(ctx context.Context, name string) error
+	DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx context.Context, arg DeleteLBFeedbackUpdatedStarsNotInMBIDListParams) (pgconn.CommandTag, error)
 	DeleteNowPlaying(ctx context.Context, userName string) error
 	DeleteSongArtists(ctx context.Context, songID string) error
 	DeleteSongGenres(ctx context.Context, songID string) error
@@ -54,6 +56,8 @@ type Querier interface {
 	FindGenresByAlbums(ctx context.Context, albumIds []string) ([]*FindGenresByAlbumsRow, error)
 	FindGenresBySongs(ctx context.Context, songIds []string) ([]*FindGenresBySongsRow, error)
 	FindGenresWithCount(ctx context.Context) ([]*FindGenresWithCountRow, error)
+	FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx context.Context, arg FindLBFeedbackUpdatedSongIDsInMBIDListNotStarredParams) ([]string, error)
+	FindNotLBUpdatedSongs(ctx context.Context, userName string) ([]*FindNotLBUpdatedSongsRow, error)
 	FindPossibleScrobbleConflicts(ctx context.Context, arg FindPossibleScrobbleConflictsParams) ([]*Scrobble, error)
 	FindRandomSongs(ctx context.Context, arg FindRandomSongsParams) ([]*FindRandomSongsRow, error)
 	FindSong(ctx context.Context, id string) (*FindSongRow, error)
@@ -73,6 +77,7 @@ type Querier interface {
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)
 	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error
 	RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error
+	RemoveLBFeedbackUpdated(ctx context.Context, arg RemoveLBFeedbackUpdatedParams) error
 	RemoveSongRating(ctx context.Context, arg RemoveSongRatingParams) error
 	ReplaceSystemValue(ctx context.Context, arg ReplaceSystemValueParams) (*System, error)
 	SearchAlbumArtists(ctx context.Context, arg SearchAlbumArtistsParams) ([]*SearchAlbumArtistsRow, error)
@@ -80,11 +85,13 @@ type Querier interface {
 	SearchSongs(ctx context.Context, arg SearchSongsParams) ([]*SearchSongsRow, error)
 	SetAlbumRating(ctx context.Context, arg SetAlbumRatingParams) error
 	SetArtistRating(ctx context.Context, arg SetArtistRatingParams) error
+	SetLBFeedbackUpdated(ctx context.Context, arg []SetLBFeedbackUpdatedParams) (int64, error)
 	SetLBSubmittedByUsers(ctx context.Context, userNames []string) error
 	SetSongRating(ctx context.Context, arg SetSongRatingParams) error
 	StarAlbum(ctx context.Context, arg StarAlbumParams) error
 	StarArtist(ctx context.Context, arg StarArtistParams) error
 	StarSong(ctx context.Context, arg StarSongParams) error
+	StarSongs(ctx context.Context, arg []StarSongsParams) (int64, error)
 	UnstarAlbum(ctx context.Context, arg UnstarAlbumParams) error
 	UnstarArtist(ctx context.Context, arg UnstarArtistParams) error
 	UnstarSong(ctx context.Context, arg UnstarSongParams) error

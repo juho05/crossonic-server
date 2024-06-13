@@ -63,6 +63,11 @@ func (h *Handler) handleConnectListenbrainz(w http.ResponseWriter, r *http.Reque
 		log.Error(err)
 	}
 
+	err = h.ListenBrainz.SyncSongFeedback(r.Context())
+	if err != nil {
+		log.Error(err)
+	}
+
 	res := responses.New()
 	res.ListenBrainzConfig = &responses.ListenBrainzConfig{
 		ListenBrainzUsername: lbUsername,

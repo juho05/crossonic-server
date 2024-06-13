@@ -83,7 +83,7 @@ func run() error {
 	}
 
 	lBrainz := listenbrainz.New(store)
-	lBrainz.StartPeriodicallySubmittingListens(24 * time.Hour)
+	lBrainz.StartPeriodicSync(24 * time.Hour)
 
 	lfm := lastfm.New(config.LastFMApiKey(), store)
 

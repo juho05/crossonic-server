@@ -7,7 +7,132 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const deleteLBFeedbackUpdatedStarsNotInMBIDList = `-- name: DeleteLBFeedbackUpdatedStarsNotInMBIDList :execresult
+DELETE FROM song_stars WHERE song_stars.user_name = $1 AND song_stars.song_id IN (
+  SELECT lb_feedback_updated.song_id FROM lb_feedback_updated WHERE lb_feedback_updated.user_name = $1 AND NOT (lb_feedback_updated.mbid = any($2::text[]))
+)
+`
+
+type DeleteLBFeedbackUpdatedStarsNotInMBIDListParams struct {
+	UserName  string
+	SongMbids []string
+}
+
+func (q *Queries) DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx context.Context, arg DeleteLBFeedbackUpdatedStarsNotInMBIDListParams) (pgconn.CommandTag, error) {
+	return q.db.Exec(ctx, deleteLBFeedbackUpdatedStarsNotInMBIDList, arg.UserName, arg.SongMbids)
+}
+
+const findLBFeedbackUpdatedSongIDsInMBIDListNotStarred = `-- name: FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred :many
+SELECT lb_feedback_updated.song_id FROM lb_feedback_updated LEFT JOIN song_stars ON song_stars.user_name = $1 AND song_stars.song_id = lb_feedback_updated.song_id WHERE lb_feedback_updated.user_name = $1 AND song_stars.song_id IS NULL AND lb_feedback_updated.mbid = any($2::text[])
+`
+
+type FindLBFeedbackUpdatedSongIDsInMBIDListNotStarredParams struct {
+	UserName  string
+	SongMbids []string
+}
+
+func (q *Queries) FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx context.Context, arg FindLBFeedbackUpdatedSongIDsInMBIDListNotStarredParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, findLBFeedbackUpdatedSongIDsInMBIDListNotStarred, arg.UserName, arg.SongMbids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var song_id string
+		if err := rows.Scan(&song_id); err != nil {
+			return nil, err
+		}
+		items = append(items, song_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findNotLBUpdatedSongs = `-- name: FindNotLBUpdatedSongs :many
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, albums.name as album_name, song_stars.created as starred FROM songs
+LEFT JOIN albums ON albums.id = songs.album_id
+LEFT JOIN song_stars ON song_stars.song_id = songs.id AND song_stars.user_name = $1
+LEFT JOIN lb_feedback_updated ON lb_feedback_updated.user_name = $1 AND lb_feedback_updated.song_id = songs.id
+WHERE lb_feedback_updated.song_id IS NULL
+`
+
+type FindNotLBUpdatedSongsRow struct {
+	ID             string
+	Path           string
+	AlbumID        *string
+	Title          string
+	Track          *int32
+	Year           *int32
+	Size           int64
+	ContentType    string
+	DurationMs     int32
+	BitRate        int32
+	SamplingRate   int32
+	ChannelCount   int32
+	DiscNumber     *int32
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	Bpm            *int32
+	MusicBrainzID  *string
+	ReplayGain     *float32
+	ReplayGainPeak *float32
+	Lyrics         *string
+	CoverID        *string
+	AlbumName      *string
+	Starred        pgtype.Timestamptz
+}
+
+func (q *Queries) FindNotLBUpdatedSongs(ctx context.Context, userName string) ([]*FindNotLBUpdatedSongsRow, error) {
+	rows, err := q.db.Query(ctx, findNotLBUpdatedSongs, userName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FindNotLBUpdatedSongsRow
+	for rows.Next() {
+		var i FindNotLBUpdatedSongsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Path,
+			&i.AlbumID,
+			&i.Title,
+			&i.Track,
+			&i.Year,
+			&i.Size,
+			&i.ContentType,
+			&i.DurationMs,
+			&i.BitRate,
+			&i.SamplingRate,
+			&i.ChannelCount,
+			&i.DiscNumber,
+			&i.Created,
+			&i.Updated,
+			&i.Bpm,
+			&i.MusicBrainzID,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.Lyrics,
+			&i.CoverID,
+			&i.AlbumName,
+			&i.Starred,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const removeAlbumRating = `-- name: RemoveAlbumRating :exec
 DELETE FROM album_ratings WHERE user_name = $1 AND album_id = $2
@@ -34,6 +159,20 @@ type RemoveArtistRatingParams struct {
 
 func (q *Queries) RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error {
 	_, err := q.db.Exec(ctx, removeArtistRating, arg.UserName, arg.ArtistID)
+	return err
+}
+
+const removeLBFeedbackUpdated = `-- name: RemoveLBFeedbackUpdated :exec
+DELETE FROM lb_feedback_updated WHERE user_name = $1 AND song_id = any($2::text[])
+`
+
+type RemoveLBFeedbackUpdatedParams struct {
+	UserName string
+	SongIds  []string
+}
+
+func (q *Queries) RemoveLBFeedbackUpdated(ctx context.Context, arg RemoveLBFeedbackUpdatedParams) error {
+	_, err := q.db.Exec(ctx, removeLBFeedbackUpdated, arg.UserName, arg.SongIds)
 	return err
 }
 
@@ -79,6 +218,12 @@ type SetArtistRatingParams struct {
 func (q *Queries) SetArtistRating(ctx context.Context, arg SetArtistRatingParams) error {
 	_, err := q.db.Exec(ctx, setArtistRating, arg.ArtistID, arg.UserName, arg.Rating)
 	return err
+}
+
+type SetLBFeedbackUpdatedParams struct {
+	SongID   string
+	UserName string
+	Mbid     string
 }
 
 const setSongRating = `-- name: SetSongRating :exec
@@ -136,6 +281,12 @@ type StarSongParams struct {
 func (q *Queries) StarSong(ctx context.Context, arg StarSongParams) error {
 	_, err := q.db.Exec(ctx, starSong, arg.SongID, arg.UserName)
 	return err
+}
+
+type StarSongsParams struct {
+	SongID   string
+	UserName string
+	Created  pgtype.Timestamptz
 }
 
 const unstarAlbum = `-- name: UnstarAlbum :exec
