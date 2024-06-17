@@ -281,67 +281,81 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 					stat, err := originalFile.Stat()
 					if err != nil {
 						log.Errorf("failed to stat cover art file %s: %s", *media.coverPath, err)
-					} else if stat.ModTime().After(lastScan) {
-						if keys, ok := cachedCoverKeys[song.id]; ok {
-							for _, k := range keys {
-								err := s.coverCache.DeleteObject(k)
-								if err != nil {
-									log.Errorf("scan: invalidate cover cache for %s: %s", *albumID)
-								}
+					} else {
+						var updateCover bool
+						if stat.ModTime().After(lastScan) {
+							updateCover = true
+						} else {
+							if albumID == nil {
+								_, err = os.Stat(filepath.Join(config.DataDir(), "covers", "songs", song.id))
+								updateCover = err != nil
+							} else {
+								_, err = os.Stat(filepath.Join(config.DataDir(), "covers", "albums", *albumID))
+								updateCover = err != nil
 							}
 						}
-						var file *os.File
-						if albumID != nil {
-							if _, ok := albumCovers[*albumID]; !ok {
-								if keys, ok := cachedCoverKeys[*albumID]; ok {
-									for _, k := range keys {
-										err := s.coverCache.DeleteObject(k)
-										if err != nil {
-											log.Errorf("scan: invalidate cover cache for %s: %s", *albumID)
+						if updateCover {
+							if keys, ok := cachedCoverKeys[song.id]; ok {
+								for _, k := range keys {
+									err := s.coverCache.DeleteObject(k)
+									if err != nil {
+										log.Errorf("scan: invalidate cover cache for %s: %s", *albumID)
+									}
+								}
+							}
+							var file *os.File
+							if albumID != nil {
+								if _, ok := albumCovers[*albumID]; !ok {
+									if keys, ok := cachedCoverKeys[*albumID]; ok {
+										for _, k := range keys {
+											err := s.coverCache.DeleteObject(k)
+											if err != nil {
+												log.Errorf("scan: invalidate cover cache for %s: %s", *albumID)
+											}
 										}
 									}
-								}
-								file, err = os.Create(filepath.Join(albumCoverDir, *albumID))
-								if err != nil {
-									log.Errorf("failed to create cover art file for %s: %s", media.path, err)
-								}
-							}
-							coverID = albumID
-						} else {
-							if _, ok := songCovers[song.id]; !ok {
-								file, err = os.Create(filepath.Join(songCoverDir, song.id))
-								if err != nil {
-									log.Errorf("failed to create cover art file for %s: %s", media.path, err)
-								}
-							}
-							coverID = &song.id
-						}
-						if file != nil {
-							originalFile, err := os.Open(*media.coverPath)
-							if err != nil {
-								log.Errorf("failed to open cover art file %s: %s", *media.coverPath, err)
-							} else {
-								_, err = io.Copy(file, originalFile)
-								if err != nil {
-									log.Errorf("failed to copy cover art file %s: %s", *media.coverPath, err)
-								} else {
-									if albumID != nil {
-										albumCovers[*albumID] = struct{}{}
-									} else {
-										songCovers[song.id] = struct{}{}
+									file, err = os.Create(filepath.Join(albumCoverDir, *albumID))
+									if err != nil {
+										log.Errorf("failed to create cover art file for %s: %s", media.path, err)
 									}
 								}
-								originalFile.Close()
+								coverID = albumID
+							} else {
+								if _, ok := songCovers[song.id]; !ok {
+									file, err = os.Create(filepath.Join(songCoverDir, song.id))
+									if err != nil {
+										log.Errorf("failed to create cover art file for %s: %s", media.path, err)
+									}
+								}
+								coverID = &song.id
 							}
-							file.Close()
-						}
-					} else {
-						if albumID != nil {
-							coverID = albumID
-							albumCovers[*albumID] = struct{}{}
+							if file != nil {
+								originalFile, err := os.Open(*media.coverPath)
+								if err != nil {
+									log.Errorf("failed to open cover art file %s: %s", *media.coverPath, err)
+								} else {
+									_, err = io.Copy(file, originalFile)
+									if err != nil {
+										log.Errorf("failed to copy cover art file %s: %s", *media.coverPath, err)
+									} else {
+										if albumID != nil {
+											albumCovers[*albumID] = struct{}{}
+										} else {
+											songCovers[song.id] = struct{}{}
+										}
+									}
+									originalFile.Close()
+								}
+								file.Close()
+							}
 						} else {
-							coverID = &song.id
-							songCovers[song.id] = struct{}{}
+							if albumID != nil {
+								coverID = albumID
+								albumCovers[*albumID] = struct{}{}
+							} else {
+								coverID = &song.id
+								songCovers[song.id] = struct{}{}
+							}
 						}
 					}
 				}()
