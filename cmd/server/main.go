@@ -73,17 +73,18 @@ func run() error {
 	}
 
 	scanner := scanner.New(config.MusicDir(), store, coverCache)
+
+	lBrainz := listenbrainz.New(store)
+
 	if !config.DisableStartupScan() {
 		go func() {
 			err = scanner.ScanMediaFull()
 			if err != nil {
 				log.Errorf("scan media: %s", err)
 			}
+			lBrainz.StartPeriodicSync(24 * time.Hour)
 		}()
 	}
-
-	lBrainz := listenbrainz.New(store)
-	lBrainz.StartPeriodicSync(24 * time.Hour)
 
 	lfm := lastfm.New(config.LastFMApiKey(), store)
 

@@ -282,7 +282,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 					if err != nil {
 						log.Errorf("failed to stat cover art file %s: %s", *media.coverPath, err)
 					} else if stat.ModTime().After(lastScan) {
-						if keys, ok := cachedCoverKeys[*media.id]; ok {
+						if keys, ok := cachedCoverKeys[song.id]; ok {
 							for _, k := range keys {
 								err := s.coverCache.DeleteObject(k)
 								if err != nil {
