@@ -58,11 +58,13 @@
 
 ### Playlists
 
-- [ ] [getPlaylists](https://opensubsonic.netlify.app/docs/endpoints/getplaylists)
-- [ ] [getPlaylist](https://opensubsonic.netlify.app/docs/endpoints/getplaylist)
-- [ ] [createPlaylist](https://opensubsonic.netlify.app/docs/endpoints/createplaylist)
-- [ ] [updatePlaylist](https://opensubsonic.netlify.app/docs/endpoints/updateplaylist)
-- [ ] [deletePlaylist](https://opensubsonic.netlify.app/docs/endpoints/deleteplaylist)
+*public playlists are disabled*
+
+- [x] [getPlaylists](https://opensubsonic.netlify.app/docs/endpoints/getplaylists)
+- [x] [getPlaylist](https://opensubsonic.netlify.app/docs/endpoints/getplaylist)
+- [x] [createPlaylist](https://opensubsonic.netlify.app/docs/endpoints/createplaylist)
+- [x] [updatePlaylist](https://opensubsonic.netlify.app/docs/endpoints/updateplaylist)
+- [x] [deletePlaylist](https://opensubsonic.netlify.app/docs/endpoints/deleteplaylist)
 
 ### Media Retrieval
 
@@ -146,3 +148,4 @@
 - [x] connectListenBrainz
 - [x] getListenBrainzConfig
 - [x] connect
+- [x] setPlaylistCover

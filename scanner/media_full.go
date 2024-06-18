@@ -145,9 +145,16 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 
 	albumCovers := make(map[string]struct{})
 	songCovers := make(map[string]struct{})
+	playlistCoverDir := filepath.Join(s.coverDir, "playlists")
 	artistCoverDir := filepath.Join(s.coverDir, "artists")
 	albumCoverDir := filepath.Join(s.coverDir, "albums")
 	songCoverDir := filepath.Join(s.coverDir, "songs")
+
+	err = os.MkdirAll(playlistCoverDir, 0755)
+	if err != nil {
+		log.Errorf("process media files: create playlist cover dir: %s", err)
+		return
+	}
 
 	err = os.MkdirAll(artistCoverDir, 0755)
 	if err != nil {

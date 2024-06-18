@@ -75,6 +75,22 @@ type LbFeedbackUpdated struct {
 	Mbid     string
 }
 
+type Playlist struct {
+	ID      string
+	Name    string
+	Created pgtype.Timestamptz
+	Updated pgtype.Timestamptz
+	Owner   string
+	Public  bool
+	Comment *string
+}
+
+type PlaylistSong struct {
+	PlaylistID string
+	SongID     string
+	Track      int32
+}
+
 type Scrobble struct {
 	UserName                string
 	SongID                  string

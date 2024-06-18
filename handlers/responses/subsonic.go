@@ -157,7 +157,7 @@ type NowPlaying struct {
 type NowPlayingEntry struct {
 	Song
 	Username   string `xml:"username,attr" json:"username"`
-	MinutesAgo int    `xml:"minutesAgo" json:"minutesAgo"`
+	MinutesAgo int    `xml:"minutesAgo,attr" json:"minutesAgo"`
 }
 
 type SearchResult3 struct {
@@ -182,4 +182,22 @@ type StructuredLyrics struct {
 type Line struct {
 	Value string `xml:"value" json:"value"`
 	Start *int   `xml:"start,omitempty" json:"start,omitempty"`
+}
+
+type Playlists struct {
+	Playlists []*Playlist `xml:"playlist" json:"playlist"`
+}
+
+type Playlist struct {
+	ID        string    `xml:"id,attr" json:"id"`
+	Name      string    `xml:"name,attr" json:"name"`
+	Comment   *string   `xml:"comment,attr,omitempty" json:"comment,omitempty"`
+	Owner     string    `xml:"owner,attr" json:"owner,omitempty"`
+	Public    bool      `xml:"public,attr" json:"public"`
+	SongCount int       `xml:"songCount,attr" json:"songCount"`
+	Duration  int       `xml:"duration,attr" json:"duration"`
+	Created   time.Time `xml:"created,attr"  json:"created"`
+	Changed   time.Time `xml:"changed,attr"  json:"changed"`
+	CoverArt  *string   `xml:"coverArt,attr,omitempty" json:"coverArt,omitempty"`
+	Entry     *[]*Song  `xml:"entry,omitempty" json:"entry,omitempty"`
 }

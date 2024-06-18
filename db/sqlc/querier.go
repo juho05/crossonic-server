@@ -12,11 +12,15 @@ import (
 )
 
 type Querier interface {
+	AddPlaylistTracks(ctx context.Context, arg []AddPlaylistTracksParams) (int64, error)
+	CheckPlaylistExists(ctx context.Context, arg CheckPlaylistExistsParams) (bool, error)
+	ClearPlaylist(ctx context.Context, playlistID string) error
 	CreateAlbum(ctx context.Context, arg CreateAlbumParams) (*Album, error)
 	CreateAlbumArtists(ctx context.Context, arg []CreateAlbumArtistsParams) (int64, error)
 	CreateAlbumGenres(ctx context.Context, arg []CreateAlbumGenresParams) (int64, error)
 	CreateArtist(ctx context.Context, arg CreateArtistParams) (*Artist, error)
 	CreateGenre(ctx context.Context, name string) error
+	CreatePlaylist(ctx context.Context, arg CreatePlaylistParams) error
 	CreateScrobbles(ctx context.Context, arg []CreateScrobblesParams) (int64, error)
 	CreateSong(ctx context.Context, arg CreateSongParams) (*Song, error)
 	CreateSongArtists(ctx context.Context, arg []CreateSongArtistsParams) (int64, error)
@@ -30,6 +34,7 @@ type Querier interface {
 	DeleteGenre(ctx context.Context, name string) error
 	DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx context.Context, arg DeleteLBFeedbackUpdatedStarsNotInMBIDListParams) (pgconn.CommandTag, error)
 	DeleteNowPlaying(ctx context.Context, userName string) error
+	DeletePlaylist(ctx context.Context, arg DeletePlaylistParams) (pgconn.CommandTag, error)
 	DeleteSongArtists(ctx context.Context, songID string) error
 	DeleteSongGenres(ctx context.Context, songID string) error
 	DeleteSongsLastUpdatedBefore(ctx context.Context, updated pgtype.Timestamptz) error
@@ -58,6 +63,8 @@ type Querier interface {
 	FindGenresWithCount(ctx context.Context) ([]*FindGenresWithCountRow, error)
 	FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx context.Context, arg FindLBFeedbackUpdatedSongIDsInMBIDListNotStarredParams) ([]string, error)
 	FindNotLBUpdatedSongs(ctx context.Context, userName string) ([]*FindNotLBUpdatedSongsRow, error)
+	FindPlaylist(ctx context.Context, arg FindPlaylistParams) (*FindPlaylistRow, error)
+	FindPlaylists(ctx context.Context, user string) ([]*FindPlaylistsRow, error)
 	FindPossibleScrobbleConflicts(ctx context.Context, arg FindPossibleScrobbleConflictsParams) ([]*Scrobble, error)
 	FindRandomSongs(ctx context.Context, arg FindRandomSongsParams) ([]*FindRandomSongsRow, error)
 	FindSong(ctx context.Context, id string) (*FindSongRow, error)
@@ -72,12 +79,16 @@ type Querier interface {
 	FindUsers(ctx context.Context) ([]*User, error)
 	GetNowPlaying(ctx context.Context, userName string) (*Scrobble, error)
 	GetNowPlayingSongs(ctx context.Context, userName string) ([]*GetNowPlayingSongsRow, error)
+	GetPlaylistOwner(ctx context.Context, id string) (string, error)
+	GetPlaylistTrackNumbers(ctx context.Context, playlistID string) ([]int32, error)
+	GetPlaylistTracks(ctx context.Context, arg GetPlaylistTracksParams) ([]*GetPlaylistTracksRow, error)
 	GetStreamInfo(ctx context.Context, id string) (*GetStreamInfoRow, error)
 	GetSystemValue(ctx context.Context, key string) (*System, error)
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)
 	RemoveAlbumRating(ctx context.Context, arg RemoveAlbumRatingParams) error
 	RemoveArtistRating(ctx context.Context, arg RemoveArtistRatingParams) error
 	RemoveLBFeedbackUpdated(ctx context.Context, arg RemoveLBFeedbackUpdatedParams) error
+	RemovePlaylistTracks(ctx context.Context, arg RemovePlaylistTracksParams) error
 	RemoveSongRating(ctx context.Context, arg RemoveSongRatingParams) error
 	ReplaceSystemValue(ctx context.Context, arg ReplaceSystemValueParams) (*System, error)
 	SearchAlbumArtists(ctx context.Context, arg SearchAlbumArtistsParams) ([]*SearchAlbumArtistsRow, error)
@@ -97,6 +108,9 @@ type Querier interface {
 	UnstarSong(ctx context.Context, arg UnstarSongParams) error
 	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error
 	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
+	UpdatePlaylist(ctx context.Context, arg UpdatePlaylistParams) error
+	UpdatePlaylistName(ctx context.Context, arg UpdatePlaylistNameParams) (pgconn.CommandTag, error)
+	UpdatePlaylistTrackNumbers(ctx context.Context, arg UpdatePlaylistTrackNumbersParams) error
 	UpdateSong(ctx context.Context, arg UpdateSongParams) error
 	UpdateUserListenBrainzConnection(ctx context.Context, arg UpdateUserListenBrainzConnectionParams) (*User, error)
 }

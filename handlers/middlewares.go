@@ -36,7 +36,7 @@ func ignoreExtension(next http.Handler) http.Handler {
 func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		values := r.URL.Query()
-		if r.Body != nil {
+		if r.Body != nil && r.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
 			body, err := io.ReadAll(r.Body)
 			r.Body.Close()
 			if err != nil {

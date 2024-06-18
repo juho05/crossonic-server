@@ -17,7 +17,6 @@ func LoadAll() {
 	DBName()
 	DBPort()
 	MusicDir()
-	PlaylistsDir()
 	DataDir()
 	CacheDir()
 	PasswordEncryptionKey()
@@ -64,10 +63,6 @@ func DBPort() int {
 
 func MusicDir() string {
 	return requiredString("MUSIC_DIR")
-}
-
-func PlaylistsDir() string {
-	return requiredString("PLAYLISTS_DIR")
 }
 
 func DataDir() string {

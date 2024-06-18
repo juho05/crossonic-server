@@ -47,7 +47,6 @@ COPY --from=builder \
 EXPOSE 8080
 ENV TZ ""
 ENV MUSIC_DIR /music
-ENV PLAYLISTS_DIR /playlists
 ENV DATA_DIR /data
 ENV CACHE_DIR /cache
 ENV LISTEN_ADDR 0.0.0.0:8080

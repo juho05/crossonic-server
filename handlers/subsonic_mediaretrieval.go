@@ -314,6 +314,8 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		dir = filepath.Join(config.DataDir(), "covers", "albums")
 	case crossonic.IDTypeArtist:
 		dir = filepath.Join(config.DataDir(), "covers", "artists")
+	case crossonic.IDTypePlaylist:
+		dir = filepath.Join(config.DataDir(), "covers", "playlists")
 	}
 	fileFS := os.DirFS(dir)
 	file, err := fileFS.Open(id)

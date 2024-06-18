@@ -32,6 +32,11 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/getNowPlaying", h.handleGetNowPlaying)
 	registerRoute(r, "/search3", h.handleSearch3)
 	registerRoute(r, "/getLyricsBySongId", h.handleGetLyricsBySongId)
+	registerRoute(r, "/getPlaylists", h.handleGetPlaylists)
+	registerRoute(r, "/getPlaylist", h.handleGetPlaylist)
+	registerRoute(r, "/createPlaylist", h.handleCreatePlaylist)
+	registerRoute(r, "/updatePlaylist", h.handleUpdatePlaylist)
+	registerRoute(r, "/deletePlaylist", h.handleDeletePlaylist)
 }
 
 func int32PtrToIntPtr(ptr *int32) *int {
@@ -65,9 +70,11 @@ func hasCoverArt(id string) bool {
 		path = filepath.Join(config.DataDir(), "covers", "albums")
 	case crossonic.IDTypeArtist:
 		path = filepath.Join(config.DataDir(), "covers", "artists")
+	case crossonic.IDTypePlaylist:
+		path = filepath.Join(config.DataDir(), "covers", "playlists")
 	default:
 		return false
 	}
-	_, err := os.Stat(path)
+	_, err := os.Stat(filepath.Join(path, id))
 	return err == nil
 }

@@ -23,7 +23,7 @@ var MigrationsFS fs.FS
 
 var GenID func() string
 var IDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-~"
-var IDRegex = regexp.MustCompile(fmt.Sprintf("^(tr)|(al)|(ar)_[%s]{12}$", strings.ReplaceAll(IDAlphabet, "-", "\\-")))
+var IDRegex = regexp.MustCompile(fmt.Sprintf("^(tr)|(al)|(ar)|(pl)_[%s]{12}$", strings.ReplaceAll(IDAlphabet, "-", "\\-")))
 
 func init() {
 	var err error
@@ -40,9 +40,10 @@ func init() {
 type IDType string
 
 const (
-	IDTypeSong   IDType = "tr"
-	IDTypeAlbum  IDType = "al"
-	IDTypeArtist IDType = "ar"
+	IDTypeSong     IDType = "tr"
+	IDTypeAlbum    IDType = "al"
+	IDTypeArtist   IDType = "ar"
+	IDTypePlaylist IDType = "pl"
 )
 
 func GenIDSong() string {
@@ -57,13 +58,17 @@ func GenIDArtist() string {
 	return string(IDTypeArtist) + "_" + GenID()
 }
 
+func GenIDPlaylist() string {
+	return string(IDTypePlaylist) + "_" + GenID()
+}
+
 func GetIDType(id string) (IDType, bool) {
 	parts := strings.Split(id, "_")
 	if len(parts) != 2 {
 		return "", false
 	}
 	types := []IDType{
-		IDTypeSong, IDTypeAlbum, IDTypeArtist,
+		IDTypeSong, IDTypeAlbum, IDTypeArtist, IDTypePlaylist,
 	}
 	if !slices.Contains(types, IDType(parts[0])) {
 		return "", false

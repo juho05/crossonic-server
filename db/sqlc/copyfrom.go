@@ -9,6 +9,40 @@ import (
 	"context"
 )
 
+// iteratorForAddPlaylistTracks implements pgx.CopyFromSource.
+type iteratorForAddPlaylistTracks struct {
+	rows                 []AddPlaylistTracksParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForAddPlaylistTracks) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForAddPlaylistTracks) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].PlaylistID,
+		r.rows[0].SongID,
+		r.rows[0].Track,
+	}, nil
+}
+
+func (r iteratorForAddPlaylistTracks) Err() error {
+	return nil
+}
+
+func (q *Queries) AddPlaylistTracks(ctx context.Context, arg []AddPlaylistTracksParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"playlist_song"}, []string{"playlist_id", "song_id", "track"}, &iteratorForAddPlaylistTracks{rows: arg})
+}
+
 // iteratorForCreateAlbumArtists implements pgx.CopyFromSource.
 type iteratorForCreateAlbumArtists struct {
 	rows                 []CreateAlbumArtistsParams
