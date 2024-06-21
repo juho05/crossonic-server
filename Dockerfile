@@ -1,13 +1,13 @@
 # docker buildx build --platform linux/arm64,linux/amd64 --tag ghcr.io/juho05/crossonic-server:latest --push .
-FROM alpine:3.19 AS builder-taglib
+FROM alpine:3.20 AS builder-taglib
 WORKDIR /tmp
 COPY alpine/taglib/APKBUILD .
 RUN apk update && \
-    apk add --no-cache abuild && \
-    abuild-keygen -a -n && \
+    apk add --no-cache sudo abuild && \
+    abuild-keygen -a -n -i && \
     REPODEST=/pkgs abuild -F -r
 
-FROM golang:alpine3.19 AS builder
+FROM golang:alpine3.20 AS builder
 RUN apk add -U --no-cache \
     build-base \
     ca-certificates \
@@ -26,8 +26,8 @@ COPY . .
 RUN GOOS=linux go build -o crossonic-server ./cmd/server
 RUN GOOS=linux go build -o crossonic-admin ./cmd/admin
 
-FROM alpine:3.19
-LABEL org.opencontainers.image.source https://github.com/juho05/crossonic-server
+FROM alpine:3.20
+LABEL org.opencontainers.image.source=https://github.com/juho05/crossonic-server
 RUN apk add -U --no-cache \
     ffmpeg \
     ca-certificates \
@@ -45,12 +45,12 @@ COPY --from=builder \
     /src/crossonic-admin \
     /bin/
 EXPOSE 8080
-ENV TZ ""
-ENV MUSIC_DIR /music
-ENV DATA_DIR /data
-ENV CACHE_DIR /cache
-ENV LISTEN_ADDR 0.0.0.0:8080
-ENV AUTO_MIGRATE true
-ENV LOG_LEVEL 4
+ENV TZ=""
+ENV MUSIC_DIR=/music
+ENV DATA_DIR=/data
+ENV CACHE_DIR=/cache
+ENV LISTEN_ADDR=0.0.0.0:8080
+ENV AUTO_MIGRATE=true
+ENV LOG_LEVEL=4
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["crossonic-server"]
