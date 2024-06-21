@@ -297,6 +297,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	if exists {
+		w.Header().Set("Cache-Control", "max-age=10080") // 3h
 		w.Header().Set("Content-Type", "image/jpeg")
 		if cacheObj.IsComplete() {
 			http.ServeContent(w, r, id+".jpg", time.Now(), cacheReader)
@@ -371,6 +372,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	size = min(size, min(img.Bounds().Dx(), img.Bounds().Dy()))
 	img = imaging.Thumbnail(img, size, size, imaging.Linear)
 	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "max-age=10080") // 3h
 	w.WriteHeader(http.StatusOK)
 	go func() {
 		err = imaging.Encode(cacheObj, img, imaging.JPEG)
