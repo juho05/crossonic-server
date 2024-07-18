@@ -93,9 +93,9 @@ func (t *Transcoder) SelectFormat(name string, maxBitRateK int) (Format, int) {
 	f, ok := formats[format]
 	if !ok {
 		if format != "" {
-			log.Warnf("Requested transcoding format %s not supported. Falling back to opus...")
+			log.Warnf("Requested transcoding format %s not supported. Falling back to mp3...")
 		}
-		f = formats["opus"]
+		f = formats["mp3"]
 	}
 	maxBitRateK = min(f.maxBitRateK, maxBitRateK)
 	maxBitRateK = max(f.minBitRateK, maxBitRateK)
