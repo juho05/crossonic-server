@@ -29,6 +29,7 @@ func LoadAll() {
 	ListenBrainzURL()
 	LastFMApiKey()
 	SonosControllerURL()
+	FrontendDir()
 }
 
 var values = make(map[string]any)
@@ -175,6 +176,10 @@ func LastFMApiKey() string {
 
 func ScanHidden() bool {
 	return boolean("SCAN_HIDDEN", false)
+}
+
+func FrontendDir() string {
+	return optionalString("FRONTEND_DIR", "")
 }
 
 func optionalString(key, def string) (str string) {

@@ -7,12 +7,14 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/juho05/crossonic-server/cache"
+	"github.com/juho05/crossonic-server/config"
 	db "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers/connect"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/crossonic-server/scanner"
+	"github.com/juho05/log"
 )
 
 type Handler struct {
@@ -52,12 +54,18 @@ func (h *Handler) registerRoutes() {
 		MaxAge:           300,
 	}))
 
-	r.Route("/rest/crossonic", h.registerCrossonicRoutes)
-	r.Route("/rest", h.registerSubsonicRoutes)
+	r.With(ignoreExtension).Route("/rest/crossonic", h.registerCrossonicRoutes)
+	r.With(ignoreExtension).Route("/rest", h.registerSubsonicRoutes)
+	if config.FrontendDir() != "" {
+		r.Mount("/", http.FileServer(http.Dir(config.FrontendDir())))
+		log.Infof("Serving frontend files in %s", config.FrontendDir())
+	} else {
+		log.Trace("Frontend hosting disabled")
+	}
 
 	h.router = r
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	middleware.StripSlashes(ignoreExtension(h.router)).ServeHTTP(w, r)
+	middleware.StripSlashes(h.router).ServeHTTP(w, r)
 }
