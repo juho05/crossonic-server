@@ -75,6 +75,9 @@ func hasCoverArt(id string) bool {
 	default:
 		return false
 	}
-	_, err := os.Stat(filepath.Join(path, id))
-	return err == nil
+	info, err := os.Stat(filepath.Join(path, id))
+	if err != nil {
+		return idType == crossonic.IDTypeArtist
+	}
+	return info.Size() != 0
 }
