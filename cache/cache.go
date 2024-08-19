@@ -140,7 +140,7 @@ func (c *Cache) clean() {
 		return cmp.Compare(time.Since(b.accessed), time.Since(a.accessed))
 	})
 	for _, o := range objects {
-		if o.key == largest.key || o.readerCount > 0 {
+		if (largest != nil && o.key == largest.key) || o.readerCount > 0 {
 			continue
 		}
 		if size <= c.maxSize {
@@ -154,7 +154,6 @@ func (c *Cache) clean() {
 		if err != nil {
 			log.Errorf("cache: clean: %s", err)
 		}
-		os.Remove(c.keyToPath(largest.key) + "-complete")
 		delete(c.objects, o.key)
 		size -= o.size
 	}
