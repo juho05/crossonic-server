@@ -75,7 +75,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", fileFormat.Mime)
 
-	if format == "raw" || (fileFormat.Mime == info.ContentType && (maxBitRate == 0 || maxBitRate == int(info.BitRate))) {
+	if format == "raw" || (fileFormat.Mime == info.ContentType && (maxBitRate == 0 || maxBitRate >= int(info.BitRate))) {
 		path := info.Path
 		if timeOffset != 0 {
 			path, err = h.Transcoder.SeekRaw(path, time.Duration(timeOffset)*time.Second)

@@ -7,6 +7,9 @@ WHERE id = $1 AND owner = $2;
 -- name: UpdatePlaylistName :execresult
 UPDATE playlists SET name = $3, updated = NOW()
 WHERE id = $1 AND owner = $2;
+-- name: UpdatePlaylistUpdated :execresult
+UPDATE playlists SET updated = NOW()
+WHERE id = $1 AND owner = $2;
 -- name: CheckPlaylistExists :one
 SELECT EXISTS (SELECT id FROM playlists WHERE id = $1 AND owner = $2);
 -- name: FindPlaylist :one

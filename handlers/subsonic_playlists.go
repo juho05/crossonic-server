@@ -129,7 +129,7 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		exists, err := tx.CheckPlaylistExists(r.Context(), db.CheckPlaylistExistsParams{
+		res, err := tx.UpdatePlaylistUpdated(r.Context(), db.UpdatePlaylistUpdatedParams{
 			ID:    id,
 			Owner: user,
 		})
@@ -138,7 +138,7 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		if !exists {
+		if res.RowsAffected() == 0 {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 			return
 		}

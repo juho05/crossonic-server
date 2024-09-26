@@ -111,6 +111,7 @@ type Querier interface {
 	UpdatePlaylist(ctx context.Context, arg UpdatePlaylistParams) error
 	UpdatePlaylistName(ctx context.Context, arg UpdatePlaylistNameParams) (pgconn.CommandTag, error)
 	UpdatePlaylistTrackNumbers(ctx context.Context, arg UpdatePlaylistTrackNumbersParams) error
+	UpdatePlaylistUpdated(ctx context.Context, arg UpdatePlaylistUpdatedParams) (pgconn.CommandTag, error)
 	UpdateSong(ctx context.Context, arg UpdateSongParams) error
 	UpdateUserListenBrainzConnection(ctx context.Context, arg UpdateUserListenBrainzConnectionParams) (*User, error)
 }

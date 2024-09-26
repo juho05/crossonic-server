@@ -382,3 +382,17 @@ func (q *Queries) UpdatePlaylistTrackNumbers(ctx context.Context, arg UpdatePlay
 	)
 	return err
 }
+
+const updatePlaylistUpdated = `-- name: UpdatePlaylistUpdated :execresult
+UPDATE playlists SET updated = NOW()
+WHERE id = $1 AND owner = $2
+`
+
+type UpdatePlaylistUpdatedParams struct {
+	ID    string
+	Owner string
+}
+
+func (q *Queries) UpdatePlaylistUpdated(ctx context.Context, arg UpdatePlaylistUpdatedParams) (pgconn.CommandTag, error) {
+	return q.db.Exec(ctx, updatePlaylistUpdated, arg.ID, arg.Owner)
+}
