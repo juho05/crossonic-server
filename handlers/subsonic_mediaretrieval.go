@@ -107,7 +107,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	if timeOffset != 0 {
 		done := make(chan struct{})
 		w.Header().Set("Accept-Ranges", "none")
-		bitRate, err = h.Transcoder.Transcode(info.Path, fileFormat, maxBitRate, time.Duration(timeOffset)*time.Second, w, func() {
+		bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, maxBitRate, time.Duration(timeOffset)*time.Second, w, func() {
 			close(done)
 		})
 		if err != nil {
@@ -128,7 +128,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !exists {
-		bitRate, err = h.Transcoder.Transcode(info.Path, fileFormat, maxBitRate, 0, cacheObj, func() {
+		bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, maxBitRate, 0, cacheObj, func() {
 			err := cacheObj.SetComplete()
 			if err != nil {
 				log.Errorf("ffmpeg: transcode: %s", err)

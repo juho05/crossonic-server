@@ -55,7 +55,7 @@ LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_
 WHERE albums.id = $2
 ORDER BY songs.disc_number, songs.track;
 -- name: GetStreamInfo :one
-SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms FROM songs WHERE songs.id = $1;
+SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms, songs.channel_count FROM songs WHERE songs.id = $1;
 -- name: SearchSongs :many
 SELECT songs.*, albums.name as album_name, albums.replay_gain as album_replay_gain, albums.replay_gain_peak as album_replay_gain_peak, song_stars.created as starred, song_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM songs
 LEFT JOIN albums ON albums.id = songs.album_id

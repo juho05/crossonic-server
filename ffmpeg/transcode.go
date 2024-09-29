@@ -16,60 +16,66 @@ import (
 )
 
 type Format struct {
-	Name            string
-	Mime            string
-	outFormat       string
-	encoder         string
-	minBitRateK     int
-	defaultBitRateK int
-	maxBitRateK     int
+	Name                  string
+	Mime                  string
+	outFormat             string
+	encoder               string
+	minBitRateK           int
+	defaultBitRateK       int
+	maxBitRateK           int
+	maxBitRatePerChannelK int
 }
 
 var formats = map[string]Format{
 	"mp3": {
-		Name:            "mp3",
-		outFormat:       "mp3",
-		Mime:            "audio/mpeg",
-		encoder:         "libmp3lame",
-		minBitRateK:     64,
-		defaultBitRateK: 192,
-		maxBitRateK:     320,
+		Name:                  "mp3",
+		outFormat:             "mp3",
+		Mime:                  "audio/mpeg",
+		encoder:               "libmp3lame",
+		minBitRateK:           64,
+		defaultBitRateK:       192,
+		maxBitRateK:           320,
+		maxBitRatePerChannelK: 320,
 	},
 	"opus": {
-		Name:            "opus",
-		outFormat:       "ogg",
-		Mime:            "audio/ogg",
-		encoder:         "libopus",
-		minBitRateK:     32,
-		defaultBitRateK: 192,
-		maxBitRateK:     512,
+		Name:                  "opus",
+		outFormat:             "ogg",
+		Mime:                  "audio/ogg",
+		encoder:               "libopus",
+		minBitRateK:           32,
+		defaultBitRateK:       192,
+		maxBitRateK:           512,
+		maxBitRatePerChannelK: 256,
 	},
 	"ogg": {
-		Name:            "opus",
-		outFormat:       "ogg",
-		Mime:            "audio/ogg",
-		encoder:         "libopus",
-		minBitRateK:     32,
-		defaultBitRateK: 192,
-		maxBitRateK:     500,
+		Name:                  "opus",
+		outFormat:             "ogg",
+		Mime:                  "audio/ogg",
+		encoder:               "libopus",
+		minBitRateK:           32,
+		defaultBitRateK:       192,
+		maxBitRateK:           512,
+		maxBitRatePerChannelK: 256,
 	},
 	"vorbis": {
-		Name:            "vorbis",
-		outFormat:       "ogg",
-		Mime:            "audio/ogg",
-		encoder:         "libvorbis",
-		minBitRateK:     96,
-		defaultBitRateK: 192,
-		maxBitRateK:     500,
+		Name:                  "vorbis",
+		outFormat:             "ogg",
+		Mime:                  "audio/ogg",
+		encoder:               "libvorbis",
+		minBitRateK:           96,
+		defaultBitRateK:       192,
+		maxBitRateK:           480,
+		maxBitRatePerChannelK: 240,
 	},
 	"aac": {
-		Name:            "aac",
-		outFormat:       "adts",
-		Mime:            "audio/aac",
-		encoder:         "aac",
-		minBitRateK:     64,
-		defaultBitRateK: 192,
-		maxBitRateK:     500,
+		Name:                  "aac",
+		outFormat:             "adts",
+		Mime:                  "audio/aac",
+		encoder:               "aac",
+		minBitRateK:           64,
+		defaultBitRateK:       192,
+		maxBitRateK:           500,
+		maxBitRatePerChannelK: 500,
 	},
 }
 
@@ -102,12 +108,13 @@ func (t *Transcoder) SelectFormat(name string, maxBitRateK int) (Format, int) {
 	return f, maxBitRateK
 }
 
-func (t *Transcoder) Transcode(path string, format Format, maxBitRateK int, timeOffset time.Duration, w io.Writer, onDone func()) (bitRate int, err error) {
+func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitRateK int, timeOffset time.Duration, w io.Writer, onDone func()) (bitRate int, err error) {
 	if maxBitRateK == 0 {
 		maxBitRateK = format.defaultBitRateK
 	}
 	maxBitRateK = min(format.maxBitRateK, maxBitRateK)
 	maxBitRateK = max(format.minBitRateK, maxBitRateK)
+	maxBitRateK = min(format.maxBitRatePerChannelK*channels, maxBitRateK)
 	args := []string{"-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-b:a", fmt.Sprintf("%dk", maxBitRateK), "-c:a", format.encoder, "-f", format.outFormat, "-"}
 
 	stderr := new(bytes.Buffer)

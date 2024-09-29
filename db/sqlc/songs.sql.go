@@ -650,14 +650,15 @@ func (q *Queries) FindSongsByMusicBrainzID(ctx context.Context, musicBrainzID *s
 }
 
 const getStreamInfo = `-- name: GetStreamInfo :one
-SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms FROM songs WHERE songs.id = $1
+SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms, songs.channel_count FROM songs WHERE songs.id = $1
 `
 
 type GetStreamInfoRow struct {
-	Path        string
-	BitRate     int32
-	ContentType string
-	DurationMs  int32
+	Path         string
+	BitRate      int32
+	ContentType  string
+	DurationMs   int32
+	ChannelCount int32
 }
 
 func (q *Queries) GetStreamInfo(ctx context.Context, id string) (*GetStreamInfoRow, error) {
@@ -668,6 +669,7 @@ func (q *Queries) GetStreamInfo(ctx context.Context, id string) (*GetStreamInfoR
 		&i.BitRate,
 		&i.ContentType,
 		&i.DurationMs,
+		&i.ChannelCount,
 	)
 	return &i, err
 }
