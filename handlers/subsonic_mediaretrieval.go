@@ -97,7 +97,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if estimate, _ := strconv.ParseBool(query.Get("estimateContentLength")); estimate {
-		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.DurationMs)/1000*float64(bitRate)/8*1024)))
+		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.DurationMs-int32(timeOffset)*1000)/1000*float64(bitRate)/8*1024)))
 	}
 	if r.Method == http.MethodHead {
 		w.WriteHeader(http.StatusOK)
