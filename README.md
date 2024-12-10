@@ -35,6 +35,10 @@ other Subsonic media players.
 - [x] Serve [Crossonic](https://github.com/juho05/crossonic#web)
 - [x] Admin CLI
 - [ ] Admin web interface
+- [x] End-of-year recap
+  - [x] total listening duration
+  - [x] distinct song, album, artist count
+  - [ ] ranked songs, albums, artists by listening duration
 
 ## Deploy with Docker
 

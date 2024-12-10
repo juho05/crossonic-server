@@ -149,3 +149,4 @@
 - [x] getListenBrainzConfig
 - [x] connect
 - [x] setPlaylistCover
+- [x] getRecap

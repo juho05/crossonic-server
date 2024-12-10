@@ -50,6 +50,7 @@ type Response struct {
 
 	// Crossonic
 	ListenBrainzConfig *ListenBrainzConfig `xml:"listenBrainzConfig,omitempty" json:"listenBrainzConfig,omitempty"`
+	Recap              *Recap              `xml:"recap,omitempty" json:"recap,omitempty"`
 }
 
 func New() Response {
