@@ -51,6 +51,7 @@ type Response struct {
 	// Crossonic
 	ListenBrainzConfig *ListenBrainzConfig `xml:"listenBrainzConfig,omitempty" json:"listenBrainzConfig,omitempty"`
 	Recap              *Recap              `xml:"recap,omitempty" json:"recap,omitempty"`
+	TopSongsRecap      *TopSongsRecap      `xml:"topSongsRecap,omitempty" json:"topSongsRecap,omitempty"`
 }
 
 func New() Response {

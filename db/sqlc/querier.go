@@ -86,6 +86,7 @@ type Querier interface {
 	GetScrobbleDistinctArtistCount(ctx context.Context, arg GetScrobbleDistinctArtistCountParams) (interface{}, error)
 	GetScrobbleDistinctSongCount(ctx context.Context, arg GetScrobbleDistinctSongCountParams) (interface{}, error)
 	GetScrobbleDurationSumMS(ctx context.Context, arg GetScrobbleDurationSumMSParams) (interface{}, error)
+	GetScrobbleTopSongsByDuration(ctx context.Context, arg GetScrobbleTopSongsByDurationParams) ([]*GetScrobbleTopSongsByDurationRow, error)
 	GetStreamInfo(ctx context.Context, id string) (*GetStreamInfoRow, error)
 	GetSystemValue(ctx context.Context, key string) (*System, error)
 	InsertSystemValueIfNotExists(ctx context.Context, arg InsertSystemValueIfNotExistsParams) (*System, error)

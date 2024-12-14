@@ -80,3 +80,111 @@ func (q *Queries) GetScrobbleDurationSumMS(ctx context.Context, arg GetScrobbleD
 	err := row.Scan(&coalesce)
 	return coalesce, err
 }
+
+const getScrobbleTopSongsByDuration = `-- name: GetScrobbleTopSongsByDuration :many
+SELECT songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type, songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated, songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics, songs.cover_id, SUM(scrobbles.duration_ms) as total_duration_ms, albums.name as album_name, albums.replay_gain as album_replay_gain, albums.replay_gain_peak as album_replay_gain_peak, song_stars.created as starred, song_ratings.rating AS user_rating, COALESCE(avgr.rating, 0) AS avg_rating FROM scrobbles
+INNER JOIN songs ON scrobbles.song_id = songs.id
+LEFT JOIN albums ON albums.id = songs.album_id
+LEFT JOIN song_stars ON song_stars.song_id = songs.id AND song_stars.user_name = $1
+LEFT JOIN (
+  SELECT song_id, AVG(song_ratings.rating) AS rating FROM song_ratings GROUP BY song_id
+) avgr ON avgr.song_id = songs.id
+LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_name = $1
+WHERE scrobbles.user_name = $1 AND scrobbles.now_playing = false AND scrobbles.time >= $4 AND scrobbles.time < $5
+GROUP BY songs.id, albums.id, song_stars.created, song_ratings.rating, avgr.rating
+ORDER BY SUM(scrobbles.duration_ms) DESC LIMIT $2 OFFSET $3
+`
+
+type GetScrobbleTopSongsByDurationParams struct {
+	UserName string
+	Limit    int32
+	Offset   int32
+	Start    pgtype.Timestamptz
+	End      pgtype.Timestamptz
+}
+
+type GetScrobbleTopSongsByDurationRow struct {
+	ID                  string
+	Path                string
+	AlbumID             *string
+	Title               string
+	Track               *int32
+	Year                *int32
+	Size                int64
+	ContentType         string
+	DurationMs          int32
+	BitRate             int32
+	SamplingRate        int32
+	ChannelCount        int32
+	DiscNumber          *int32
+	Created             pgtype.Timestamptz
+	Updated             pgtype.Timestamptz
+	Bpm                 *int32
+	MusicBrainzID       *string
+	ReplayGain          *float32
+	ReplayGainPeak      *float32
+	Lyrics              *string
+	CoverID             *string
+	TotalDurationMs     int64
+	AlbumName           *string
+	AlbumReplayGain     *float32
+	AlbumReplayGainPeak *float32
+	Starred             pgtype.Timestamptz
+	UserRating          *int32
+	AvgRating           float64
+}
+
+func (q *Queries) GetScrobbleTopSongsByDuration(ctx context.Context, arg GetScrobbleTopSongsByDurationParams) ([]*GetScrobbleTopSongsByDurationRow, error) {
+	rows, err := q.db.Query(ctx, getScrobbleTopSongsByDuration,
+		arg.UserName,
+		arg.Limit,
+		arg.Offset,
+		arg.Start,
+		arg.End,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetScrobbleTopSongsByDurationRow
+	for rows.Next() {
+		var i GetScrobbleTopSongsByDurationRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Path,
+			&i.AlbumID,
+			&i.Title,
+			&i.Track,
+			&i.Year,
+			&i.Size,
+			&i.ContentType,
+			&i.DurationMs,
+			&i.BitRate,
+			&i.SamplingRate,
+			&i.ChannelCount,
+			&i.DiscNumber,
+			&i.Created,
+			&i.Updated,
+			&i.Bpm,
+			&i.MusicBrainzID,
+			&i.ReplayGain,
+			&i.ReplayGainPeak,
+			&i.Lyrics,
+			&i.CoverID,
+			&i.TotalDurationMs,
+			&i.AlbumName,
+			&i.AlbumReplayGain,
+			&i.AlbumReplayGainPeak,
+			&i.Starred,
+			&i.UserRating,
+			&i.AvgRating,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

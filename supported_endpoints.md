@@ -150,3 +150,4 @@
 - [x] connect
 - [x] setPlaylistCover
 - [x] getRecap
+- [x] getTopSongsRecap
