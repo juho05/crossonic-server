@@ -26,6 +26,8 @@ type CacheObject struct {
 
 	modified time.Time
 	accessed time.Time
+
+	delete bool
 }
 
 func (c *Cache) newCacheObject(key string) (*CacheObject, error) {
@@ -65,7 +67,6 @@ func (c *CacheObject) SetComplete() error {
 		return fmt.Errorf("set complete: %w", err)
 	}
 	f.Close()
-	go c.cache.clean()
 	return nil
 }
 

@@ -72,7 +72,7 @@ func run() error {
 		return err
 	}
 
-	scanner := scanner.New(config.MusicDir(), store, coverCache)
+	scanner := scanner.New(config.MusicDir(), store, coverCache, transcodeCache)
 
 	lBrainz := listenbrainz.New(store)
 

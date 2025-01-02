@@ -23,18 +23,20 @@ type Scanner struct {
 	coverDir      string
 	firstScan     bool
 
-	coverCache *cache.Cache
+	coverCache     *cache.Cache
+	transcodeCache *cache.Cache
 
 	Scanning bool
 	Count    int
 }
 
-func New(mediaDir string, store sqlc.Store, coverCache *cache.Cache) *Scanner {
+func New(mediaDir string, store sqlc.Store, coverCache *cache.Cache, transcodeCache *cache.Cache) *Scanner {
 	return &Scanner{
-		mediaDir:      mediaDir,
-		store:         store,
-		originalStore: store,
-		coverDir:      filepath.Join(config.DataDir(), "covers"),
-		coverCache:    coverCache,
+		mediaDir:       mediaDir,
+		store:          store,
+		originalStore:  store,
+		coverDir:       filepath.Join(config.DataDir(), "covers"),
+		coverCache:     coverCache,
+		transcodeCache: transcodeCache,
 	}
 }

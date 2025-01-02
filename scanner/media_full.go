@@ -463,6 +463,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		return
 	}
 
+	s.transcodeCache.InvalidateGracefully()
 	done <- true
 }
 

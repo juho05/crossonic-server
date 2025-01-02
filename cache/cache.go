@@ -24,14 +24,18 @@ type Cache struct {
 	objectsLock sync.RWMutex
 
 	cleaning bool
+
+	close chan<- struct{}
 }
 
 func New(cacheDir string, maxSize int64, maxUnusedTime time.Duration) (*Cache, error) {
+	close := make(chan struct{})
 	c := &Cache{
 		dir:           cacheDir,
 		objects:       make(map[string]*CacheObject),
 		maxSize:       maxSize,
 		maxUnusedTime: maxUnusedTime,
+		close:         close,
 	}
 	err := os.MkdirAll(cacheDir, 0755)
 	if err != nil {
@@ -41,7 +45,20 @@ func New(cacheDir string, maxSize int64, maxUnusedTime time.Duration) (*Cache, e
 	if err != nil {
 		return nil, fmt.Errorf("new cache: %w", err)
 	}
-	go c.clean()
+	ticker := time.NewTicker(5 * time.Minute)
+	go func() {
+		c.clean()
+	loop:
+		for {
+			select {
+			case <-close:
+				break loop
+			case <-ticker.C:
+				c.clean()
+			}
+		}
+		ticker.Stop()
+	}()
 	return c, nil
 }
 
@@ -87,6 +104,33 @@ func (c *Cache) DeleteObject(key string) error {
 	return nil
 }
 
+func (c *Cache) InvalidateGracefully() error {
+	c.objectsLock.Lock()
+	defer c.objectsLock.Unlock()
+	for key, o := range c.objects {
+		if o.readerCount > 0 {
+			o.delete = true
+			continue
+		}
+		err := o.Close()
+		if err != nil {
+			return fmt.Errorf("cache: invalidate gracefully: delete object: %w", err)
+		}
+		err = os.Remove(c.keyToPath(key))
+		if err != nil {
+			return fmt.Errorf("cache: invalidate gracefully: delete object: %w", err)
+		}
+		delete(c.objects, key)
+		if o.complete {
+			err = os.Remove(c.keyToPath(key) + "-complete")
+			if err != nil {
+				return fmt.Errorf("cache: invalidate gracefully: delete object: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
 func (c *Cache) clean() {
 	if c.cleaning {
 		return
@@ -95,34 +139,39 @@ func (c *Cache) clean() {
 	defer func() {
 		c.cleaning = false
 	}()
+	log.Tracef("cleaning cache in %s...", c.dir)
 	c.objectsLock.Lock()
 	defer c.objectsLock.Unlock()
 	var size int64
 	objects := make([]*CacheObject, 0, len(c.objects))
 	var largest *CacheObject
 	for key, o := range c.objects {
-		if time.Since(o.accessed) > c.maxUnusedTime && o.readerCount <= 0 {
-			err := o.Close()
-			if err != nil {
-				log.Errorf("cache: clean: %s", err)
+		if o.readerCount <= 0 {
+			if o.delete || time.Since(o.accessed) > c.maxUnusedTime {
+				err := o.Close()
+				if err != nil {
+					log.Errorf("cache: clean: %s", err)
+				}
+				err = os.Remove(c.keyToPath(key))
+				if err != nil {
+					log.Errorf("cache: clean: %s", err)
+				}
+				os.Remove(c.keyToPath(key) + "-complete")
+				delete(c.objects, key)
+				continue
 			}
-			err = os.Remove(c.keyToPath(key))
-			if err != nil {
-				log.Errorf("cache: clean: %s", err)
+			if time.Since(o.accessed) > 30*time.Minute && (largest == nil || o.size > largest.size) {
+				largest = o
 			}
-			os.Remove(c.keyToPath(key) + "-complete")
-			delete(c.objects, key)
-			continue
-		}
-		if o.readerCount <= 0 && time.Since(o.accessed) > 30*time.Minute && (largest == nil || o.size > largest.size) {
-			largest = o
 		}
 		size += o.size
 		objects = append(objects, o)
 	}
 	if size <= c.maxSize {
+		log.Tracef("max cache size not reached yet: %d kB of %d kB", size/1000, c.maxSize/1000)
 		return
 	}
+	oldSize := size
 	if largest != nil && float64(c.maxSize)/float64(largest.size) > 0.3 {
 		err := largest.Close()
 		if err != nil {
@@ -157,6 +206,7 @@ func (c *Cache) clean() {
 		delete(c.objects, o.key)
 		size -= o.size
 	}
+	log.Tracef("cleaned %d kB; new size: %d kB of %d kB", oldSize/1000, size/1000, c.maxSize/1000)
 }
 
 func (c *Cache) loadObjects() error {
@@ -213,6 +263,7 @@ func (c *Cache) keyFromPath(path string) (string, error) {
 }
 
 func (c *Cache) Close() error {
+	close(c.close)
 	c.objectsLock.Lock()
 	defer c.objectsLock.Unlock()
 	for _, o := range c.objects {
