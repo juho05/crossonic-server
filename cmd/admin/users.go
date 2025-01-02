@@ -1,15 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
+	"syscall"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/juho05/crossonic-server/db/sqlc"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 func usersList(store sqlc.Store) error {
@@ -25,11 +29,32 @@ func usersList(store sqlc.Store) error {
 }
 
 func usersCreate(args []string, store sqlc.Store) error {
-	if len(args) < 5 {
-		fmt.Println("USAGE:", args[0], "users create <name> <password>")
+	if len(args) < 4 {
+		fmt.Println("USAGE:", args[0], "users create <name>")
 		os.Exit(1)
 	}
-	encryptedPassword, err := sqlc.EncryptPassword(args[4])
+
+	var password string
+	for password == "" {
+		fmt.Print("Enter password: ")
+		p1, err := terminal.ReadPassword(syscall.Stdin)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Print("\nRepeat password: ")
+		p2, err := terminal.ReadPassword(syscall.Stdin)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println()
+		if bytes.Equal(p1, p2) {
+			password = string(p1)
+		} else {
+			fmt.Println("Passwords don't match. Try again.")
+		}
+	}
+
+	encryptedPassword, err := sqlc.EncryptPassword(password)
 	if err != nil {
 		return err
 	}

@@ -89,7 +89,7 @@ Run `docker compose up -d` in the same directory as the `docker-compose.yml` fil
 To create a user use the following command from the directory of your `docker-compose.yml` file:
 
 ```bash
-docker compose exec -it crossonic crossonic-admin user create <name> <password>
+docker compose exec -it crossonic crossonic-admin user create <name>
 ```
 
 ## License
