@@ -16,7 +16,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers"
 	"github.com/juho05/crossonic-server/lastfm"
@@ -37,20 +37,20 @@ func init() {
 
 func run() error {
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", config.DBUser(), config.DBPassword(), config.DBHost(), config.DBPort(), config.DBName())
-	dbConn, err := db.Connect(dsn)
+	dbConn, err := sqlc.Connect(dsn)
 	if err != nil {
 		return err
 	}
-	defer db.Close(dbConn)
+	defer sqlc.Close(dbConn)
 
 	if config.AutoMigrate() {
-		err = db.AutoMigrate(dsn)
+		err = sqlc.AutoMigrate(dsn)
 		if err != nil {
 			return err
 		}
 	}
 
-	store, err := db.NewStore(dbConn)
+	store, err := sqlc.NewStore(dbConn)
 	if err != nil {
 		return err
 	}

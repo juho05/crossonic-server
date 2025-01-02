@@ -9,10 +9,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db/sqlc"
 )
 
-func usersList(store db.Store) error {
+func usersList(store sqlc.Store) error {
 	users, err := store.FindUsers(context.Background())
 	if err != nil {
 		return err
@@ -24,16 +24,16 @@ func usersList(store db.Store) error {
 	return nil
 }
 
-func usersCreate(args []string, store db.Store) error {
+func usersCreate(args []string, store sqlc.Store) error {
 	if len(args) < 5 {
 		fmt.Println("USAGE:", args[0], "users create <name> <password>")
 		os.Exit(1)
 	}
-	encryptedPassword, err := db.EncryptPassword(args[4])
+	encryptedPassword, err := sqlc.EncryptPassword(args[4])
 	if err != nil {
 		return err
 	}
-	err = store.CreateUser(context.Background(), db.CreateUserParams{
+	err = store.CreateUser(context.Background(), sqlc.CreateUserParams{
 		Name:              args[3],
 		EncryptedPassword: encryptedPassword,
 	})
@@ -52,7 +52,7 @@ func usersCreate(args []string, store db.Store) error {
 	return nil
 }
 
-func usersDelete(args []string, store db.Store) error {
+func usersDelete(args []string, store sqlc.Store) error {
 	if len(args) < 4 {
 		fmt.Println("USAGE:", args[0], "users delete <name>")
 		os.Exit(1)
@@ -67,7 +67,7 @@ func usersDelete(args []string, store db.Store) error {
 	return nil
 }
 
-func users(args []string, store db.Store) error {
+func users(args []string, store sqlc.Store) error {
 	if len(args) < 3 {
 		fmt.Println("USAGE:", args[0], "users <command>\n\nCOMMANDS:\n  list\n  create\n  delete")
 		os.Exit(1)

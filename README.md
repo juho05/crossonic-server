@@ -94,7 +94,7 @@ docker compose exec -it crossonic crossonic-admin user create <name> <password>
 
 ## License
 
-Copyright (c) 2024 Julian Hofmann
+Copyright (c) 2024-2025 Julian Hofmann
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published

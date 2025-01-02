@@ -13,7 +13,7 @@ import (
 
 	"github.com/andybalholm/cascadia"
 	"github.com/juho05/crossonic-server"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/log"
 	"golang.org/x/net/html"
 )
@@ -28,11 +28,11 @@ var (
 const baseURL = "https://ws.audioscrobbler.com/2.0"
 
 type LastFm struct {
-	store  db.Store
+	store  sqlc.Store
 	apiKey string
 }
 
-func New(apiKey string, store db.Store) *LastFm {
+func New(apiKey string, store sqlc.Store) *LastFm {
 	return &LastFm{
 		store:  store,
 		apiKey: apiKey,

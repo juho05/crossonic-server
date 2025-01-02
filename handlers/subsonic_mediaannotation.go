@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/juho05/crossonic-server"
-	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/log"
@@ -107,7 +107,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 				Valid: true,
 			}
 		}
-		possibleConflicts, err := h.Store.FindPossibleScrobbleConflicts(r.Context(), db.FindPossibleScrobbleConflictsParams{
+		possibleConflicts, err := h.Store.FindPossibleScrobbleConflicts(r.Context(), sqlc.FindPossibleScrobbleConflictsParams{
 			UserName: user,
 			SongIds:  ids,
 			Times:    pgTimes,
@@ -143,7 +143,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 
 	listens := make([]*listenbrainz.Listen, 0, len(ids))
 	listenMap := make(map[string]*listenbrainz.Listen, len(ids))
-	createScrobblesParams := make([]db.CreateScrobblesParams, 0, len(ids))
+	createScrobblesParams := make([]sqlc.CreateScrobblesParams, 0, len(ids))
 	for i, id := range ids {
 		if !submission {
 			err = tx.DeleteNowPlaying(r.Context(), user)
@@ -165,7 +165,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		}
 
 		shouldSubmit := !submission || durationsMs[i] == nil || *durationsMs[i] > 4*60*1000 || float64(*durationsMs[i]) > float64(song.DurationMs)*0.5
-		createScrobblesParams = append(createScrobblesParams, db.CreateScrobblesParams{
+		createScrobblesParams = append(createScrobblesParams, sqlc.CreateScrobblesParams{
 			UserName: user,
 			SongID:   song.ID,
 			AlbumID:  song.AlbumID,
@@ -268,7 +268,7 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 
 	songMap := make(map[string][]*responses.NowPlayingEntry, len(songs))
 	songList := make([]*responses.NowPlayingEntry, 0, len(songs))
-	songIDs := mapData(songs, func(s *db.GetNowPlayingSongsRow) string {
+	songIDs := mapData(songs, func(s *sqlc.GetNowPlayingSongsRow) string {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -278,7 +278,7 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 			avgRating := math.Round(s.AvgRating*100) / 100
 			averageRating = &avgRating
 		}
-		fallbackGain := config.ReplayGainFallback()
+		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
 		song := responses.Song{
 			ID:            s.ID,
 			Title:         s.Title,
@@ -418,12 +418,12 @@ func (h *Handler) handleSetRating(w http.ResponseWriter, r *http.Request) {
 	switch idType {
 	case crossonic.IDTypeSong:
 		if rating == 0 {
-			err = h.Store.RemoveSongRating(r.Context(), db.RemoveSongRatingParams{
+			err = h.Store.RemoveSongRating(r.Context(), sqlc.RemoveSongRatingParams{
 				UserName: user,
 				SongID:   id,
 			})
 		} else {
-			err = h.Store.SetSongRating(r.Context(), db.SetSongRatingParams{
+			err = h.Store.SetSongRating(r.Context(), sqlc.SetSongRatingParams{
 				SongID:   id,
 				UserName: user,
 				Rating:   int32(rating),
@@ -431,12 +431,12 @@ func (h *Handler) handleSetRating(w http.ResponseWriter, r *http.Request) {
 		}
 	case crossonic.IDTypeAlbum:
 		if rating == 0 {
-			err = h.Store.RemoveAlbumRating(r.Context(), db.RemoveAlbumRatingParams{
+			err = h.Store.RemoveAlbumRating(r.Context(), sqlc.RemoveAlbumRatingParams{
 				UserName: user,
 				AlbumID:  id,
 			})
 		} else {
-			err = h.Store.SetAlbumRating(r.Context(), db.SetAlbumRatingParams{
+			err = h.Store.SetAlbumRating(r.Context(), sqlc.SetAlbumRatingParams{
 				AlbumID:  id,
 				UserName: user,
 				Rating:   int32(rating),
@@ -444,12 +444,12 @@ func (h *Handler) handleSetRating(w http.ResponseWriter, r *http.Request) {
 		}
 	case crossonic.IDTypeArtist:
 		if rating == 0 {
-			err = h.Store.RemoveArtistRating(r.Context(), db.RemoveArtistRatingParams{
+			err = h.Store.RemoveArtistRating(r.Context(), sqlc.RemoveArtistRatingParams{
 				UserName: user,
 				ArtistID: id,
 			})
 		} else {
-			err = h.Store.SetArtistRating(r.Context(), db.SetArtistRatingParams{
+			err = h.Store.SetArtistRating(r.Context(), sqlc.SetArtistRatingParams{
 				ArtistID: id,
 				UserName: user,
 				Rating:   int32(rating),
@@ -512,36 +512,36 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 			case crossonic.IDTypeSong:
 				songIDs = append(songIDs, id)
 				if star {
-					err = tx.StarSong(r.Context(), db.StarSongParams{
+					err = tx.StarSong(r.Context(), sqlc.StarSongParams{
 						SongID:   id,
 						UserName: user,
 					})
 				} else {
-					err = tx.UnstarSong(r.Context(), db.UnstarSongParams{
+					err = tx.UnstarSong(r.Context(), sqlc.UnstarSongParams{
 						SongID:   id,
 						UserName: user,
 					})
 				}
 			case crossonic.IDTypeAlbum:
 				if star {
-					err = tx.StarAlbum(r.Context(), db.StarAlbumParams{
+					err = tx.StarAlbum(r.Context(), sqlc.StarAlbumParams{
 						AlbumID:  id,
 						UserName: user,
 					})
 				} else {
-					err = tx.UnstarAlbum(r.Context(), db.UnstarAlbumParams{
+					err = tx.UnstarAlbum(r.Context(), sqlc.UnstarAlbumParams{
 						AlbumID:  id,
 						UserName: user,
 					})
 				}
 			case crossonic.IDTypeArtist:
 				if star {
-					err = tx.StarArtist(r.Context(), db.StarArtistParams{
+					err = tx.StarArtist(r.Context(), sqlc.StarArtistParams{
 						ArtistID: id,
 						UserName: user,
 					})
 				} else {
-					err = tx.UnstarArtist(r.Context(), db.UnstarArtistParams{
+					err = tx.UnstarArtist(r.Context(), sqlc.UnstarArtistParams{
 						ArtistID: id,
 						UserName: user,
 					})
@@ -561,7 +561,7 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 			}
 		}
 
-		err = tx.RemoveLBFeedbackUpdated(r.Context(), db.RemoveLBFeedbackUpdatedParams{
+		err = tx.RemoveLBFeedbackUpdated(r.Context(), sqlc.RemoveLBFeedbackUpdatedParams{
 			UserName: user,
 			SongIds:  songIDs,
 		})

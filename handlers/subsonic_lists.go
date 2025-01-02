@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/log"
 )
@@ -57,7 +57,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 		return strings.ToLower(g)
 	})
 
-	songs, err := h.Store.FindRandomSongs(r.Context(), db.FindRandomSongsParams{
+	songs, err := h.Store.FindRandomSongs(r.Context(), sqlc.FindRandomSongsParams{
 		UserName:    user,
 		Limit:       int32(limit),
 		FromYear:    fromYear,
@@ -71,7 +71,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 	}
 	songMap := make(map[string]*responses.Song, len(songs))
 	songList := make([]*responses.Song, 0, len(songs))
-	songIDs := mapData(songs, func(s *db.FindRandomSongsRow) string {
+	songIDs := mapData(songs, func(s *sqlc.FindRandomSongsRow) string {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -81,7 +81,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 			avgRating := math.Round(s.AvgRating*100) / 100
 			averageRating = &avgRating
 		}
-		fallbackGain := config.ReplayGainFallback()
+		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
 		song := &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,
@@ -250,7 +250,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "offset is not supported for list type random", responses.SubsonicErrorGeneric)
 			return
 		}
-		a, err := h.Store.FindAlbumsRandom(r.Context(), db.FindAlbumsRandomParams{
+		a, err := h.Store.FindAlbumsRandom(r.Context(), sqlc.FindAlbumsRandomParams{
 			UserName:    user,
 			Limit:       int32(limit),
 			FromYear:    fromYear,
@@ -303,7 +303,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			albumIds = append(albumIds, album.ID)
 		}
 	case "newest":
-		a, err := h.Store.FindAlbumsNewest(r.Context(), db.FindAlbumsNewestParams{
+		a, err := h.Store.FindAlbumsNewest(r.Context(), sqlc.FindAlbumsNewestParams{
 			UserName:    user,
 			Offset:      int32(offset),
 			Limit:       int32(limit),
@@ -357,7 +357,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			albumIds = append(albumIds, album.ID)
 		}
 	case "highest":
-		a, err := h.Store.FindAlbumsHighestRated(r.Context(), db.FindAlbumsHighestRatedParams{
+		a, err := h.Store.FindAlbumsHighestRated(r.Context(), sqlc.FindAlbumsHighestRatedParams{
 			UserName:    user,
 			Offset:      int32(offset),
 			Limit:       int32(limit),
@@ -411,7 +411,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			albumIds = append(albumIds, album.ID)
 		}
 	case "alphabeticalByName":
-		a, err := h.Store.FindAlbumsAlphabeticalByName(r.Context(), db.FindAlbumsAlphabeticalByNameParams{
+		a, err := h.Store.FindAlbumsAlphabeticalByName(r.Context(), sqlc.FindAlbumsAlphabeticalByNameParams{
 			UserName:    user,
 			Offset:      int32(offset),
 			Limit:       int32(limit),
@@ -465,7 +465,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			albumIds = append(albumIds, album.ID)
 		}
 	case "starred":
-		a, err := h.Store.FindAlbumsStarred(r.Context(), db.FindAlbumsStarredParams{
+		a, err := h.Store.FindAlbumsStarred(r.Context(), sqlc.FindAlbumsStarredParams{
 			UserName:    user,
 			Offset:      int32(offset),
 			Limit:       int32(limit),
@@ -519,7 +519,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			albumIds = append(albumIds, album.ID)
 		}
 	case "byYear":
-		a, err := h.Store.FindAlbumsByYear(r.Context(), db.FindAlbumsByYearParams{
+		a, err := h.Store.FindAlbumsByYear(r.Context(), sqlc.FindAlbumsByYearParams{
 			UserName:    user,
 			Offset:      int32(offset),
 			Limit:       int32(limit),
@@ -573,7 +573,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			albumIds = append(albumIds, album.ID)
 		}
 	case "byGenre":
-		a, err := h.Store.FindAlbumsByGenre(r.Context(), db.FindAlbumsByGenreParams{
+		a, err := h.Store.FindAlbumsByGenre(r.Context(), sqlc.FindAlbumsByGenreParams{
 			UserName:    user,
 			Offset:      int32(offset),
 			Limit:       int32(limit),

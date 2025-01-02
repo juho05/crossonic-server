@@ -10,8 +10,8 @@ import (
 	"unicode"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/log"
 )
@@ -24,7 +24,7 @@ func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
-	artist, err := h.Store.FindArtist(r.Context(), db.FindArtistParams{
+	artist, err := h.Store.FindArtist(r.Context(), sqlc.FindArtistParams{
 		UserName: user,
 		ID:       id,
 	})
@@ -37,7 +37,7 @@ func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	dbAlbums, err := h.Store.FindAlbumsByArtist(r.Context(), db.FindAlbumsByArtistParams{
+	dbAlbums, err := h.Store.FindAlbumsByArtist(r.Context(), sqlc.FindAlbumsByArtistParams{
 		UserName: user,
 		ArtistID: artist.ID,
 	})
@@ -64,7 +64,7 @@ func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 
 	albumIds := make([]string, 0, len(dbAlbums))
 	albumsMap := make(map[string]*responses.Album, len(dbAlbums))
-	albums := mapData(dbAlbums, func(a *db.FindAlbumsByArtistRow) *responses.Album {
+	albums := mapData(dbAlbums, func(a *sqlc.FindAlbumsByArtistRow) *responses.Album {
 		var coverArt *string
 		if hasCoverArt(a.ID) {
 			coverArt = &a.ID
@@ -177,7 +177,7 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
-	album, err := h.Store.FindAlbum(r.Context(), db.FindAlbumParams{
+	album, err := h.Store.FindAlbum(r.Context(), sqlc.FindAlbumParams{
 		UserName: user,
 		ID:       id,
 	})
@@ -196,7 +196,7 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return
 	}
-	genreRefs := mapData(genres, func(g *db.FindGenresByAlbumsRow) *responses.GenreRef {
+	genreRefs := mapData(genres, func(g *sqlc.FindGenresByAlbumsRow) *responses.GenreRef {
 		return &responses.GenreRef{
 			Name: g.Name,
 		}
@@ -207,13 +207,13 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return
 	}
-	artistRefs := mapData(artists, func(a *db.FindArtistRefsByAlbumsRow) *responses.ArtistRef {
+	artistRefs := mapData(artists, func(a *sqlc.FindArtistRefsByAlbumsRow) *responses.ArtistRef {
 		return &responses.ArtistRef{
 			ID:   a.ID,
 			Name: a.Name,
 		}
 	})
-	songs, err := h.Store.FindSongsByAlbum(r.Context(), db.FindSongsByAlbumParams{
+	songs, err := h.Store.FindSongsByAlbum(r.Context(), sqlc.FindSongsByAlbumParams{
 		UserName: user,
 		ID:       album.ID,
 	})
@@ -224,7 +224,7 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 	}
 	songMap := make(map[string]*responses.Song, len(songs))
 	songList := make([]*responses.Song, 0, len(songs))
-	songIDs := mapData(songs, func(s *db.FindSongsByAlbumRow) string {
+	songIDs := mapData(songs, func(s *sqlc.FindSongsByAlbumRow) string {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -234,7 +234,8 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 			avgRating := math.Round(s.AvgRating*100) / 100
 			averageRating = &avgRating
 		}
-		fallbackGain := config.ReplayGainFallback()
+		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
+
 		song := &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,

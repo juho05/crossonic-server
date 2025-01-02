@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers/connect"
 	"github.com/juho05/crossonic-server/lastfm"
@@ -19,7 +19,7 @@ import (
 
 type Handler struct {
 	router            chi.Router
-	Store             db.Store
+	Store             sqlc.Store
 	Scanner           *scanner.Scanner
 	ListenBrainz      *listenbrainz.ListenBrainz
 	LastFM            *lastfm.LastFm
@@ -30,7 +30,7 @@ type Handler struct {
 	TranscodeCache *cache.Cache
 }
 
-func New(store db.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
+func New(store sqlc.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
 	h := &Handler{
 		Store:             store,
 		Scanner:           scanner,

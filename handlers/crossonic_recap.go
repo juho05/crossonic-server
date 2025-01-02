@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 )
 
@@ -38,7 +38,7 @@ func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
 		Valid: true,
 	}
 
-	totalDuration, err := h.Store.GetScrobbleDurationSumMS(r.Context(), db.GetScrobbleDurationSumMSParams{
+	totalDuration, err := h.Store.GetScrobbleDurationSumMS(r.Context(), sqlc.GetScrobbleDurationSumMSParams{
 		UserName: user,
 		Start:    start,
 		End:      end,
@@ -48,7 +48,7 @@ func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	songCount, err := h.Store.GetScrobbleDistinctSongCount(r.Context(), db.GetScrobbleDistinctSongCountParams{
+	songCount, err := h.Store.GetScrobbleDistinctSongCount(r.Context(), sqlc.GetScrobbleDistinctSongCountParams{
 		UserName: user,
 		Start:    start,
 		End:      end,
@@ -58,7 +58,7 @@ func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	albumCount, err := h.Store.GetScrobbleDistinctAlbumCount(r.Context(), db.GetScrobbleDistinctAlbumCountParams{
+	albumCount, err := h.Store.GetScrobbleDistinctAlbumCount(r.Context(), sqlc.GetScrobbleDistinctAlbumCountParams{
 		UserName: user,
 		Start:    start,
 		End:      end,
@@ -68,7 +68,7 @@ func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artistCount, err := h.Store.GetScrobbleDistinctArtistCount(r.Context(), db.GetScrobbleDistinctArtistCountParams{
+	artistCount, err := h.Store.GetScrobbleDistinctArtistCount(r.Context(), sqlc.GetScrobbleDistinctArtistCountParams{
 		UserName: user,
 		Start:    start,
 		End:      end,
@@ -132,7 +132,7 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 		Valid: true,
 	}
 
-	songs, err := h.Store.GetScrobbleTopSongsByDuration(r.Context(), db.GetScrobbleTopSongsByDurationParams{
+	songs, err := h.Store.GetScrobbleTopSongsByDuration(r.Context(), sqlc.GetScrobbleTopSongsByDurationParams{
 		UserName: user,
 		Start:    start,
 		End:      end,
@@ -146,7 +146,7 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 
 	songMap := make(map[string]*responses.TopSongsRecapSong, len(songs))
 	songList := make([]*responses.TopSongsRecapSong, 0, len(songs))
-	songIDs := mapData(songs, func(s *db.GetScrobbleTopSongsByDurationRow) string {
+	songIDs := mapData(songs, func(s *sqlc.GetScrobbleTopSongsByDurationRow) string {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -156,7 +156,7 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 			avgRating := math.Round(s.AvgRating*100) / 100
 			averageRating = &avgRating
 		}
-		fallbackGain := config.ReplayGainFallback()
+		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
 		song := &responses.TopSongsRecapSong{
 			Song: responses.Song{
 				ID:            s.ID,

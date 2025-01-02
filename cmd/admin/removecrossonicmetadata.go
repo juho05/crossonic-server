@@ -10,11 +10,11 @@ import (
 
 	"github.com/juho05/crossonic-server/audiotags"
 	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/log"
 )
 
-func removeCrossonicMetadata(args []string, store db.Store) error {
+func removeCrossonicMetadata(args []string, store sqlc.Store) error {
 	if len(args) < 3 {
 		fmt.Println("USAGE:", args[0], "remove-crossonic-metadata <selection> <path?>\n\nSELECTION:\n  current (delete metadata created by this crossonic instance\n  all (delete metadata created by any crossonic instance)")
 		os.Exit(1)

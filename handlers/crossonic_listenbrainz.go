@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/log"
@@ -32,14 +32,14 @@ func (h *Handler) handleConnectListenbrainz(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		lbUsername = &con.LBUsername
-		encryptedListenbrainzToken, err = db.EncryptPassword(token)
+		encryptedListenbrainzToken, err = sqlc.EncryptPassword(token)
 		if err != nil {
 			log.Errorf("connect listenbrainz: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
 	}
-	_, err := h.Store.UpdateUserListenBrainzConnection(r.Context(), db.UpdateUserListenBrainzConnectionParams{
+	_, err := h.Store.UpdateUserListenBrainzConnection(r.Context(), sqlc.UpdateUserListenBrainzConnectionParams{
 		Name:                       username,
 		EncryptedListenbrainzToken: encryptedListenbrainzToken,
 		ListenbrainzUsername:       lbUsername,

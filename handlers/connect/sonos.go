@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/log"
 )
 
@@ -49,7 +49,7 @@ func (c *ConnectionManager) handleSetCurrent(user, device string, msg message) e
 	if err != nil {
 		return fmt.Errorf("handle set current: find user: %w", err)
 	}
-	password, err := db.DecryptPassword(u.EncryptedPassword)
+	password, err := sqlc.DecryptPassword(u.EncryptedPassword)
 	if err != nil {
 		return fmt.Errorf("handle set current: decrypt password: %w", err)
 	}
@@ -77,7 +77,7 @@ func (c *ConnectionManager) handleSetNext(user, device string, msg message) erro
 	if err != nil {
 		return fmt.Errorf("handle set next: find user: %w", err)
 	}
-	password, err := db.DecryptPassword(u.EncryptedPassword)
+	password, err := sqlc.DecryptPassword(u.EncryptedPassword)
 	if err != nil {
 		return fmt.Errorf("handle set next: decrypt password: %w", err)
 	}

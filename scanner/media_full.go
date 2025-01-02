@@ -19,7 +19,8 @@ import (
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/audiotags"
 	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/log"
 )
 
@@ -199,7 +200,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 					if len(media.musicBrainzAlbumArtistIDs) > i {
 						musicBrainzID = &media.musicBrainzAlbumArtistIDs[i]
 					}
-					err = s.store.UpdateArtist(ctx, db.UpdateArtistParams{
+					err = s.store.UpdateArtist(ctx, sqlc.UpdateArtistParams{
 						ID:            art,
 						Name:          media.albumArtists[i],
 						MusicBrainzID: musicBrainzID,
@@ -224,7 +225,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 			album, err := s.findAlbumID(ctx, media.album, media.albumArtists, media.musicBrainzAlbumID)
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
-					a, err := s.store.CreateAlbum(ctx, db.CreateAlbumParams{
+					a, err := s.store.CreateAlbum(ctx, sqlc.CreateAlbumParams{
 						ID:             crossonic.GenIDAlbum(),
 						Name:           *media.album,
 						Year:           intPtrToInt32Ptr(media.year),
@@ -246,7 +247,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 					return
 				}
 			} else if _, ok := updatedAlbums[album]; !ok {
-				err := s.store.UpdateAlbum(ctx, db.UpdateAlbumParams{
+				err := s.store.UpdateAlbum(ctx, sqlc.UpdateAlbumParams{
 					ID:             album,
 					Name:           *media.album,
 					Year:           intPtrToInt32Ptr(media.year),
@@ -380,7 +381,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 				if len(media.musicBrainzArtistIDs) > i {
 					musicBrainzID = &media.musicBrainzArtistIDs[i]
 				}
-				err = s.store.UpdateArtist(ctx, db.UpdateArtistParams{
+				err = s.store.UpdateArtist(ctx, sqlc.UpdateArtistParams{
 					ID:            art,
 					Name:          media.artists[i],
 					MusicBrainzID: musicBrainzID,
@@ -393,7 +394,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 			}
 		}
 
-		err = s.store.UpdateSong(ctx, db.UpdateSongParams{
+		err = s.store.UpdateSong(ctx, sqlc.UpdateSongParams{
 			ID:             song.id,
 			Path:           media.path,
 			AlbumID:        albumID,
@@ -439,7 +440,7 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		return
 	}
 
-	_, err = s.store.ReplaceSystemValue(ctx, db.ReplaceSystemValueParams{
+	_, err = s.store.ReplaceSystemValue(ctx, sqlc.ReplaceSystemValueParams{
 		Key:   "last-scan",
 		Value: time.Now().Format(time.RFC3339),
 	})
@@ -453,6 +454,8 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		log.Errorf("process media files: %s", err)
 		return
 	}
+
+	db.InvalidateFallbackGain()
 
 	err = s.cleanCovers(updatedArtists, albumCovers, songCovers)
 	if err != nil {
@@ -618,7 +621,7 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 		return nil, fmt.Errorf("find or create song by path: %w", err)
 	}
 
-	sc, err := s.store.CreateSong(ctx, db.CreateSongParams{
+	sc, err := s.store.CreateSong(ctx, sqlc.CreateSongParams{
 		ID:             crossonic.GenIDSong(),
 		Path:           media.path,
 		AlbumID:        nil,
@@ -653,7 +656,7 @@ func (s *Scanner) findAlbumID(ctx context.Context, albumName *string, albumArtis
 	if albumName == nil {
 		return "", fmt.Errorf("find album id: %w", pgx.ErrNoRows)
 	}
-	albums, err := s.store.FindAlbumsByNameWithArtistMatchCount(ctx, db.FindAlbumsByNameWithArtistMatchCountParams{
+	albums, err := s.store.FindAlbumsByNameWithArtistMatchCount(ctx, sqlc.FindAlbumsByNameWithArtistMatchCountParams{
 		Name:        *albumName,
 		ArtistNames: albumArtists,
 	})

@@ -7,7 +7,7 @@ import (
 
 	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 )
 
 var (
@@ -18,8 +18,8 @@ type Scanner struct {
 	lock          sync.Mutex
 	waitGroup     sync.WaitGroup
 	mediaDir      string
-	originalStore db.Store
-	store         db.Store
+	originalStore sqlc.Store
+	store         sqlc.Store
 	coverDir      string
 	firstScan     bool
 
@@ -29,7 +29,7 @@ type Scanner struct {
 	Count    int
 }
 
-func New(mediaDir string, store db.Store, coverCache *cache.Cache) *Scanner {
+func New(mediaDir string, store sqlc.Store, coverCache *cache.Cache) *Scanner {
 	return &Scanner{
 		mediaDir:      mediaDir,
 		store:         store,

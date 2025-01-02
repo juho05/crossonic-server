@@ -3,7 +3,7 @@
 //   sqlc v1.26.0
 // source: songs.sql
 
-package db
+package sqlc
 
 import (
 	"context"
@@ -647,6 +647,17 @@ func (q *Queries) FindSongsByMusicBrainzID(ctx context.Context, musicBrainzID *s
 		return nil, err
 	}
 	return items, nil
+}
+
+const getMedianReplayGain = `-- name: GetMedianReplayGain :one
+SELECT COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY songs.replay_gain), 0) FROM songs
+`
+
+func (q *Queries) GetMedianReplayGain(ctx context.Context) (interface{}, error) {
+	row := q.db.QueryRow(ctx, getMedianReplayGain)
+	var coalesce interface{}
+	err := row.Scan(&coalesce)
+	return coalesce, err
 }
 
 const getStreamInfo = `-- name: GetStreamInfo :one

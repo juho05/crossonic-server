@@ -67,3 +67,5 @@ LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_
 WHERE position(lower(sqlc.arg(search_str)) in lower(songs.title)) > 0
 ORDER BY position(lower(sqlc.arg(search_str)) in lower(songs.title)), lower(songs.title)
 OFFSET $2 LIMIT $3;
+-- name: GetMedianReplayGain :one
+SELECT COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY songs.replay_gain), 0) FROM songs;

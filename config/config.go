@@ -24,7 +24,6 @@ func LoadAll() {
 	AutoMigrate()
 	LogLevel()
 	LogFile()
-	ReplayGainFallback()
 	DisableStartupScan()
 	ListenBrainzURL()
 	LastFMApiKey()
@@ -156,10 +155,6 @@ func LogFile() (file *os.File) {
 		}
 		return file
 	}
-}
-
-func ReplayGainFallback() float32 {
-	return optionalFloat32("REPLAY_GAIN_FALLBACK", -8)
 }
 
 func DisableStartupScan() bool {

@@ -16,7 +16,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/log"
 )
@@ -102,7 +103,7 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 
 	if id == "" {
 		id = crossonic.GenIDPlaylist()
-		err := tx.CreatePlaylist(r.Context(), db.CreatePlaylistParams{
+		err := tx.CreatePlaylist(r.Context(), sqlc.CreatePlaylistParams{
 			ID:     id,
 			Name:   name,
 			Owner:  user,
@@ -114,7 +115,7 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if name != "" {
-		res, err := tx.UpdatePlaylistName(r.Context(), db.UpdatePlaylistNameParams{
+		res, err := tx.UpdatePlaylistName(r.Context(), sqlc.UpdatePlaylistNameParams{
 			ID:    id,
 			Owner: user,
 			Name:  name,
@@ -129,7 +130,7 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		res, err := tx.UpdatePlaylistUpdated(r.Context(), db.UpdatePlaylistUpdatedParams{
+		res, err := tx.UpdatePlaylistUpdated(r.Context(), sqlc.UpdatePlaylistUpdatedParams{
 			ID:    id,
 			Owner: user,
 		})
@@ -152,10 +153,10 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if query.Has("songId") {
-		tracks := make([]db.AddPlaylistTracksParams, 0, len(query["songId"]))
+		tracks := make([]sqlc.AddPlaylistTracksParams, 0, len(query["songId"]))
 		for i, songId := range query["songId"] {
 			trackNr := int32(i)
-			tracks = append(tracks, db.AddPlaylistTracksParams{
+			tracks = append(tracks, sqlc.AddPlaylistTracksParams{
 				PlaylistID: id,
 				SongID:     songId,
 				Track:      trackNr,
@@ -209,7 +210,7 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	playlist, err := tx.FindPlaylist(r.Context(), db.FindPlaylistParams{
+	playlist, err := tx.FindPlaylist(r.Context(), sqlc.FindPlaylistParams{
 		ID:   id,
 		User: user,
 	})
@@ -242,7 +243,7 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = tx.UpdatePlaylist(r.Context(), db.UpdatePlaylistParams{
+	err = tx.UpdatePlaylist(r.Context(), sqlc.UpdatePlaylistParams{
 		ID:      playlist.ID,
 		Owner:   user,
 		Name:    name,
@@ -275,7 +276,7 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 			}
 			lastTrack = t
 		}
-		err = tx.RemovePlaylistTracks(r.Context(), db.RemovePlaylistTracksParams{
+		err = tx.RemovePlaylistTracks(r.Context(), sqlc.RemovePlaylistTracksParams{
 			PlaylistID: id,
 			Tracks:     tracks,
 		})
@@ -289,7 +290,7 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 			if i+1 < len(tracks) {
 				next = tracks[i+1]
 			}
-			err = tx.UpdatePlaylistTrackNumbers(r.Context(), db.UpdatePlaylistTrackNumbersParams{
+			err = tx.UpdatePlaylistTrackNumbers(r.Context(), sqlc.UpdatePlaylistTrackNumbersParams{
 				PlaylistID: id,
 				MinTrack:   track + 1,
 				MaxTrack:   next - 1,
@@ -305,9 +306,9 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if query.Has("songIdToAdd") {
-		newEntries := make([]db.AddPlaylistTracksParams, 0, len(query["songIdToAdd"]))
+		newEntries := make([]sqlc.AddPlaylistTracksParams, 0, len(query["songIdToAdd"]))
 		for _, songID := range query["songIdToAdd"] {
-			newEntries = append(newEntries, db.AddPlaylistTracksParams{
+			newEntries = append(newEntries, sqlc.AddPlaylistTracksParams{
 				PlaylistID: id,
 				SongID:     songID,
 				Track:      trackCount,
@@ -342,7 +343,7 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.Store.DeletePlaylist(r.Context(), db.DeletePlaylistParams{
+	res, err := h.Store.DeletePlaylist(r.Context(), sqlc.DeletePlaylistParams{
 		ID:    id,
 		Owner: user,
 	})
@@ -378,14 +379,14 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*responses.Playlist, error) {
-	dbPlaylist, err := h.Store.FindPlaylist(ctx, db.FindPlaylistParams{
+	dbPlaylist, err := h.Store.FindPlaylist(ctx, sqlc.FindPlaylistParams{
 		ID:   id,
 		User: user,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get playlist by id: find playlist: %w", err)
 	}
-	tracks, err := h.Store.GetPlaylistTracks(ctx, db.GetPlaylistTracksParams{
+	tracks, err := h.Store.GetPlaylistTracks(ctx, sqlc.GetPlaylistTracksParams{
 		PlaylistID: id,
 		UserName:   user,
 	})
@@ -395,7 +396,7 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 
 	songMap := make(map[string]*responses.Song, len(tracks))
 	songList := make([]*responses.Song, 0, len(tracks))
-	songIDs := mapData(tracks, func(s *db.GetPlaylistTracksRow) string {
+	songIDs := mapData(tracks, func(s *sqlc.GetPlaylistTracksRow) string {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -405,7 +406,7 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 			avgRating := math.Round(s.AvgRating*100) / 100
 			averageRating = &avgRating
 		}
-		fallbackGain := config.ReplayGainFallback()
+		fallbackGain := float32(db.GetFallbackGain(ctx, h.Store))
 		song := &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,

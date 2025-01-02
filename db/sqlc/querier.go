@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.26.0
 
-package db
+package sqlc
 
 import (
 	"context"
@@ -77,6 +77,7 @@ type Querier interface {
 	FindUnsubmittedLBScrobbles(ctx context.Context) ([]*FindUnsubmittedLBScrobblesRow, error)
 	FindUser(ctx context.Context, name string) (*User, error)
 	FindUsers(ctx context.Context) ([]*User, error)
+	GetMedianReplayGain(ctx context.Context) (interface{}, error)
 	GetNowPlaying(ctx context.Context, userName string) (*Scrobble, error)
 	GetNowPlayingSongs(ctx context.Context, userName string) ([]*GetNowPlayingSongsRow, error)
 	GetPlaylistOwner(ctx context.Context, id string) (string, error)

@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 )
 
@@ -102,7 +102,7 @@ func (h *Handler) passwordAuth(ctx context.Context, username, password string) (
 		}
 		return false, fmt.Errorf("password auth: %w", err)
 	}
-	dbPassword, err := db.DecryptPassword(user.EncryptedPassword)
+	dbPassword, err := sqlc.DecryptPassword(user.EncryptedPassword)
 	if err != nil {
 		return false, fmt.Errorf("password auth: %w", err)
 	}
@@ -117,7 +117,7 @@ func (h *Handler) tokenAuth(ctx context.Context, username, token, salt string) (
 		}
 		return false, fmt.Errorf("token auth: %w", err)
 	}
-	dbPassword, err := db.DecryptPassword(user.EncryptedPassword)
+	dbPassword, err := sqlc.DecryptPassword(user.EncryptedPassword)
 	if err != nil {
 		return false, fmt.Errorf("token auth: %w", err)
 	}

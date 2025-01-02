@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db"
+	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/log"
 )
@@ -66,7 +66,7 @@ func (h *Handler) searchArtists(ctx context.Context, w http.ResponseWriter, quer
 		}
 	}
 
-	artists, err := h.Store.SearchAlbumArtists(ctx, db.SearchAlbumArtistsParams{
+	artists, err := h.Store.SearchAlbumArtists(ctx, sqlc.SearchAlbumArtistsParams{
 		UserName:  user,
 		Offset:    int32(offset),
 		Limit:     int32(limit),
@@ -77,7 +77,7 @@ func (h *Handler) searchArtists(ctx context.Context, w http.ResponseWriter, quer
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return nil, false
 	}
-	return mapData(artists, func(a *db.SearchAlbumArtistsRow) *responses.Artist {
+	return mapData(artists, func(a *sqlc.SearchAlbumArtistsRow) *responses.Artist {
 		var coverArt *string
 		if hasCoverArt(a.ID) {
 			coverArt = &a.ID
@@ -128,7 +128,7 @@ func (h *Handler) searchAlbums(ctx context.Context, w http.ResponseWriter, query
 		}
 	}
 
-	dbAlbums, err := h.Store.SearchAlbums(ctx, db.SearchAlbumsParams{
+	dbAlbums, err := h.Store.SearchAlbums(ctx, sqlc.SearchAlbumsParams{
 		UserName:  user,
 		Offset:    int32(offset),
 		Limit:     int32(limit),
@@ -252,7 +252,7 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 		}
 	}
 
-	songs, err := h.Store.SearchSongs(ctx, db.SearchSongsParams{
+	songs, err := h.Store.SearchSongs(ctx, sqlc.SearchSongsParams{
 		UserName:  user,
 		SearchStr: query.Get("query"),
 		Offset:    int32(offset),
@@ -265,7 +265,7 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 	}
 	songMap := make(map[string]*responses.Song, len(songs))
 	songList := make([]*responses.Song, 0, len(songs))
-	songIDs := mapData(songs, func(s *db.SearchSongsRow) string {
+	songIDs := mapData(songs, func(s *sqlc.SearchSongsRow) string {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -275,7 +275,7 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 			avgRating := math.Round(s.AvgRating*100) / 100
 			averageRating = &avgRating
 		}
-		fallbackGain := config.ReplayGainFallback()
+		fallbackGain := float32(db.GetFallbackGain(ctx, h.Store))
 		song := &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,

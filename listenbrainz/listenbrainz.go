@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
-	db "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/log"
 )
 
@@ -27,7 +27,7 @@ var (
 )
 
 type ListenBrainz struct {
-	Store  db.Store
+	Store  sqlc.Store
 	cancel context.CancelFunc
 }
 
@@ -68,7 +68,7 @@ type Connection struct {
 	Token      string
 }
 
-func New(store db.Store) *ListenBrainz {
+func New(store sqlc.Store) *ListenBrainz {
 	return &ListenBrainz{
 		Store: store,
 	}
@@ -229,7 +229,7 @@ func (l *ListenBrainz) GetListenbrainzConnection(ctx context.Context, user strin
 	if u.EncryptedListenbrainzToken == nil || u.ListenbrainzUsername == nil {
 		return Connection{}, ErrUnauthenticated
 	}
-	token, err := db.DecryptPassword(u.EncryptedListenbrainzToken)
+	token, err := sqlc.DecryptPassword(u.EncryptedListenbrainzToken)
 	if err != nil {
 		return Connection{}, fmt.Errorf("get listenbrainz token: %w", err)
 	}
@@ -426,7 +426,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 		RecordingMBID string        `json:"recording_mbid"`
 		Score         FeedbackScore `json:"score"`
 	}
-	successSongs := make([]db.SetLBFeedbackUpdatedParams, 0, len(feedback))
+	successSongs := make([]sqlc.SetLBFeedbackUpdatedParams, 0, len(feedback))
 	for _, f := range feedback {
 		if f.SongMBID == nil {
 			continue
@@ -439,7 +439,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 			log.Errorf("listenbrainz: update song feedback: %s", err)
 			continue
 		}
-		successSongs = append(successSongs, db.SetLBFeedbackUpdatedParams{
+		successSongs = append(successSongs, sqlc.SetLBFeedbackUpdatedParams{
 			SongID:   f.SongID,
 			UserName: con.User,
 			Mbid:     *f.SongMBID,
@@ -465,7 +465,7 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 		if u.ListenbrainzUsername == nil {
 			continue
 		}
-		token, err := db.DecryptPassword(u.EncryptedListenbrainzToken)
+		token, err := sqlc.DecryptPassword(u.EncryptedListenbrainzToken)
 		if err != nil {
 			log.Errorf("listenbrainz: sync song feedback: decrypt listenbrainz token: %s", err)
 			continue
@@ -538,7 +538,7 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 		}
 
 		// delete local uploaded feedback that is not present on ListenBrainz
-		result, err := tx.DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx, db.DeleteLBFeedbackUpdatedStarsNotInMBIDListParams{
+		result, err := tx.DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx, sqlc.DeleteLBFeedbackUpdatedStarsNotInMBIDListParams{
 			UserName:  u.Name,
 			SongMbids: lbFeedbackMBIDs,
 		})
@@ -550,7 +550,7 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 		deletedLocal += int(result.RowsAffected())
 
 		// update local uploaded feedback that is present on ListenBrainz
-		songIDs, err := tx.FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx, db.FindLBFeedbackUpdatedSongIDsInMBIDListNotStarredParams{
+		songIDs, err := tx.FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx, sqlc.FindLBFeedbackUpdatedSongIDsInMBIDListNotStarredParams{
 			UserName:  u.Name,
 			SongMbids: lbFeedbackMBIDs,
 		})
@@ -559,9 +559,9 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 			tx.Rollback(ctx)
 			continue
 		}
-		stars := make([]db.StarSongsParams, 0, len(songIDs))
+		stars := make([]sqlc.StarSongsParams, 0, len(songIDs))
 		for _, s := range songIDs {
-			stars = append(stars, db.StarSongsParams{
+			stars = append(stars, sqlc.StarSongsParams{
 				SongID:   s,
 				UserName: u.Name,
 				Created: pgtype.Timestamptz{

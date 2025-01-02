@@ -3,7 +3,7 @@
 //   sqlc v1.26.0
 // source: genres.sql
 
-package db
+package sqlc
 
 import (
 	"context"
