@@ -18,6 +18,7 @@ import (
 
 func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
+	query.Set("query", strings.Trim(query.Get("query"), `"`))
 
 	artists, ok := h.searchArtists(r.Context(), w, query)
 	if !ok {
