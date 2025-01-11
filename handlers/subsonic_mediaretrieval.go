@@ -69,32 +69,18 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fileFormat, bitRate := h.Transcoder.SelectFormat(format, maxBitRate)
-	if format == "raw" {
-		fileFormat.Mime = info.ContentType
-		fileFormat.Name = strings.TrimPrefix(filepath.Ext(info.Path), ".")
-	}
-	w.Header().Set("Content-Type", fileFormat.Mime)
 
 	if format == "raw" || (fileFormat.Mime == info.ContentType && (maxBitRate == 0 || maxBitRate >= int(info.BitRate))) {
-		path := info.Path
-		if timeOffset != 0 {
-			path, err = h.Transcoder.SeekRaw(path, time.Duration(timeOffset)*time.Second)
-			if err != nil {
-				log.Errorf("stream: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-				return
-			}
-			defer func() {
-				err := os.Remove(path)
-				if err != nil {
-					log.Errorf("failed to delete seek-raw temp file %s: %s", path, err)
-				}
-			}()
+		format = "raw"
+		fileFormat.Mime = info.ContentType
+		fileFormat.Name = strings.TrimPrefix(filepath.Ext(info.Path), ".")
+		if timeOffset == 0 {
+			log.Tracef("Streaming %s raw (%s %dkbps) to %s (user: %s) (range: %s)...", id, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"), r.Header.Get("Range"))
+			http.ServeFile(w, r, info.Path)
+			return
 		}
-		log.Tracef("Streaming %s raw (%s %dkbps) to %s (user: %s) (range: %s)...", id, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"), r.Header.Get("Range"))
-		http.ServeFile(w, r, path)
-		return
 	}
+	w.Header().Set("Content-Type", fileFormat.Mime)
 
 	if estimate, _ := strconv.ParseBool(query.Get("estimateContentLength")); estimate {
 		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.DurationMs-int32(timeOffset)*1000)/1000*float64(bitRate)/8*1024)))
@@ -107,15 +93,22 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	if timeOffset != 0 {
 		done := make(chan struct{})
 		w.Header().Set("Accept-Ranges", "none")
-		bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, maxBitRate, time.Duration(timeOffset)*time.Second, w, func() {
-			close(done)
-		})
+		if format == "raw" {
+			err = h.Transcoder.SeekRaw(info.Path, time.Duration(timeOffset)*time.Second, w, func() {
+				close(done)
+			})
+			log.Tracef("Streaming %s with offset (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
+		} else {
+			bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, maxBitRate, time.Duration(timeOffset)*time.Second, w, func() {
+				close(done)
+			})
+			log.Tracef("Streaming %s with transcoded offset (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
+		}
 		if err != nil {
 			log.Errorf("stream: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		log.Tracef("Streaming %s transcoded seek (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
 		<-done
 		return
 	}
@@ -161,7 +154,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		http.ServeContent(w, r, id, cacheObj.Modified(), cacheReader)
 	} else {
 		w.Header().Set("Accept-Ranges", "none")
-		io.Copy(w, cacheReader)
+		_, _ = io.Copy(w, cacheReader)
 	}
 }
 
@@ -302,7 +295,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		if cacheObj.IsComplete() {
 			http.ServeContent(w, r, id+".jpg", time.Now(), cacheReader)
 		} else {
-			io.Copy(w, cacheReader)
+			_, _ = io.Copy(w, cacheReader)
 		}
 		return
 	}
@@ -384,7 +377,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("get cover art: %s", err)
 		}
 	}()
-	io.Copy(w, cacheReader)
+	_, _ = io.Copy(w, cacheReader)
 }
 
 func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) error {

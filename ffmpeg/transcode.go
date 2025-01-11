@@ -4,14 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/juho05/crossonic-server"
-	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/log"
 )
 
@@ -87,7 +83,6 @@ func NewTranscoder() (*Transcoder, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new transcoder: %w", err)
 	}
-	cleanSeekRawCache()
 	return &Transcoder{}, nil
 }
 
@@ -143,27 +138,29 @@ func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitR
 	return maxBitRateK, nil
 }
 
-func (t *Transcoder) SeekRaw(path string, timeOffset time.Duration) (string, error) {
-	err := os.MkdirAll(filepath.Join(config.CacheDir(), "seek-raw"), 0755)
-	if err != nil {
-		return "", fmt.Errorf("ffmpeg: seek raw: %w", err)
-	}
+func (t *Transcoder) SeekRaw(path string, timeOffset time.Duration, w io.Writer, onDone func()) error {
+	cmd := exec.Command(ffmpegPath, "-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-")
 
-	ext := filepath.Ext(path)
-	name := strings.TrimSuffix(filepath.Base(path), ext)
-	cachePath := filepath.Join(config.CacheDir(), fmt.Sprintf("%s-%s%s", name, crossonic.GenID(), ext))
-
-	cmd := exec.Command(ffmpegPath, "-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", cachePath)
-	err = cmd.Run()
+	stderr := new(bytes.Buffer)
+	err := cmd.Start()
+	cmd.Stdout = w
+	cmd.Stderr = stderr
 	if err != nil {
-		return "", fmt.Errorf("ffmpeg: seek raw: %w", err)
+		return fmt.Errorf("ffmpeg: seek raw: %w", err)
 	}
-	return cachePath, nil
-}
-
-func cleanSeekRawCache() {
-	err := os.RemoveAll(filepath.Join(config.CacheDir(), "seek-raw"))
-	if err != nil {
-		log.Errorf("failed to clean seek-raw cache dir: %w", err)
-	}
+	go func() {
+		err = cmd.Wait()
+		if err != nil {
+			if stderr != nil {
+				log.Errorf("ffmpeg: seek raw: %s\n%s", err, stderr.String())
+			} else {
+				log.Errorf("ffmpeg: seek raw: %s", err)
+			}
+			return
+		}
+		if onDone != nil {
+			onDone()
+		}
+	}()
+	return nil
 }
