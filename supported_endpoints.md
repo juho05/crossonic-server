@@ -5,8 +5,13 @@
 ### System
 
 - [x] [ping](https://opensubsonic.netlify.app/docs/endpoints/ping)
-- [x] [getLicense](https://opensubsonic.netlify.app/docs/endpoints/getlicense) (only `valid` field)
+- [x] [getLicense](https://opensubsonic.netlify.app/docs/endpoints/getlicense) (*only `valid` field*)
+- [ ] [tokenInfo](https://opensubsonic.netlify.app/docs/endpoints/tokeninfo/)
 - [x] [getOpenSubsonicExtensions](https://opensubsonic.netlify.app/docs/endpoints/getopensubsonicextensions)
+  - [x] [HTTP form POST](https://opensubsonic.netlify.app/docs/extensions/formpost/)
+  - [x] [Transcode Offset](https://opensubsonic.netlify.app/docs/extensions/transcodeoffset/)
+  - [x] [Song Lyrics](https://opensubsonic.netlify.app/docs/extensions/songlyrics/) (*only unsynced*)
+  - [ ] [API Key Authentication](https://opensubsonic.netlify.app/docs/extensions/apikeyauth/)
 
 ### Browsing
 

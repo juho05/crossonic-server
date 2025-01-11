@@ -56,16 +56,23 @@ func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 				}
 			}
 		}
-		if !values.Has("u") {
-			responses.EncodeError(w, values.Get("f"), "missing parameter 'u'", responses.SubsonicErrorRequiredParameterMissing)
-			return
-		}
 		if !values.Has("v") {
 			responses.EncodeError(w, values.Get("f"), "missing parameter 'v'", responses.SubsonicErrorRequiredParameterMissing)
 			return
 		}
 		if !values.Has("c") {
 			responses.EncodeError(w, values.Get("f"), "missing parameter 'c'", responses.SubsonicErrorRequiredParameterMissing)
+			return
+		}
+
+		// disable auth for getOpenSubsonicExtensions
+		if r.URL.Path == "/rest/getOpenSubsonicExtensions" {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ContextKeyQuery, values)))
+			return
+		}
+
+		if !values.Has("u") {
+			responses.EncodeError(w, values.Get("f"), "missing parameter 'u'", responses.SubsonicErrorRequiredParameterMissing)
 			return
 		}
 		var authenticated bool
