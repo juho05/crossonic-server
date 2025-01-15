@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"path/filepath"
@@ -259,16 +260,15 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 // https://opensubsonic.netlify.app/docs/endpoints/getnowplaying/
 func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
-	songs, err := h.Store.GetNowPlayingSongs(r.Context(), query.Get("u"))
+	dbSongs, err := h.Store.GetNowPlayingSongs(r.Context(), query.Get("u"))
 	if err != nil {
 		log.Errorf("get now playing: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return
 	}
 
-	songMap := make(map[string][]*responses.NowPlayingEntry, len(songs))
-	songList := make([]*responses.NowPlayingEntry, 0, len(songs))
-	songIDs := mapData(songs, func(s *sqlc.GetNowPlayingSongsRow) string {
+	songs := make([]*responses.Song, 0, len(dbSongs))
+	entries := mapData(dbSongs, func(s *sqlc.GetNowPlayingSongsRow) *responses.NowPlayingEntry {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -279,7 +279,7 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 			averageRating = &avgRating
 		}
 		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
-		song := responses.Song{
+		song := &responses.Song{
 			ID:            s.ID,
 			Title:         s.Title,
 			Track:         int32PtrToIntPtr(s.Track),
@@ -297,8 +297,6 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 			Created:       s.Created.Time,
 			AlbumID:       s.AlbumID,
 			Album:         s.AlbumName,
-			Type:          "music",
-			MediaType:     "song",
 			BPM:           int32PtrToIntPtr(s.Bpm),
 			MusicBrainzID: s.MusicBrainzID,
 			AverageRating: averageRating,
@@ -311,78 +309,23 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 				FallbackGain: &fallbackGain,
 			},
 		}
-		entry := &responses.NowPlayingEntry{
+		songs = append(songs, song)
+		return &responses.NowPlayingEntry{
 			Song:       song,
 			Username:   s.UserName,
 			MinutesAgo: int(time.Since(s.Time.Time).Minutes()),
 		}
-		if _, ok := songMap[song.ID]; !ok {
-			songMap[song.ID] = make([]*responses.NowPlayingEntry, 0, 1)
-		}
-		songMap[song.ID] = append(songMap[song.ID], entry)
-		songList = append(songList, entry)
-		return s.ID
 	})
 
-	dbGenres, err := h.Store.FindGenresBySongs(r.Context(), songIDs)
+	err = h.completeSongInfo(r.Context(), songs)
 	if err != nil {
-		log.Errorf("get now playing: get genres: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("get now playing: %w", err))
 		return
-	}
-	for _, g := range dbGenres {
-		songs := songMap[g.SongID]
-		for _, song := range songs {
-			if song.Genre == nil {
-				song.Genre = &g.Name
-			}
-			song.Genres = append(song.Genres, &responses.GenreRef{
-				Name: g.Name,
-			})
-		}
-	}
-	artists, err := h.Store.FindArtistRefsBySongs(r.Context(), songIDs)
-	if err != nil {
-		log.Errorf("get now playing: get artist refs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	for _, a := range artists {
-		songs := songMap[a.SongID]
-		for _, song := range songs {
-			if song.ArtistID == nil && song.Artist == nil {
-				song.ArtistID = &a.ID
-				song.Artist = &a.Name
-			}
-			song.Artists = append(song.Artists, &responses.ArtistRef{
-				ID:   a.ID,
-				Name: a.Name,
-			})
-		}
-	}
-	albumArtists, err := h.Store.FindAlbumArtistRefsBySongs(r.Context(), songIDs)
-	if err != nil {
-		log.Errorf("get get now playing: get album artist refs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	for _, a := range albumArtists {
-		songs := songMap[a.SongID]
-		for _, song := range songs {
-			if song.ArtistID == nil && song.Artist == nil {
-				song.ArtistID = &a.ID
-				song.Artist = &a.Name
-			}
-			song.AlbumArtists = append(song.AlbumArtists, &responses.ArtistRef{
-				ID:   a.ID,
-				Name: a.Name,
-			})
-		}
 	}
 
 	res := responses.New()
 	res.NowPlaying = &responses.NowPlaying{
-		Entries: songList,
+		Entries: entries,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
 }

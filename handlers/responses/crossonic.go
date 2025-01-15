@@ -16,6 +16,6 @@ type TopSongsRecap struct {
 }
 
 type TopSongsRecapSong struct {
-	Song
+	*Song
 	TotalDurationMS int64 `xml:"totalDurationMs" json:"totalDurationMs"`
 }

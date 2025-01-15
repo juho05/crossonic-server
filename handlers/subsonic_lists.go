@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"path/filepath"
@@ -57,7 +58,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 		return strings.ToLower(g)
 	})
 
-	songs, err := h.Store.FindRandomSongs(r.Context(), sqlc.FindRandomSongsParams{
+	dbSongs, err := h.Store.FindRandomSongs(r.Context(), sqlc.FindRandomSongsParams{
 		UserName:    user,
 		Limit:       int32(limit),
 		FromYear:    fromYear,
@@ -65,13 +66,10 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 		GenresLower: genres,
 	})
 	if err != nil {
-		log.Errorf("get random songs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("get random songs: %w", err))
 		return
 	}
-	songMap := make(map[string]*responses.Song, len(songs))
-	songList := make([]*responses.Song, 0, len(songs))
-	songIDs := mapData(songs, func(s *sqlc.FindRandomSongsRow) string {
+	songs := mapData(dbSongs, func(s *sqlc.FindRandomSongsRow) *responses.Song {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -82,7 +80,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 			averageRating = &avgRating
 		}
 		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
-		song := &responses.Song{
+		return &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,
 			Title:         s.Title,
@@ -101,8 +99,6 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
 			Created:       s.Created.Time,
 			AlbumID:       s.AlbumID,
-			Type:          "music",
-			MediaType:     "song",
 			BPM:           int32PtrToIntPtr(s.Bpm),
 			MusicBrainzID: s.MusicBrainzID,
 			Starred:       starred,
@@ -115,63 +111,16 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 				FallbackGain: &fallbackGain,
 			},
 		}
-		songMap[song.ID] = song
-		songList = append(songList, song)
-		return s.ID
 	})
-	dbGenres, err := h.Store.FindGenresBySongs(r.Context(), songIDs)
+	err = h.completeSongInfo(r.Context(), songs)
 	if err != nil {
-		log.Errorf("get random songs: get genres: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("get random songs: %w", err))
 		return
-	}
-	for _, g := range dbGenres {
-		song := songMap[g.SongID]
-		if song.Genre == nil {
-			song.Genre = &g.Name
-		}
-		song.Genres = append(song.Genres, &responses.GenreRef{
-			Name: g.Name,
-		})
-	}
-	artists, err := h.Store.FindArtistRefsBySongs(r.Context(), songIDs)
-	if err != nil {
-		log.Errorf("get random songs: get artist refs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	for _, a := range artists {
-		song := songMap[a.SongID]
-		if song.ArtistID == nil && song.Artist == nil {
-			song.ArtistID = &a.ID
-			song.Artist = &a.Name
-		}
-		song.Artists = append(song.Artists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
-	}
-	albumArtists, err := h.Store.FindAlbumArtistRefsBySongs(r.Context(), songIDs)
-	if err != nil {
-		log.Errorf("get random songs: get album artist refs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	for _, a := range albumArtists {
-		song := songMap[a.SongID]
-		if song.ArtistID == nil && song.Artist == nil {
-			song.ArtistID = &a.ID
-			song.Artist = &a.Name
-		}
-		song.AlbumArtists = append(song.AlbumArtists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
 	}
 
 	res := responses.New()
 	res.RandomSongs = &responses.RandomSongs{
-		Songs: songList,
+		Songs: songs,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
 }
@@ -242,8 +191,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 		return strings.ToLower(g)
 	})
 
-	albums := make(map[string]*responses.Album)
-	var albumIds []string
+	var albums []*responses.Album
 	switch listType {
 	case "random":
 		if offset != 0 {
@@ -262,7 +210,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		for _, album := range a {
+		albums = mapData(a, func(album *sqlc.FindAlbumsRandomRow) *responses.Album {
 			var starred *time.Time
 			if album.Starred.Valid {
 				starred = &album.Starred.Time
@@ -284,7 +232,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 					}
 				})
 			}
-			albums[album.ID] = &responses.Album{
+			return &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
@@ -300,8 +248,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				ReleaseTypes:  releaseTypes,
 				RecordLabels:  recordLabels,
 			}
-			albumIds = append(albumIds, album.ID)
-		}
+		})
 	case "newest":
 		a, err := h.Store.FindAlbumsNewest(r.Context(), sqlc.FindAlbumsNewestParams{
 			UserName:    user,
@@ -316,7 +263,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		for _, album := range a {
+		albums = mapData(a, func(album *sqlc.FindAlbumsNewestRow) *responses.Album {
 			var starred *time.Time
 			if album.Starred.Valid {
 				starred = &album.Starred.Time
@@ -338,7 +285,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 					}
 				})
 			}
-			albums[album.ID] = &responses.Album{
+			return &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
@@ -354,8 +301,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				ReleaseTypes:  releaseTypes,
 				RecordLabels:  recordLabels,
 			}
-			albumIds = append(albumIds, album.ID)
-		}
+		})
 	case "highest":
 		a, err := h.Store.FindAlbumsHighestRated(r.Context(), sqlc.FindAlbumsHighestRatedParams{
 			UserName:    user,
@@ -370,7 +316,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		for _, album := range a {
+		albums = mapData(a, func(album *sqlc.FindAlbumsHighestRatedRow) *responses.Album {
 			var starred *time.Time
 			if album.Starred.Valid {
 				starred = &album.Starred.Time
@@ -392,7 +338,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 					}
 				})
 			}
-			albums[album.ID] = &responses.Album{
+			return &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
@@ -408,8 +354,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				ReleaseTypes:  releaseTypes,
 				RecordLabels:  recordLabels,
 			}
-			albumIds = append(albumIds, album.ID)
-		}
+		})
 	case "alphabeticalByName":
 		a, err := h.Store.FindAlbumsAlphabeticalByName(r.Context(), sqlc.FindAlbumsAlphabeticalByNameParams{
 			UserName:    user,
@@ -424,7 +369,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		for _, album := range a {
+		albums = mapData(a, func(album *sqlc.FindAlbumsAlphabeticalByNameRow) *responses.Album {
 			var starred *time.Time
 			if album.Starred.Valid {
 				starred = &album.Starred.Time
@@ -446,7 +391,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 					}
 				})
 			}
-			albums[album.ID] = &responses.Album{
+			return &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
@@ -462,8 +407,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				ReleaseTypes:  releaseTypes,
 				RecordLabels:  recordLabels,
 			}
-			albumIds = append(albumIds, album.ID)
-		}
+		})
 	case "starred":
 		a, err := h.Store.FindAlbumsStarred(r.Context(), sqlc.FindAlbumsStarredParams{
 			UserName:    user,
@@ -478,7 +422,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		for _, album := range a {
+		albums = mapData(a, func(album *sqlc.FindAlbumsStarredRow) *responses.Album {
 			var starred *time.Time
 			if album.Starred.Valid {
 				starred = &album.Starred.Time
@@ -500,7 +444,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 					}
 				})
 			}
-			albums[album.ID] = &responses.Album{
+			return &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
@@ -516,8 +460,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				ReleaseTypes:  releaseTypes,
 				RecordLabels:  recordLabels,
 			}
-			albumIds = append(albumIds, album.ID)
-		}
+		})
 	case "byYear":
 		a, err := h.Store.FindAlbumsByYear(r.Context(), sqlc.FindAlbumsByYearParams{
 			UserName:    user,
@@ -532,7 +475,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		for _, album := range a {
+		albums = mapData(a, func(album *sqlc.FindAlbumsByYearRow) *responses.Album {
 			var starred *time.Time
 			if album.Starred.Valid {
 				starred = &album.Starred.Time
@@ -554,7 +497,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 					}
 				})
 			}
-			albums[album.ID] = &responses.Album{
+			return &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
@@ -570,8 +513,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				ReleaseTypes:  releaseTypes,
 				RecordLabels:  recordLabels,
 			}
-			albumIds = append(albumIds, album.ID)
-		}
+		})
 	case "byGenre":
 		a, err := h.Store.FindAlbumsByGenre(r.Context(), sqlc.FindAlbumsByGenreParams{
 			UserName:    user,
@@ -586,7 +528,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 			return
 		}
-		for _, album := range a {
+		albums = mapData(a, func(album *sqlc.FindAlbumsByGenreRow) *responses.Album {
 			var starred *time.Time
 			if album.Starred.Valid {
 				starred = &album.Starred.Time
@@ -608,7 +550,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 					}
 				})
 			}
-			albums[album.ID] = &responses.Album{
+			return &responses.Album{
 				ID:            album.ID,
 				Created:       album.Created.Time,
 				Title:         album.Name,
@@ -624,59 +566,21 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 				ReleaseTypes:  releaseTypes,
 				RecordLabels:  recordLabels,
 			}
-			albumIds = append(albumIds, album.ID)
-		}
+		})
 	default:
 		responses.EncodeError(w, query.Get("f"), "unsupported list type: "+listType, responses.SubsonicErrorGeneric)
 		return
 	}
 
-	artistRefs, err := h.Store.FindArtistRefsByAlbums(r.Context(), albumIds)
+	err = h.completeAlbumInfo(r.Context(), albums)
 	if err != nil {
-		log.Errorf("get album list 2: get artist refs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("get album list2: %w", err))
 		return
-	}
-	for _, a := range artistRefs {
-		album := albums[a.AlbumID]
-		if album.Artist == nil && album.ArtistID == nil {
-			album.Artist = &a.Name
-			album.ArtistID = &a.ID
-		}
-		album.Artists = append(album.Artists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
-	}
-
-	genreRefs, err := h.Store.FindGenresByAlbums(r.Context(), albumIds)
-	if err != nil {
-		log.Errorf("get album list 2: get genres: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	for _, g := range genreRefs {
-		album := albums[g.AlbumID]
-		if album.Genre == nil {
-			album.Genre = &g.Name
-		}
-		album.Genres = append(album.Genres, &responses.GenreRef{
-			Name: g.Name,
-		})
 	}
 
 	res := responses.New()
 	res.AlbumList2 = &responses.AlbumList2{
-		Albums: mapData(albumIds, func(albumID string) *responses.Album {
-			album := albums[albumID]
-			if hasCoverArt(album.ID) {
-				album.CoverArt = &album.ID
-			}
-			album.IsDir = true
-			album.Type = "music"
-			album.MediaType = "album"
-			return album
-		}),
+		Albums: albums,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
 }

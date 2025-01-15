@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"net/url"
@@ -140,94 +141,53 @@ func (h *Handler) searchAlbums(ctx context.Context, w http.ResponseWriter, query
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return nil, false
 	}
-	albums := make(map[string]*responses.Album)
-	var albumIds []string
-	for _, album := range dbAlbums {
+	albums := mapData(dbAlbums, func(a *sqlc.SearchAlbumsRow) *responses.Album {
 		var starred *time.Time
-		if album.Starred.Valid {
-			starred = &album.Starred.Time
+		if a.Starred.Valid {
+			starred = &a.Starred.Time
 		}
 		var averageRating *float64
-		if album.AvgRating != 0 {
-			avgRating := math.Round(album.AvgRating*100) / 100
+		if a.AvgRating != 0 {
+			avgRating := math.Round(a.AvgRating*100) / 100
 			averageRating = &avgRating
 		}
 		var releaseTypes []string
-		if album.ReleaseTypes != nil {
-			releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
+		if a.ReleaseTypes != nil {
+			releaseTypes = strings.Split(*a.ReleaseTypes, "\003")
 		}
 		var recordLabels []*responses.RecordLabel
-		if album.RecordLabels != nil {
-			recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
+		if a.RecordLabels != nil {
+			recordLabels = mapData(strings.Split(*a.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
 				return &responses.RecordLabel{
 					Name: l,
 				}
 			})
 		}
-		var coverArt *string
-		if hasCoverArt(album.ID) {
-			coverArt = &album.ID
-		}
-		albums[album.ID] = &responses.Album{
-			ID:            album.ID,
-			Created:       album.Created.Time,
-			Title:         album.Name,
-			Name:          album.Name,
-			SongCount:     int(album.TrackCount),
-			Duration:      int(album.DurationMs / 1000),
-			Year:          int32PtrToIntPtr(album.Year),
+		return &responses.Album{
+			ID:            a.ID,
+			Created:       a.Created.Time,
+			Title:         a.Name,
+			Name:          a.Name,
+			SongCount:     int(a.TrackCount),
+			Duration:      int(a.DurationMs / 1000),
+			Year:          int32PtrToIntPtr(a.Year),
 			Starred:       starred,
-			UserRating:    int32PtrToIntPtr(album.UserRating),
+			UserRating:    int32PtrToIntPtr(a.UserRating),
 			AverageRating: averageRating,
-			MusicBrainzID: album.MusicBrainzID,
-			IsCompilation: album.IsCompilation,
+			MusicBrainzID: a.MusicBrainzID,
+			IsCompilation: a.IsCompilation,
 			ReleaseTypes:  releaseTypes,
 			RecordLabels:  recordLabels,
-			CoverArt:      coverArt,
-			IsDir:         true,
-			Type:          "music",
-			MediaType:     "album",
 		}
-		albumIds = append(albumIds, album.ID)
-	}
+	})
 
-	artistRefs, err := h.Store.FindArtistRefsByAlbums(ctx, albumIds)
+	err = h.completeAlbumInfo(ctx, albums)
 	if err != nil {
-		log.Errorf("search3: albums: get artist refs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("search3: search albums: %w", err))
 		return nil, false
 	}
-	for _, a := range artistRefs {
-		album := albums[a.AlbumID]
-		if album.Artist == nil && album.ArtistID == nil {
-			album.Artist = &a.Name
-			album.ArtistID = &a.ID
-		}
-		album.Artists = append(album.Artists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
-	}
 
-	genreRefs, err := h.Store.FindGenresByAlbums(ctx, albumIds)
-	if err != nil {
-		log.Errorf("search3: albums: get genres: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return nil, false
-	}
-	for _, g := range genreRefs {
-		album := albums[g.AlbumID]
-		if album.Genre == nil {
-			album.Genre = &g.Name
-		}
-		album.Genres = append(album.Genres, &responses.GenreRef{
-			Name: g.Name,
-		})
-	}
-
-	return mapData(albumIds, func(albumID string) *responses.Album {
-		return albums[albumID]
-	}), true
+	return albums, true
 }
 
 func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query url.Values) ([]*responses.Song, bool) {
@@ -253,20 +213,17 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 		}
 	}
 
-	songs, err := h.Store.SearchSongs(ctx, sqlc.SearchSongsParams{
+	dbSongs, err := h.Store.SearchSongs(ctx, sqlc.SearchSongsParams{
 		UserName:  user,
 		SearchStr: query.Get("query"),
 		Offset:    int32(offset),
 		Limit:     int32(limit),
 	})
 	if err != nil {
-		log.Errorf("search3: songs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("search3: songs: %w", err))
 		return nil, false
 	}
-	songMap := make(map[string]*responses.Song, len(songs))
-	songList := make([]*responses.Song, 0, len(songs))
-	songIDs := mapData(songs, func(s *sqlc.SearchSongsRow) string {
+	songs := mapData(dbSongs, func(s *sqlc.SearchSongsRow) *responses.Song {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -277,7 +234,7 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 			averageRating = &avgRating
 		}
 		fallbackGain := float32(db.GetFallbackGain(ctx, h.Store))
-		song := &responses.Song{
+		return &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,
 			Title:         s.Title,
@@ -296,8 +253,6 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
 			Created:       s.Created.Time,
 			AlbumID:       s.AlbumID,
-			Type:          "music",
-			MediaType:     "song",
 			BPM:           int32PtrToIntPtr(s.Bpm),
 			MusicBrainzID: s.MusicBrainzID,
 			Starred:       starred,
@@ -310,58 +265,11 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 				FallbackGain: &fallbackGain,
 			},
 		}
-		songMap[song.ID] = song
-		songList = append(songList, song)
-		return s.ID
 	})
-	dbGenres, err := h.Store.FindGenresBySongs(ctx, songIDs)
+	err = h.completeSongInfo(ctx, songs)
 	if err != nil {
-		log.Errorf("search3: songs: get genres: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("search3: songs: %w", err))
 		return nil, false
 	}
-	for _, g := range dbGenres {
-		song := songMap[g.SongID]
-		if song.Genre == nil {
-			song.Genre = &g.Name
-		}
-		song.Genres = append(song.Genres, &responses.GenreRef{
-			Name: g.Name,
-		})
-	}
-	artists, err := h.Store.FindArtistRefsBySongs(ctx, songIDs)
-	if err != nil {
-		log.Errorf("search3: songs: get artist refs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return nil, false
-	}
-	for _, a := range artists {
-		song := songMap[a.SongID]
-		if song.ArtistID == nil && song.Artist == nil {
-			song.ArtistID = &a.ID
-			song.Artist = &a.Name
-		}
-		song.Artists = append(song.Artists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
-	}
-	albumArtists, err := h.Store.FindAlbumArtistRefsBySongs(ctx, songIDs)
-	if err != nil {
-		log.Errorf("search3: songs: get album artist refs: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return nil, false
-	}
-	for _, a := range albumArtists {
-		song := songMap[a.SongID]
-		if song.ArtistID == nil && song.Artist == nil {
-			song.ArtistID = &a.ID
-			song.Artist = &a.Name
-		}
-		song.AlbumArtists = append(song.AlbumArtists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
-	}
-	return songList, true
+	return songs, true
 }

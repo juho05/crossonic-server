@@ -132,7 +132,7 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 		Valid: true,
 	}
 
-	songs, err := h.Store.GetScrobbleTopSongsByDuration(r.Context(), sqlc.GetScrobbleTopSongsByDurationParams{
+	dbSongs, err := h.Store.GetScrobbleTopSongsByDuration(r.Context(), sqlc.GetScrobbleTopSongsByDurationParams{
 		UserName: user,
 		Start:    start,
 		End:      end,
@@ -144,9 +144,8 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	songMap := make(map[string]*responses.TopSongsRecapSong, len(songs))
-	songList := make([]*responses.TopSongsRecapSong, 0, len(songs))
-	songIDs := mapData(songs, func(s *sqlc.GetScrobbleTopSongsByDurationRow) string {
+	songs := make([]*responses.Song, 0, len(dbSongs))
+	topSongs := mapData(dbSongs, func(s *sqlc.GetScrobbleTopSongsByDurationRow) *responses.TopSongsRecapSong {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -157,97 +156,53 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 			averageRating = &avgRating
 		}
 		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
-		song := &responses.TopSongsRecapSong{
-			Song: responses.Song{
-				ID:            s.ID,
-				IsDir:         false,
-				Title:         s.Title,
-				Album:         s.AlbumName,
-				Track:         int32PtrToIntPtr(s.Track),
-				Year:          int32PtrToIntPtr(s.Year),
-				CoverArt:      s.CoverID,
-				Size:          s.Size,
-				ContentType:   s.ContentType,
-				Suffix:        filepath.Ext(s.Path),
-				Duration:      int(s.DurationMs) / 1000,
-				BitRate:       int(s.BitRate),
-				SamplingRate:  int(s.SamplingRate),
-				ChannelCount:  int(s.ChannelCount),
-				UserRating:    int32PtrToIntPtr(s.UserRating),
-				DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
-				Created:       s.Created.Time,
-				AlbumID:       s.AlbumID,
-				Type:          "music",
-				MediaType:     "song",
-				BPM:           int32PtrToIntPtr(s.Bpm),
-				MusicBrainzID: s.MusicBrainzID,
-				Starred:       starred,
-				AverageRating: averageRating,
-				ReplayGain: &responses.ReplayGain{
-					TrackGain:    s.ReplayGain,
-					AlbumGain:    s.AlbumReplayGain,
-					TrackPeak:    s.ReplayGainPeak,
-					AlbumPeak:    s.AlbumReplayGainPeak,
-					FallbackGain: &fallbackGain,
-				},
+		song := &responses.Song{
+			ID:            s.ID,
+			IsDir:         false,
+			Title:         s.Title,
+			Album:         s.AlbumName,
+			Track:         int32PtrToIntPtr(s.Track),
+			Year:          int32PtrToIntPtr(s.Year),
+			CoverArt:      s.CoverID,
+			Size:          s.Size,
+			ContentType:   s.ContentType,
+			Suffix:        filepath.Ext(s.Path),
+			Duration:      int(s.DurationMs) / 1000,
+			BitRate:       int(s.BitRate),
+			SamplingRate:  int(s.SamplingRate),
+			ChannelCount:  int(s.ChannelCount),
+			UserRating:    int32PtrToIntPtr(s.UserRating),
+			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
+			Created:       s.Created.Time,
+			AlbumID:       s.AlbumID,
+			BPM:           int32PtrToIntPtr(s.Bpm),
+			MusicBrainzID: s.MusicBrainzID,
+			Starred:       starred,
+			AverageRating: averageRating,
+			ReplayGain: &responses.ReplayGain{
+				TrackGain:    s.ReplayGain,
+				AlbumGain:    s.AlbumReplayGain,
+				TrackPeak:    s.ReplayGainPeak,
+				AlbumPeak:    s.AlbumReplayGainPeak,
+				FallbackGain: &fallbackGain,
 			},
+		}
+		songs = append(songs, song)
+		return &responses.TopSongsRecapSong{
+			Song:            song,
 			TotalDurationMS: s.TotalDurationMs,
 		}
-		songMap[song.ID] = song
-		songList = append(songList, song)
-		return s.ID
 	})
 
-	dbGenres, err := h.Store.FindGenresBySongs(r.Context(), songIDs)
+	err = h.completeSongInfo(r.Context(), songs)
 	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get top songs recap: get genres: %w", err))
+		respondInternalErr(w, format, fmt.Errorf("get top songs recap: %w", err))
 		return
-	}
-	for _, g := range dbGenres {
-		song := songMap[g.SongID]
-		if song.Genre == nil {
-			song.Genre = &g.Name
-		}
-		song.Genres = append(song.Genres, &responses.GenreRef{
-			Name: g.Name,
-		})
-	}
-	songArtists, err := h.Store.FindArtistRefsBySongs(r.Context(), songIDs)
-	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get top songs recap: get song artists: %w", err))
-		return
-	}
-	for _, a := range songArtists {
-		song := songMap[a.SongID]
-		if song.ArtistID == nil && song.Artist == nil {
-			song.ArtistID = &a.ID
-			song.Artist = &a.Name
-		}
-		song.Artists = append(song.Artists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
-	}
-	albumArtists, err := h.Store.FindAlbumArtistRefsBySongs(r.Context(), songIDs)
-	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get top songs recap: get album artist refs: %w", err))
-		return
-	}
-	for _, a := range albumArtists {
-		song := songMap[a.SongID]
-		if song.ArtistID == nil && song.Artist == nil {
-			song.ArtistID = &a.ID
-			song.Artist = &a.Name
-		}
-		song.AlbumArtists = append(song.AlbumArtists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
 	}
 
 	res := responses.New()
 	res.TopSongsRecap = &responses.TopSongsRecap{
-		Songs: songList,
+		Songs: topSongs,
 	}
 	res.EncodeOrLog(w, format)
 }

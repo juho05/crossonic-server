@@ -394,9 +394,7 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 		return nil, fmt.Errorf("get playlist by id: get tracks: %w", err)
 	}
 
-	songMap := make(map[string]*responses.Song, len(tracks))
-	songList := make([]*responses.Song, 0, len(tracks))
-	songIDs := mapData(tracks, func(s *sqlc.GetPlaylistTracksRow) string {
+	songs := mapData(tracks, func(s *sqlc.GetPlaylistTracksRow) *responses.Song {
 		var starred *time.Time
 		if s.Starred.Valid {
 			starred = &s.Starred.Time
@@ -407,7 +405,7 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 			averageRating = &avgRating
 		}
 		fallbackGain := float32(db.GetFallbackGain(ctx, h.Store))
-		song := &responses.Song{
+		return &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,
 			Title:         s.Title,
@@ -426,8 +424,6 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
 			Created:       s.Created.Time,
 			AlbumID:       s.AlbumID,
-			Type:          "music",
-			MediaType:     "song",
 			BPM:           int32PtrToIntPtr(s.Bpm),
 			MusicBrainzID: s.MusicBrainzID,
 			Starred:       starred,
@@ -440,52 +436,11 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 				FallbackGain: &fallbackGain,
 			},
 		}
-		songMap[song.ID] = song
-		songList = append(songList, song)
-		return s.ID
 	})
-	dbGenres, err := h.Store.FindGenresBySongs(ctx, songIDs)
+
+	err = h.completeSongInfo(ctx, songs)
 	if err != nil {
-		return nil, fmt.Errorf("get playlist by id: get genres: %w", err)
-	}
-	for _, g := range dbGenres {
-		song := songMap[g.SongID]
-		if song.Genre == nil {
-			song.Genre = &g.Name
-		}
-		song.Genres = append(song.Genres, &responses.GenreRef{
-			Name: g.Name,
-		})
-	}
-	songArtists, err := h.Store.FindArtistRefsBySongs(ctx, songIDs)
-	if err != nil {
-		return nil, fmt.Errorf("get playlist by id: find artist refs: %w", err)
-	}
-	for _, a := range songArtists {
-		song := songMap[a.SongID]
-		if song.ArtistID == nil && song.Artist == nil {
-			song.ArtistID = &a.ID
-			song.Artist = &a.Name
-		}
-		song.Artists = append(song.Artists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
-	}
-	albumArtists, err := h.Store.FindAlbumArtistRefsBySongs(ctx, songIDs)
-	if err != nil {
-		return nil, fmt.Errorf("get playlist by id: get album artist refs: %w", err)
-	}
-	for _, a := range albumArtists {
-		song := songMap[a.SongID]
-		if song.ArtistID == nil && song.Artist == nil {
-			song.ArtistID = &a.ID
-			song.Artist = &a.Name
-		}
-		song.AlbumArtists = append(song.AlbumArtists, &responses.ArtistRef{
-			ID:   a.ID,
-			Name: a.Name,
-		})
+		return nil, fmt.Errorf("get playlist by id: %w", err)
 	}
 
 	var cover *string
@@ -503,6 +458,6 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 		Created:   dbPlaylist.Created.Time,
 		Changed:   dbPlaylist.Updated.Time,
 		CoverArt:  cover,
-		Entry:     &songList,
+		Entry:     &songs,
 	}, nil
 }

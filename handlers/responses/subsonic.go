@@ -142,7 +142,7 @@ type ReplayGain struct {
 }
 
 type AlbumWithSongs struct {
-	Album
+	*Album
 	Songs []*Song `xml:"song" json:"song"`
 }
 
@@ -155,7 +155,7 @@ type NowPlaying struct {
 }
 
 type NowPlayingEntry struct {
-	Song
+	*Song
 	Username   string `xml:"username,attr" json:"username"`
 	MinutesAgo int    `xml:"minutesAgo,attr" json:"minutesAgo"`
 }
