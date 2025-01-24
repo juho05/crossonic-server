@@ -10,14 +10,13 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/repos"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-func usersList(store sqlc.Store) error {
-	users, err := store.FindUsers(context.Background())
+func usersList(db repos.DB) error {
+	users, err := db.User().FindAll(context.Background())
 	if err != nil {
 		return err
 	}
@@ -28,7 +27,7 @@ func usersList(store sqlc.Store) error {
 	return nil
 }
 
-func usersCreate(args []string, store sqlc.Store) error {
+func usersCreate(args []string, db repos.DB) error {
 	if len(args) < 4 {
 		fmt.Println("USAGE:", args[0], "users create <name>")
 		os.Exit(1)
@@ -54,14 +53,7 @@ func usersCreate(args []string, store sqlc.Store) error {
 		}
 	}
 
-	encryptedPassword, err := sqlc.EncryptPassword(password)
-	if err != nil {
-		return err
-	}
-	err = store.CreateUser(context.Background(), sqlc.CreateUserParams{
-		Name:              args[3],
-		EncryptedPassword: encryptedPassword,
-	})
+	err := db.User().Create(context.Background(), args[3], password)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -77,14 +69,14 @@ func usersCreate(args []string, store sqlc.Store) error {
 	return nil
 }
 
-func usersDelete(args []string, store sqlc.Store) error {
+func usersDelete(args []string, db repos.DB) error {
 	if len(args) < 4 {
 		fmt.Println("USAGE:", args[0], "users delete <name>")
 		os.Exit(1)
 	}
-	_, err := store.DeleteUser(context.Background(), args[3])
+	err := db.User().DeleteByName(context.Background(), args[3])
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			return fmt.Errorf("user '%s' does not exist", args[3])
 		}
 		return err
@@ -92,7 +84,7 @@ func usersDelete(args []string, store sqlc.Store) error {
 	return nil
 }
 
-func users(args []string, store sqlc.Store) error {
+func users(args []string, db repos.DB) error {
 	if len(args) < 3 {
 		fmt.Println("USAGE:", args[0], "users <command>\n\nCOMMANDS:\n  list\n  create\n  delete")
 		os.Exit(1)
@@ -100,11 +92,11 @@ func users(args []string, store sqlc.Store) error {
 	var err error
 	switch args[2] {
 	case "list":
-		err = usersList(store)
+		err = usersList(db)
 	case "create":
-		err = usersCreate(args, store)
+		err = usersCreate(args, db)
 	case "delete":
-		err = usersDelete(args, store)
+		err = usersDelete(args, db)
 	default:
 		fmt.Println("Unknown command")
 		fmt.Println("USAGE:", args[0], "users <command>\n\nCOMMANDS:\n  list\n  create\n  delete")

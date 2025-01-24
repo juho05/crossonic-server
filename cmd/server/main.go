@@ -16,11 +16,11 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
-	"github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/listenbrainz"
+	"github.com/juho05/crossonic-server/repos/postgres"
 	"github.com/juho05/crossonic-server/scanner"
 	"github.com/juho05/log"
 )
@@ -37,23 +37,11 @@ func init() {
 
 func run() error {
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", config.DBUser(), config.DBPassword(), config.DBHost(), config.DBPort(), config.DBName())
-	dbConn, err := sqlc.Connect(dsn)
+	db, err := postgres.NewDB(dsn)
 	if err != nil {
 		return err
 	}
-	defer sqlc.Close(dbConn)
-
-	if config.AutoMigrate() {
-		err = sqlc.AutoMigrate(dsn)
-		if err != nil {
-			return err
-		}
-	}
-
-	store, err := sqlc.NewStore(dbConn)
-	if err != nil {
-		return err
-	}
+	defer db.Close()
 
 	transcoder, err := ffmpeg.NewTranscoder()
 	if err != nil {
@@ -72,9 +60,12 @@ func run() error {
 		return err
 	}
 
-	scanner := scanner.New(config.MusicDir(), store, coverCache, transcodeCache)
+	scanner, err := scanner.New(config.MusicDir(), db, coverCache, transcodeCache)
+	if err != nil {
+		return err
+	}
 
-	lBrainz := listenbrainz.New(store)
+	lBrainz := listenbrainz.New(db)
 
 	if !config.DisableStartupScan() {
 		go func() {
@@ -86,9 +77,9 @@ func run() error {
 		}()
 	}
 
-	lfm := lastfm.New(config.LastFMApiKey(), store)
+	lfm := lastfm.New(config.LastFMApiKey())
 
-	handler := handlers.New(store, scanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
+	handler := handlers.New(db, scanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
 
 	addr := config.ListenAddr()
 

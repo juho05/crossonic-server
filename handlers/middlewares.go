@@ -13,9 +13,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
-	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/repos"
 )
 
 type ContextKey int
@@ -102,14 +101,14 @@ func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 }
 
 func (h *Handler) passwordAuth(ctx context.Context, username, password string) (bool, error) {
-	user, err := h.Store.FindUser(ctx, username)
+	user, err := h.DB.User().FindByName(ctx, username)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			return false, nil
 		}
 		return false, fmt.Errorf("password auth: %w", err)
 	}
-	dbPassword, err := sqlc.DecryptPassword(user.EncryptedPassword)
+	dbPassword, err := repos.DecryptPassword(user.EncryptedPassword)
 	if err != nil {
 		return false, fmt.Errorf("password auth: %w", err)
 	}
@@ -117,14 +116,14 @@ func (h *Handler) passwordAuth(ctx context.Context, username, password string) (
 }
 
 func (h *Handler) tokenAuth(ctx context.Context, username, token, salt string) (bool, error) {
-	user, err := h.Store.FindUser(ctx, username)
+	user, err := h.DB.User().FindByName(ctx, username)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			return false, nil
 		}
 		return false, fmt.Errorf("token auth: %w", err)
 	}
-	dbPassword, err := sqlc.DecryptPassword(user.EncryptedPassword)
+	dbPassword, err := repos.DecryptPassword(user.EncryptedPassword)
 	if err != nil {
 		return false, fmt.Errorf("token auth: %w", err)
 	}

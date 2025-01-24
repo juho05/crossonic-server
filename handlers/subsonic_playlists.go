@@ -4,31 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/juho05/crossonic-server"
+	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
-	"github.com/juho05/crossonic-server/db"
-	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
 func (h *Handler) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
-	dbPlaylists, err := h.Store.FindPlaylists(r.Context(), user)
+	dbPlaylists, err := h.DB.Playlist().FindAll(r.Context(), user, repos.IncludePlaylistInfoFull())
 	if err != nil {
-		log.Errorf("get playlists: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("find all playlists: %w", err))
 		return
 	}
 	playlists := make([]*responses.Playlist, 0, len(dbPlaylists))
@@ -44,9 +38,9 @@ func (h *Handler) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
 			Owner:     p.Owner,
 			Public:    p.Public,
 			SongCount: int(p.TrackCount),
-			Duration:  int(p.DurationMs / 1000),
-			Created:   p.Created.Time,
-			Changed:   p.Updated.Time,
+			Duration:  int(p.Duration.ToStd().Seconds()),
+			Created:   p.Created,
+			Changed:   p.Updated,
 			CoverArt:  cover,
 		})
 	}
@@ -69,7 +63,7 @@ func (h *Handler) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 
 	playlist, err := h.getPlaylistById(r.Context(), id, user)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		} else {
 			log.Errorf("get playlist: %s", err)
@@ -93,97 +87,55 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := h.Store.BeginTransaction(r.Context())
-	if err != nil {
-		log.Errorf("create playlist: begin transaction: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	defer tx.Rollback(r.Context())
-
-	if id == "" {
-		id = crossonic.GenIDPlaylist()
-		err := tx.CreatePlaylist(r.Context(), sqlc.CreatePlaylistParams{
-			ID:     id,
-			Name:   name,
-			Owner:  user,
-			Public: false,
-		})
-		if err != nil {
-			log.Errorf("create playlist: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-	} else if name != "" {
-		res, err := tx.UpdatePlaylistName(r.Context(), sqlc.UpdatePlaylistNameParams{
-			ID:    id,
-			Owner: user,
-			Name:  name,
-		})
-		if err != nil {
-			log.Errorf("create playlist (update): %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		if res.RowsAffected() == 0 {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-			return
-		}
-	} else {
-		res, err := tx.UpdatePlaylistUpdated(r.Context(), sqlc.UpdatePlaylistUpdatedParams{
-			ID:    id,
-			Owner: user,
-		})
-		if err != nil {
-			log.Errorf("create playlist (update): %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		if res.RowsAffected() == 0 {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-			return
-		}
-	}
-
-	err = tx.ClearPlaylist(r.Context(), id)
-	if err != nil {
-		log.Errorf("create playlist: remove old tracks: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-
-	if query.Has("songId") {
-		tracks := make([]sqlc.AddPlaylistTracksParams, 0, len(query["songId"]))
-		for i, songId := range query["songId"] {
-			trackNr := int32(i)
-			tracks = append(tracks, sqlc.AddPlaylistTracksParams{
-				PlaylistID: id,
-				SongID:     songId,
-				Track:      trackNr,
+	err := h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
+		if id == "" {
+			p, err := tx.Playlist().Create(r.Context(), repos.CreatePlaylistParams{
+				Name:   name,
+				Owner:  user,
+				Public: false,
 			})
+			if err != nil {
+				return fmt.Errorf("create: %w", err)
+			}
+			id = p.ID
+		} else if name != "" {
+			err := tx.Playlist().Update(r.Context(), user, id, repos.UpdatePlaylistParams{
+				Name: repos.NewOptionalFull(name),
+			})
+			if err != nil {
+				return fmt.Errorf("update name: %w", err)
+			}
+		} else {
+			err := tx.Playlist().Update(r.Context(), user, id, repos.UpdatePlaylistParams{})
+			if err != nil {
+				return fmt.Errorf("update: %w", err)
+			}
 		}
-		_, err = tx.AddPlaylistTracks(r.Context(), tracks)
-		if err != nil {
-			log.Errorf("create playlist: add new tracks: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-	}
 
-	err = tx.Commit(r.Context())
+		err := tx.Playlist().ClearTracks(r.Context(), id)
+		if err != nil {
+			return fmt.Errorf("remove old tracks: %w", err)
+		}
+
+		if query.Has("songId") {
+			err = tx.Playlist().AddTracks(r.Context(), id, query["songId"])
+			if err != nil {
+				return fmt.Errorf("add new tracks: %w", err)
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		log.Errorf("create playlist: commit: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("create playlist: %w", err))
 		return
 	}
 
 	playlist, err := h.getPlaylistById(r.Context(), id, user)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		} else {
-			log.Errorf("create playlist: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			respondInternalErr(w, query.Get("f"), fmt.Errorf("create playlist: get playlist by id: %w", err))
 		}
 		return
 	}
@@ -202,133 +154,74 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := h.Store.BeginTransaction(r.Context())
-	if err != nil {
-		log.Errorf("update playlist: begin transaction: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	defer tx.Rollback(r.Context())
-
-	playlist, err := tx.FindPlaylist(r.Context(), sqlc.FindPlaylistParams{
-		ID:   id,
-		User: user,
-	})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		} else {
-			log.Errorf("update playlist: find playlist: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		}
-		return
-	}
-	if playlist.Owner != user {
-		responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		return
-	}
-
-	name := query.Get("name")
-	if name == "" {
-		name = playlist.Name
-	}
-
-	comment := playlist.Comment
-	if query.Has("comment") {
-		qComment := query.Get("comment")
-		if qComment == "" {
-			comment = nil
-		} else {
-			comment = &qComment
-		}
-	}
-
-	err = tx.UpdatePlaylist(r.Context(), sqlc.UpdatePlaylistParams{
-		ID:      playlist.ID,
-		Owner:   user,
-		Name:    name,
-		Public:  false,
-		Comment: comment,
-	})
-	if err != nil {
-		log.Errorf("update playlist: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-
-	trackCount := int32(playlist.TrackCount)
-	if query.Has("songIndexToRemove") {
-		tracks := make([]int32, 0, len(query["songIndexToRemove"]))
-		for _, iStr := range query["songIndexToRemove"] {
-			i, err := strconv.Atoi(iStr)
-			if err != nil || i < 0 || i >= int(trackCount) {
-				responses.EncodeError(w, query.Get("f"), fmt.Sprintf("invalid song index: %s", iStr), responses.SubsonicErrorGeneric)
-				return
-			}
-			tracks = append(tracks, int32(i))
-		}
-		slices.Sort(tracks)
-		lastTrack := int32(-1)
-		for _, t := range tracks {
-			if lastTrack == t {
-				responses.EncodeError(w, query.Get("f"), fmt.Sprintf("duplicate song index: %d", t), responses.SubsonicErrorGeneric)
-				return
-			}
-			lastTrack = t
-		}
-		err = tx.RemovePlaylistTracks(r.Context(), sqlc.RemovePlaylistTracksParams{
-			PlaylistID: id,
-			Tracks:     tracks,
+	err := h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
+		playlist, err := tx.Playlist().FindByID(r.Context(), user, id, repos.IncludePlaylistInfo{
+			TrackInfo: true,
 		})
 		if err != nil {
-			log.Errorf("update playlist: remove tracks: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		for i, track := range tracks {
-			next := trackCount
-			if i+1 < len(tracks) {
-				next = tracks[i+1]
-			}
-			err = tx.UpdatePlaylistTrackNumbers(r.Context(), sqlc.UpdatePlaylistTrackNumbersParams{
-				PlaylistID: id,
-				MinTrack:   track + 1,
-				MaxTrack:   next - 1,
-				Add:        -1 * int32(i+1),
-			})
-			if err != nil {
-				log.Errorf("update playlist: fix track numbers after remove: %s", err)
+			if errors.Is(err, repos.ErrNotFound) {
+				responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			} else {
+				log.Errorf("update playlist: find playlist: %s", err)
 				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-				return
+			}
+			return fmt.Errorf("find playlist: %w", err)
+		}
+
+		name := query.Get("name")
+
+		var comment *string
+		var updateComment bool
+		if query.Has("comment") {
+			updateComment = true
+			qComment := query.Get("comment")
+			if qComment == "" {
+				comment = nil
+			} else {
+				comment = &qComment
 			}
 		}
-		trackCount -= int32(len(tracks))
-	}
 
-	if query.Has("songIdToAdd") {
-		newEntries := make([]sqlc.AddPlaylistTracksParams, 0, len(query["songIdToAdd"]))
-		for _, songID := range query["songIdToAdd"] {
-			newEntries = append(newEntries, sqlc.AddPlaylistTracksParams{
-				PlaylistID: id,
-				SongID:     songID,
-				Track:      trackCount,
-			})
-			trackCount++
-		}
-		_, err = tx.AddPlaylistTracks(r.Context(), newEntries)
+		err = tx.Playlist().Update(r.Context(), user, id, repos.UpdatePlaylistParams{
+			Name:    repos.NewOptional(name, name != ""),
+			Comment: repos.NewOptional(comment, updateComment),
+		})
 		if err != nil {
-			log.Errorf("update playlist: add tracks: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
+			return fmt.Errorf("update playlist: %w", err)
 		}
-	}
 
-	err = tx.Commit(r.Context())
+		if query.Has("songIndexToRemove") {
+			tracks := make([]int, 0, len(query["songIndexToRemove"]))
+			for _, iStr := range query["songIndexToRemove"] {
+				i, err := strconv.Atoi(iStr)
+				if err != nil || i < 0 || i >= int(playlist.TrackCount) {
+					return fmt.Errorf("invalid song index: %s", iStr)
+				}
+				tracks = append(tracks, i)
+			}
+			err = tx.Playlist().RemoveTracks(r.Context(), id, tracks)
+			if err != nil {
+				return fmt.Errorf("remove tracks: %w", err)
+			}
+		}
+
+		if query.Has("songIdToAdd") {
+			err = tx.Playlist().AddTracks(r.Context(), id, query["songIdToAdd"])
+			if err != nil {
+				return fmt.Errorf("add tracks: %w", err)
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		log.Errorf("update playlist: commit: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		if errors.Is(err, repos.ErrNotFound) {
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		} else {
+			respondInternalErr(w, query.Get("f"), fmt.Errorf("update playlist: %w", err))
+		}
 		return
 	}
+
 	response := responses.New()
 	response.EncodeOrLog(w, query.Get("f"))
 }
@@ -343,17 +236,13 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.Store.DeletePlaylist(r.Context(), sqlc.DeletePlaylistParams{
-		ID:    id,
-		Owner: user,
-	})
+	err := h.DB.Playlist().Delete(r.Context(), user, id)
 	if err != nil {
-		log.Errorf("delete playlist: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	if res.RowsAffected() == 0 {
-		responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		if errors.Is(err, repos.ErrNotFound) {
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		} else {
+			respondInternalErr(w, query.Get("f"), fmt.Errorf("delete playlist: %w", err))
+		}
 		return
 	}
 
@@ -379,62 +268,62 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*responses.Playlist, error) {
-	dbPlaylist, err := h.Store.FindPlaylist(ctx, sqlc.FindPlaylistParams{
-		ID:   id,
-		User: user,
-	})
+	dbPlaylist, err := h.DB.Playlist().FindByID(ctx, user, id, repos.IncludePlaylistInfoFull())
 	if err != nil {
 		return nil, fmt.Errorf("get playlist by id: find playlist: %w", err)
 	}
-	tracks, err := h.Store.GetPlaylistTracks(ctx, sqlc.GetPlaylistTracksParams{
-		PlaylistID: id,
-		UserName:   user,
-	})
+	tracks, err := h.DB.Playlist().GetTracks(ctx, id, repos.IncludeSongInfoFull(user))
 	if err != nil {
 		return nil, fmt.Errorf("get playlist by id: get tracks: %w", err)
 	}
 
-	songs := mapData(tracks, func(s *sqlc.GetPlaylistTracksRow) *responses.Song {
-		var starred *time.Time
-		if s.Starred.Valid {
-			starred = &s.Starred.Time
-		}
-		var averageRating *float64
-		if s.AvgRating != 0 {
-			avgRating := math.Round(s.AvgRating*100) / 100
-			averageRating = &avgRating
-		}
-		fallbackGain := float32(db.GetFallbackGain(ctx, h.Store))
+	songs := mapList(tracks, func(s *repos.CompleteSong) *responses.Song {
 		return &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,
 			Title:         s.Title,
 			Album:         s.AlbumName,
-			Track:         int32PtrToIntPtr(s.Track),
-			Year:          int32PtrToIntPtr(s.Year),
+			Track:         s.Track,
+			Year:          s.Year,
 			CoverArt:      s.CoverID,
 			Size:          s.Size,
 			ContentType:   s.ContentType,
 			Suffix:        filepath.Ext(s.Path),
-			Duration:      int(s.DurationMs) / 1000,
-			BitRate:       int(s.BitRate),
-			SamplingRate:  int(s.SamplingRate),
-			ChannelCount:  int(s.ChannelCount),
-			UserRating:    int32PtrToIntPtr(s.UserRating),
-			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
-			Created:       s.Created.Time,
+			Duration:      int(s.Duration.ToStd().Seconds()),
+			BitRate:       s.BitRate,
+			SamplingRate:  s.SamplingRate,
+			ChannelCount:  s.ChannelCount,
+			UserRating:    s.UserRating,
+			DiscNumber:    s.Disc,
+			Created:       s.Created,
 			AlbumID:       s.AlbumID,
-			BPM:           int32PtrToIntPtr(s.Bpm),
+			BPM:           s.BPM,
 			MusicBrainzID: s.MusicBrainzID,
-			Starred:       starred,
-			AverageRating: averageRating,
+			Starred:       s.Starred,
+			AverageRating: s.AverageRating,
 			ReplayGain: &responses.ReplayGain{
-				TrackGain:    s.ReplayGain,
-				AlbumGain:    s.AlbumReplayGain,
-				TrackPeak:    s.ReplayGainPeak,
-				AlbumPeak:    s.AlbumReplayGainPeak,
-				FallbackGain: &fallbackGain,
+				TrackGain: s.ReplayGain,
+				AlbumGain: s.AlbumReplayGain,
+				TrackPeak: s.ReplayGainPeak,
+				AlbumPeak: s.AlbumReplayGainPeak,
 			},
+			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
+				return &responses.GenreRef{
+					Name: g,
+				}
+			}),
+			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
+			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
 		}
 	})
 
@@ -453,10 +342,10 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 		Comment:   dbPlaylist.Comment,
 		Owner:     dbPlaylist.Owner,
 		Public:    dbPlaylist.Public,
-		SongCount: int(dbPlaylist.TrackCount),
-		Duration:  int(dbPlaylist.DurationMs / 1000),
-		Created:   dbPlaylist.Created.Time,
-		Changed:   dbPlaylist.Updated.Time,
+		SongCount: dbPlaylist.TrackCount,
+		Duration:  int(dbPlaylist.Duration.ToStd().Seconds()),
+		Created:   dbPlaylist.Created,
+		Changed:   dbPlaylist.Updated,
 		CoverArt:  cover,
 		Entry:     &songs,
 	}, nil

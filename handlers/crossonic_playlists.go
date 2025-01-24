@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/disintegration/imaging"
-	"github.com/jackc/pgx/v5"
-	"github.com/juho05/crossonic-server"
+	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
@@ -36,18 +36,14 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	playlistOwner, err := h.Store.GetPlaylistOwner(r.Context(), id)
+	_, err := h.DB.Playlist().FindByID(r.Context(), user, id, repos.IncludePlaylistInfoBare())
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		} else {
 			log.Errorf("set playlist cover: get playlist: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		}
-		return
-	}
-	if playlistOwner != user {
-		responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		return
 	}
 

@@ -3,17 +3,14 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"math"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/juho05/crossonic-server/db"
-	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
@@ -68,41 +65,26 @@ func (h *Handler) searchArtists(ctx context.Context, w http.ResponseWriter, quer
 		}
 	}
 
-	artists, err := h.Store.SearchAlbumArtists(ctx, sqlc.SearchAlbumArtistsParams{
-		UserName:  user,
-		Offset:    int32(offset),
-		Limit:     int32(limit),
-		SearchStr: query.Get("query"),
-	})
+	artists, err := h.DB.Artist().FindBySearch(ctx, query.Get("query"), true, offset, limit, repos.IncludeArtistInfoFull(user))
 	if err != nil {
 		log.Errorf("search3: artists: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return nil, false
 	}
-	return mapData(artists, func(a *sqlc.SearchAlbumArtistsRow) *responses.Artist {
+	return mapList(artists, func(a *repos.CompleteArtist) *responses.Artist {
 		var coverArt *string
 		if hasCoverArt(a.ID) {
 			coverArt = &a.ID
-		}
-		albumCount := int(a.AlbumCount)
-		var averageRating *float64
-		if a.AvgRating != 0 {
-			avgRating := math.Round(a.AvgRating*100) / 100
-			averageRating = &avgRating
-		}
-		var starred *time.Time
-		if a.Starred.Valid {
-			starred = &a.Starred.Time
 		}
 		return &responses.Artist{
 			ID:            a.ID,
 			Name:          a.Name,
 			CoverArt:      coverArt,
-			AlbumCount:    &albumCount,
-			Starred:       starred,
+			AlbumCount:    &a.AlbumCount,
+			Starred:       a.Starred,
 			MusicBrainzID: a.MusicBrainzID,
-			UserRating:    int32PtrToIntPtr(a.UserRating),
-			AverageRating: averageRating,
+			UserRating:    a.UserRating,
+			AverageRating: a.AverageRating,
 		}
 	}), true
 }
@@ -130,58 +112,47 @@ func (h *Handler) searchAlbums(ctx context.Context, w http.ResponseWriter, query
 		}
 	}
 
-	dbAlbums, err := h.Store.SearchAlbums(ctx, sqlc.SearchAlbumsParams{
-		UserName:  user,
-		Offset:    int32(offset),
-		Limit:     int32(limit),
-		SearchStr: query.Get("query"),
-	})
+	dbAlbums, err := h.DB.Album().FindBySearchQuery(ctx, query.Get("query"), offset, limit, repos.IncludeAlbumInfoFull(user))
 	if err != nil {
 		log.Errorf("search3: albums: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return nil, false
 	}
-	albums := mapData(dbAlbums, func(a *sqlc.SearchAlbumsRow) *responses.Album {
-		var starred *time.Time
-		if a.Starred.Valid {
-			starred = &a.Starred.Time
-		}
-		var averageRating *float64
-		if a.AvgRating != 0 {
-			avgRating := math.Round(a.AvgRating*100) / 100
-			averageRating = &avgRating
-		}
-		var releaseTypes []string
-		if a.ReleaseTypes != nil {
-			releaseTypes = strings.Split(*a.ReleaseTypes, "\003")
-		}
-		var recordLabels []*responses.RecordLabel
-		if a.RecordLabels != nil {
-			recordLabels = mapData(strings.Split(*a.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
-				return &responses.RecordLabel{
-					Name: l,
-				}
-			})
-		}
+	albums := mapList(dbAlbums, func(a *repos.CompleteAlbum) *responses.Album {
 		return &responses.Album{
 			ID:            a.ID,
-			Created:       a.Created.Time,
+			Created:       a.Created,
 			Title:         a.Name,
 			Name:          a.Name,
 			SongCount:     int(a.TrackCount),
-			Duration:      int(a.DurationMs / 1000),
-			Year:          int32PtrToIntPtr(a.Year),
-			Starred:       starred,
-			UserRating:    int32PtrToIntPtr(a.UserRating),
-			AverageRating: averageRating,
+			Duration:      int(a.Duration.ToStd().Seconds()),
+			Year:          a.Year,
+			Starred:       a.Starred,
+			UserRating:    a.UserRating,
+			AverageRating: a.AverageRating,
 			MusicBrainzID: a.MusicBrainzID,
 			IsCompilation: a.IsCompilation,
-			ReleaseTypes:  releaseTypes,
-			RecordLabels:  recordLabels,
+			ReleaseTypes:  a.ReleaseTypes,
+			RecordLabels: mapList(a.RecordLabels, func(label string) *responses.RecordLabel {
+				return &responses.RecordLabel{
+					Name: label,
+				}
+			}),
+			Artists: mapList(a.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
+			Genres: mapList(a.Genres, func(g string) *responses.GenreRef {
+				return &responses.GenreRef{
+					Name: g,
+				}
+			}),
 		}
 	})
 
-	err = h.completeAlbumInfo(ctx, albums)
+	err = h.completeAlbumInfo(albums)
 	if err != nil {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("search3: search albums: %w", err))
 		return nil, false
@@ -213,56 +184,61 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 		}
 	}
 
-	dbSongs, err := h.Store.SearchSongs(ctx, sqlc.SearchSongsParams{
-		UserName:  user,
-		SearchStr: query.Get("query"),
-		Offset:    int32(offset),
-		Limit:     int32(limit),
-	})
+	dbSongs, err := h.DB.Song().FindBySearchQuery(ctx, repos.SongFindBySearchParams{
+		Query:  query.Get("query"),
+		Offset: offset,
+		Limit:  limit,
+	}, repos.IncludeSongInfoFull(user))
 	if err != nil {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("search3: songs: %w", err))
 		return nil, false
 	}
-	songs := mapData(dbSongs, func(s *sqlc.SearchSongsRow) *responses.Song {
-		var starred *time.Time
-		if s.Starred.Valid {
-			starred = &s.Starred.Time
-		}
-		var averageRating *float64
-		if s.AvgRating != 0 {
-			avgRating := math.Round(s.AvgRating*100) / 100
-			averageRating = &avgRating
-		}
-		fallbackGain := float32(db.GetFallbackGain(ctx, h.Store))
+	songs := mapList(dbSongs, func(s *repos.CompleteSong) *responses.Song {
 		return &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,
 			Title:         s.Title,
 			Album:         s.AlbumName,
-			Track:         int32PtrToIntPtr(s.Track),
-			Year:          int32PtrToIntPtr(s.Year),
+			Track:         s.Track,
+			Year:          s.Year,
 			CoverArt:      s.CoverID,
 			Size:          s.Size,
 			ContentType:   s.ContentType,
 			Suffix:        filepath.Ext(s.Path),
-			Duration:      int(s.DurationMs) / 1000,
-			BitRate:       int(s.BitRate),
-			SamplingRate:  int(s.SamplingRate),
-			ChannelCount:  int(s.ChannelCount),
-			UserRating:    int32PtrToIntPtr(s.UserRating),
-			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
-			Created:       s.Created.Time,
+			Duration:      int(s.Duration.ToStd().Seconds()),
+			BitRate:       s.BitRate,
+			SamplingRate:  s.SamplingRate,
+			ChannelCount:  s.ChannelCount,
+			UserRating:    s.UserRating,
+			DiscNumber:    s.Disc,
+			Created:       s.Created,
 			AlbumID:       s.AlbumID,
-			BPM:           int32PtrToIntPtr(s.Bpm),
+			BPM:           s.BPM,
 			MusicBrainzID: s.MusicBrainzID,
-			Starred:       starred,
-			AverageRating: averageRating,
+			Starred:       s.Starred,
+			AverageRating: s.AverageRating,
+			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
+				return &responses.GenreRef{
+					Name: g,
+				}
+			}),
+			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
+			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
 			ReplayGain: &responses.ReplayGain{
-				TrackGain:    s.ReplayGain,
-				AlbumGain:    s.AlbumReplayGain,
-				TrackPeak:    s.ReplayGainPeak,
-				AlbumPeak:    s.AlbumReplayGainPeak,
-				FallbackGain: &fallbackGain,
+				TrackGain: s.ReplayGain,
+				AlbumGain: s.AlbumReplayGain,
+				TrackPeak: s.ReplayGainPeak,
+				AlbumPeak: s.AlbumReplayGainPeak,
 			},
 		}
 	})

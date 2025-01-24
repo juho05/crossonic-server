@@ -17,7 +17,7 @@ var (
 	Version    string = "dev"
 )
 
-//go:embed all:db/migrations
+//go:embed all:repos/migrations
 var migrationsFS embed.FS
 var MigrationsFS fs.FS
 
@@ -27,7 +27,7 @@ var IDRegex = regexp.MustCompile(fmt.Sprintf("^(tr)|(al)|(ar)|(pl)_[%s]{12}$", s
 
 func init() {
 	var err error
-	MigrationsFS, err = fs.Sub(migrationsFS, "db/migrations")
+	MigrationsFS, err = fs.Sub(migrationsFS, "repos/migrations")
 	if err != nil {
 		log.Fatal(err)
 	}

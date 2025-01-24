@@ -1,5 +1,5 @@
 development:
   dialect: postgres
   datasource: dbname=crossonic user=crossonic password=crossonic sslmode=disable
-  dir: db/migrations
+  dir: repos/migrations
   table: migrations

@@ -14,20 +14,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/juho05/crossonic-server"
+	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/audiotags"
 	"github.com/juho05/crossonic-server/config"
-	"github.com/juho05/crossonic-server/db"
-	sqlc "github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
 type mediaFile struct {
 	id          *string
 	path        string
-	size        int
+	size        int64
 	updated     time.Time
 	contentType string
 	coverPath   *string
@@ -53,10 +50,10 @@ type mediaFile struct {
 	musicBrainzAlbumReleaseID *string
 	musicBrainzArtistIDs      []string
 	musicBrainzAlbumArtistIDs []string
-	replayGainTrack           *float32
-	replayGainTrackPeak       *float32
-	replayGainAlbum           *float32
-	replayGainAlbumPeak       *float32
+	replayGainTrack           *float64
+	replayGainTrackPeak       *float64
+	replayGainAlbum           *float64
+	replayGainAlbumPeak       *float64
 	releaseTypes              []string
 	lyrics                    *string
 }
@@ -83,7 +80,7 @@ func (s *Scanner) ScanMediaFull() error {
 
 	ctx := context.Background()
 
-	songCount, err := s.store.FindSongCount(ctx)
+	songCount, err := s.db.Song().Count(ctx)
 	if err != nil {
 		return fmt.Errorf("get song count: %w", err)
 	}
@@ -114,24 +111,26 @@ var imagePrios = []string{"front", "folder", "cover"}
 
 func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, done chan<- bool) {
 	startTime := time.Now()
-	s.originalStore = s.store
 	var err error
-	s.store, err = s.store.BeginTransaction(ctx)
+	s.tx, err = s.db.NewTransaction(ctx)
 	if err != nil {
-		s.store = s.originalStore
 		log.Errorf("process media files: %s", err)
 		return
 	}
 	defer close(done)
 	defer func() {
-		s.store.Rollback(ctx)
-		s.store = s.originalStore
+		if s.tx == nil {
+			return
+		}
+		err = s.tx.Rollback()
+		if err != nil {
+			log.Errorf("process media files: rollback: %s", err)
+		}
 	}()
 
-	var lastScan time.Time
-	lastScanStr, err := s.store.GetSystemValue(ctx, "last-scan")
-	if err == nil {
-		lastScan, _ = time.Parse(time.RFC3339, lastScanStr.Value)
+	lastScan, err := s.tx.System().LastScan(ctx)
+	if err != nil {
+		log.Errorf("process media files: get last scan: %s", err)
 	}
 
 	cachedCoverKeys := make(map[string][]string)
@@ -175,13 +174,18 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		return
 	}
 
-	err = s.store.DeleteAllGenres(ctx)
+	err = s.tx.Genre().DeleteAll(ctx)
 	if err != nil {
 		log.Errorf("process media files: delete all genres: %s", err)
 		return
 	}
 
 	for media := range c {
+		err := s.tx.Genre().CreateIfNotExists(ctx, media.genres)
+		if err != nil {
+			log.Errorf("failed to create genres in db for %s: %s", media.path, err)
+			return
+		}
 		song, err := s.findOrCreateSong(ctx, media)
 		if err != nil {
 			log.Errorf("failed to find/create song in db for %s: %s", media.path, err)
@@ -189,50 +193,38 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		}
 		var albumID *string
 		if media.album != nil {
-			artistIDs, err := s.store.FindOrCreateArtistIDs(ctx, media.albumArtists)
+			artistIDs, err := s.tx.Artist().FindOrCreateIDsByNames(ctx, media.albumArtists)
 			if err != nil && len(media.albumArtists) > 0 {
 				log.Errorf("failed to find/create album artists for album %s: %s", *media.album, err)
 				return
 			}
-			for i, art := range artistIDs {
-				if _, ok := updatedArtists[art]; !ok {
+			for i, aID := range artistIDs {
+				if _, ok := updatedArtists[aID]; !ok {
 					var musicBrainzID *string
 					if len(media.musicBrainzAlbumArtistIDs) > i {
 						musicBrainzID = &media.musicBrainzAlbumArtistIDs[i]
 					}
-					err = s.store.UpdateArtist(ctx, sqlc.UpdateArtistParams{
-						ID:            art,
-						Name:          media.albumArtists[i],
-						MusicBrainzID: musicBrainzID,
+					err = s.tx.Artist().Update(ctx, aID, repos.UpdateArtistParams{
+						Name:          repos.NewOptionalFull(media.albumArtists[i]),
+						MusicBrainzID: repos.NewOptionalFull(musicBrainzID),
 					})
 					if err != nil {
-						log.Errorf("failed to update artist %s: %s", art, err)
+						log.Errorf("failed to update artist %s: %s", aID, err)
 					} else {
-						updatedArtists[art] = len(media.musicBrainzAlbumArtistIDs) > i
+						updatedArtists[aID] = len(media.musicBrainzAlbumArtistIDs) > i
 					}
 				}
 			}
-			var recordLabels *string
-			if len(media.labels) > 0 {
-				labels := strings.Join(media.labels, "\003")
-				recordLabels = &labels
-			}
-			var releaseTypes *string
-			if len(media.releaseTypes) > 0 {
-				types := strings.Join(media.releaseTypes, "\003")
-				releaseTypes = &types
-			}
 			album, err := s.findAlbumID(ctx, media.album, media.albumArtists, media.musicBrainzAlbumID)
 			if err != nil {
-				if errors.Is(err, pgx.ErrNoRows) {
-					a, err := s.store.CreateAlbum(ctx, sqlc.CreateAlbumParams{
-						ID:             crossonic.GenIDAlbum(),
+				if errors.Is(err, repos.ErrNotFound) {
+					a, err := s.tx.Album().Create(ctx, repos.CreateAlbumParams{
 						Name:           *media.album,
-						Year:           intPtrToInt32Ptr(media.year),
-						RecordLabels:   recordLabels,
+						Year:           media.year,
+						RecordLabels:   media.labels,
 						MusicBrainzID:  media.musicBrainzAlbumID,
-						ReleaseMbid:    media.musicBrainzAlbumReleaseID,
-						ReleaseTypes:   releaseTypes,
+						ReleaseMBID:    media.musicBrainzAlbumReleaseID,
+						ReleaseTypes:   media.releaseTypes,
 						IsCompilation:  &media.compilation,
 						ReplayGain:     media.replayGainAlbum,
 						ReplayGainPeak: media.replayGainAlbumPeak,
@@ -247,17 +239,16 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 					return
 				}
 			} else if _, ok := updatedAlbums[album]; !ok {
-				err := s.store.UpdateAlbum(ctx, sqlc.UpdateAlbumParams{
-					ID:             album,
-					Name:           *media.album,
-					Year:           intPtrToInt32Ptr(media.year),
-					RecordLabels:   recordLabels,
-					ReleaseTypes:   releaseTypes,
-					IsCompilation:  &media.compilation,
-					ReplayGain:     media.replayGainAlbum,
-					ReplayGainPeak: media.replayGainAlbumPeak,
-					MusicBrainzID:  media.musicBrainzAlbumID,
-					ReleaseMbid:    media.musicBrainzAlbumReleaseID,
+				err := s.tx.Album().Update(ctx, album, repos.UpdateAlbumParams{
+					Name:           repos.NewOptionalFull(*media.album),
+					Year:           repos.NewOptionalFull(media.year),
+					RecordLabels:   repos.NewOptionalFull(repos.StringList(media.labels)),
+					ReleaseTypes:   repos.NewOptionalFull(repos.StringList(media.releaseTypes)),
+					IsCompilation:  repos.NewOptionalFull(&media.compilation),
+					ReplayGain:     repos.NewOptionalFull(media.replayGainAlbum),
+					ReplayGainPeak: repos.NewOptionalFull(media.replayGainAlbumPeak),
+					MusicBrainzID:  repos.NewOptionalFull(media.musicBrainzAlbumID),
+					ReleaseMBID:    repos.NewOptionalFull(media.musicBrainzAlbumReleaseID),
 				})
 				if err != nil {
 					log.Errorf("failed to update album of %s: %s", media.path, err)
@@ -265,12 +256,12 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 				}
 				updatedAlbums[album] = struct{}{}
 			}
-			err = s.store.UpdateAlbumArtists(ctx, album, artistIDs)
+			err = s.tx.Album().SetArtists(ctx, album, artistIDs)
 			if err != nil {
 				log.Errorf("failed to update artists of album %s: %s", album, err)
 				return
 			}
-			err = s.store.UpdateAlbumGenres(ctx, album, media.genres)
+			err = s.tx.Album().SetGenres(ctx, album, media.genres)
 			if err != nil {
 				log.Errorf("failed to update genres of album %s: %s", album, err)
 				return
@@ -370,63 +361,61 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 			}
 		}
 
-		artistIDs, err := s.store.FindOrCreateArtistIDs(ctx, media.artists)
+		artistIDs, err := s.tx.Artist().FindOrCreateIDsByNames(ctx, media.artists)
 		if err != nil {
 			log.Errorf("failed to find/create album artists for %s: %s", media.path, err)
 			return
 		}
-		for i, art := range artistIDs {
-			if hasMBrainz, ok := updatedArtists[art]; !ok || (!hasMBrainz && len(media.musicBrainzArtistIDs) > i) {
+		for i, aID := range artistIDs {
+			if hasMBrainz, ok := updatedArtists[aID]; !ok || (!hasMBrainz && len(media.musicBrainzArtistIDs) > i) {
 				var musicBrainzID *string
 				if len(media.musicBrainzArtistIDs) > i {
 					musicBrainzID = &media.musicBrainzArtistIDs[i]
 				}
-				err = s.store.UpdateArtist(ctx, sqlc.UpdateArtistParams{
-					ID:            art,
-					Name:          media.artists[i],
-					MusicBrainzID: musicBrainzID,
+				err = s.tx.Artist().Update(ctx, aID, repos.UpdateArtistParams{
+					Name:          repos.NewOptionalFull(media.artists[i]),
+					MusicBrainzID: repos.NewOptionalFull(musicBrainzID),
 				})
 				if err != nil {
-					log.Errorf("failed to update artist %s (%s): %s", media.artists[i], art, err)
+					log.Errorf("failed to update artist %s (%s): %s", media.artists[i], aID, err)
 				} else {
-					updatedArtists[art] = len(media.musicBrainzArtistIDs) > i
+					updatedArtists[aID] = len(media.musicBrainzArtistIDs) > i
 				}
 			}
 		}
 
-		err = s.store.UpdateSong(ctx, sqlc.UpdateSongParams{
-			ID:             song.id,
-			Path:           media.path,
-			AlbumID:        albumID,
-			Title:          media.title,
-			Track:          intPtrToInt32Ptr(media.track),
-			Year:           intPtrToInt32Ptr(media.year),
-			Size:           int64(media.size),
-			ContentType:    media.contentType,
-			DurationMs:     int32(media.lengthMS),
-			BitRate:        int32(media.bitrate),
-			SamplingRate:   int32(media.sampleRate),
-			ChannelCount:   int32(media.channels),
-			DiscNumber:     intPtrToInt32Ptr(media.disc),
-			Bpm:            intPtrToInt32Ptr(media.bpm),
-			MusicBrainzID:  media.musicBrainzSongID,
-			ReplayGain:     media.replayGainTrack,
-			ReplayGainPeak: media.replayGainTrackPeak,
-			Lyrics:         media.lyrics,
-			CoverID:        coverID,
+		err = s.tx.Song().Update(ctx, song.id, repos.UpdateSongParams{
+			Path:           repos.NewOptionalFull(media.path),
+			AlbumID:        repos.NewOptionalFull(albumID),
+			Title:          repos.NewOptionalFull(media.title),
+			Track:          repos.NewOptionalFull(media.track),
+			Year:           repos.NewOptionalFull(media.year),
+			Size:           repos.NewOptionalFull(media.size),
+			ContentType:    repos.NewOptionalFull(media.contentType),
+			Duration:       repos.NewOptionalFull(repos.NewDurationMS(int64(media.lengthMS))),
+			BitRate:        repos.NewOptionalFull(media.bitrate),
+			SamplingRate:   repos.NewOptionalFull(media.sampleRate),
+			ChannelCount:   repos.NewOptionalFull(media.channels),
+			Disc:           repos.NewOptionalFull(media.disc),
+			BPM:            repos.NewOptionalFull(media.bpm),
+			MusicBrainzID:  repos.NewOptionalFull(media.musicBrainzSongID),
+			ReplayGain:     repos.NewOptionalFull(media.replayGainTrack),
+			ReplayGainPeak: repos.NewOptionalFull(media.replayGainTrackPeak),
+			Lyrics:         repos.NewOptionalFull(media.lyrics),
+			CoverID:        repos.NewOptionalFull(coverID),
 		})
 		if err != nil {
 			log.Errorf("failed to update song in db: %s", err)
 			return
 		}
 
-		err = s.store.UpdateSongArtists(ctx, song.id, artistIDs)
+		err = s.tx.Song().SetArtists(ctx, song.id, artistIDs)
 		if err != nil {
 			log.Errorf("failed to update song artists: %s", err)
 			return
 		}
 
-		err = s.store.UpdateSongGenres(ctx, song.id, media.genres)
+		err = s.tx.Song().SetGenres(ctx, song.id, media.genres)
 		if err != nil {
 			log.Errorf("failed to update song genres: %s", err)
 			return
@@ -440,22 +429,18 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		return
 	}
 
-	_, err = s.store.ReplaceSystemValue(ctx, sqlc.ReplaceSystemValueParams{
-		Key:   "last-scan",
-		Value: time.Now().Format(time.RFC3339),
-	})
+	err = s.tx.System().SetLastScan(ctx, time.Now())
 	if err != nil {
 		log.Errorf("process media files: %s", err)
 		return
 	}
 
-	err = s.store.Commit(ctx)
+	err = s.tx.Commit()
+	s.tx = nil
 	if err != nil {
 		log.Errorf("process media files: %s", err)
 		return
 	}
-
-	db.InvalidateFallbackGain()
 
 	err = s.cleanCovers(updatedArtists, albumCovers, songCovers)
 	if err != nil {
@@ -463,24 +448,23 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		return
 	}
 
-	s.transcodeCache.InvalidateGracefully()
+	err = s.transcodeCache.InvalidateGracefully()
+	if err != nil {
+		log.Warnf("process media files: %w", err)
+	}
 	done <- true
 }
 
 func (s *Scanner) clean(ctx context.Context, startTime time.Time) error {
-	pgTime := pgtype.Timestamptz{
-		Time:  startTime,
-		Valid: true,
-	}
-	err := s.store.DeleteSongsLastUpdatedBefore(ctx, pgTime)
+	err := s.tx.Song().DeleteLastUpdatedBefore(ctx, startTime)
 	if err != nil {
 		return fmt.Errorf("clean: %w", err)
 	}
-	err = s.store.DeleteAlbumsLastUpdatedBefore(ctx, pgTime)
+	err = s.tx.Album().DeleteLastUpdatedBefore(ctx, startTime)
 	if err != nil {
 		return fmt.Errorf("clean: %w", err)
 	}
-	err = s.store.DeleteArtistsLastUpdatedBefore(ctx, pgTime)
+	err = s.tx.Artist().DeleteLastUpdatedBefore(ctx, startTime)
 	if err != nil {
 		return fmt.Errorf("clean: %w", err)
 	}
@@ -542,7 +526,7 @@ func (s *Scanner) setCrossonicID(path, id string) error {
 		return fmt.Errorf("set crossonic id: unsupported format")
 	}
 	tags := file.ReadTags()
-	tags["crossonic_id_"+s.store.InstanceID()] = []string{id}
+	tags["crossonic_id_"+s.instanceID] = []string{id}
 	if !file.WriteTags(tags) {
 		return fmt.Errorf("set crossonic id: write failed")
 	}
@@ -551,14 +535,14 @@ func (s *Scanner) setCrossonicID(path, id string) error {
 
 func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *song, err error) {
 	if media.id != nil {
-		s, err := s.store.FindSong(ctx, *media.id)
+		s, err := s.tx.Song().FindByID(ctx, *media.id, repos.IncludeSongInfoAlbum())
 		if err == nil {
 			return &song{
 				id:        s.ID,
 				albumName: s.AlbumName,
 				albumID:   s.AlbumID,
 			}, nil
-		} else if !errors.Is(err, pgx.ErrNoRows) {
+		} else if !errors.Is(err, repos.ErrNotFound) {
 			return nil, fmt.Errorf("find or create song by id: %w", err)
 		}
 	}
@@ -573,14 +557,14 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 		}
 	}()
 	if media.musicBrainzSongID != nil {
-		ss, err := s.store.FindSongsByMusicBrainzID(ctx, media.musicBrainzSongID)
+		ss, err := s.tx.Song().FindByMusicBrainzID(ctx, *media.musicBrainzSongID, repos.IncludeSongInfoAlbum())
 		if err != nil {
 			return nil, fmt.Errorf("find or create song by musicbrainz ID: %w", err)
 		}
 		var sn *song
 		for _, s := range ss {
 			if media.musicBrainzAlbumID != nil && s.AlbumMusicBrainzID == media.musicBrainzAlbumID {
-				if sn == nil || (media.musicBrainzAlbumReleaseID != nil && s.AlbumReleaseMbid == media.musicBrainzAlbumReleaseID) {
+				if sn == nil || (media.musicBrainzAlbumReleaseID != nil && s.AlbumReleaseMBID == media.musicBrainzAlbumReleaseID) {
 					done := sn != nil
 					sn = &song{
 						id:        s.ID,
@@ -611,32 +595,31 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 		}
 	}
 
-	sn, err := s.store.FindSongByPath(ctx, media.path)
+	sn, err := s.tx.Song().FindByPath(ctx, media.path, repos.IncludeSongInfoBare())
 	if err == nil {
 		return &song{
 			id:        sn.ID,
 			albumName: sn.AlbumName,
 			albumID:   sn.AlbumID,
 		}, nil
-	} else if !errors.Is(err, pgx.ErrNoRows) {
+	} else if !errors.Is(err, repos.ErrNotFound) {
 		return nil, fmt.Errorf("find or create song by path: %w", err)
 	}
 
-	sc, err := s.store.CreateSong(ctx, sqlc.CreateSongParams{
-		ID:             crossonic.GenIDSong(),
+	sc, err := s.tx.Song().Create(ctx, repos.CreateSongParams{
 		Path:           media.path,
 		AlbumID:        nil,
 		Title:          media.title,
-		Track:          intPtrToInt32Ptr(media.track),
-		Year:           intPtrToInt32Ptr(media.year),
+		Track:          media.track,
+		Year:           media.year,
 		Size:           int64(media.size),
 		ContentType:    media.contentType,
-		DurationMs:     int32(media.lengthMS),
-		BitRate:        int32(media.bitrate),
-		SamplingRate:   int32(media.sampleRate),
-		ChannelCount:   int32(media.channels),
-		DiscNumber:     intPtrToInt32Ptr(media.disc),
-		Bpm:            intPtrToInt32Ptr(media.bpm),
+		Duration:       repos.NewDurationMS(int64(media.lengthMS)),
+		BitRate:        media.bitrate,
+		SamplingRate:   media.sampleRate,
+		ChannelCount:   media.channels,
+		Disc:           media.disc,
+		BPM:            media.bpm,
 		MusicBrainzID:  media.musicBrainzSongID,
 		ReplayGain:     media.replayGainTrack,
 		ReplayGainPeak: media.replayGainTrackPeak,
@@ -655,48 +638,45 @@ func (s *Scanner) findOrCreateSong(ctx context.Context, media mediaFile) (sng *s
 
 func (s *Scanner) findAlbumID(ctx context.Context, albumName *string, albumArtists []string, musicBrainzAlbumID *string) (string, error) {
 	if albumName == nil {
-		return "", fmt.Errorf("find album id: %w", pgx.ErrNoRows)
+		return "", fmt.Errorf("find album id: %w", repos.ErrNotFound)
 	}
-	albums, err := s.store.FindAlbumsByNameWithArtistMatchCount(ctx, sqlc.FindAlbumsByNameWithArtistMatchCountParams{
-		Name:        *albumName,
-		ArtistNames: albumArtists,
-	})
+	albums, err := s.tx.Album().FindAlbumsByNameWithArtistMatchCount(ctx, *albumName, albumArtists)
 	if err != nil {
 		return "", fmt.Errorf("find album id: %w", err)
 	}
 	if len(albums) == 0 {
-		return "", fmt.Errorf("find album id: %w", pgx.ErrNoRows)
+		return "", fmt.Errorf("find album id: %w", repos.ErrNotFound)
 	}
 	if musicBrainzAlbumID != nil {
 		for _, a := range albums {
-			if a.MusicBrainzID == nil {
+			if a.AlbumMusicBrainzID == nil {
 				continue
 			}
-			if *a.MusicBrainzID == *musicBrainzAlbumID {
-				return a.ID, nil
+			if *a.AlbumMusicBrainzID == *musicBrainzAlbumID {
+				return a.AlbumID, nil
 			}
 		}
 	}
 	if len(albumArtists) == 0 {
 		for _, a := range albums {
 			if a.ArtistMatches == 0 {
-				return a.ID, nil
+				return a.AlbumID, nil
 			}
 		}
-		return albums[0].ID, nil
+		return albums[0].AlbumID, nil
 	}
 	var bestMatch string
 	var matches int
 	for _, a := range albums {
 		if int(a.ArtistMatches) > matches {
 			matches = int(a.ArtistMatches)
-			bestMatch = a.ID
+			bestMatch = a.AlbumID
 		}
 	}
 	if matches > 0 {
 		return bestMatch, nil
 	}
-	return "", fmt.Errorf("find album id: %w", pgx.ErrNoRows)
+	return "", fmt.Errorf("find album id: %w", repos.ErrNotFound)
 }
 
 func (s *Scanner) scanMediaDir(ctx context.Context, path string, c chan<- mediaFile) {
@@ -784,9 +764,9 @@ func (s *Scanner) scanFile(path, img string, c chan<- mediaFile) (newImg string)
 		cover, _ := file.ReadImage()
 		if cover != nil {
 			scanCoverDir := filepath.Join(s.coverDir, "scan")
-			os.MkdirAll(scanCoverDir, 0755)
-			id := crossonic.GenID()
-			coverPath := filepath.Join(scanCoverDir, id+".jpg")
+			_ = os.MkdirAll(scanCoverDir, 0755)
+			aID := crossonic.GenID()
+			coverPath := filepath.Join(scanCoverDir, aID+".jpg")
 			imgFile, err := os.Create(coverPath)
 			if err != nil {
 				log.Errorf("scan media dir: scan file: save embedded cover to temp file: %s", err)
@@ -802,10 +782,10 @@ func (s *Scanner) scanFile(path, img string, c chan<- mediaFile) (newImg string)
 		}
 	}
 
-	var id *string
-	idStr, ok := readSingleTag(tags, "crossonic_id_"+s.store.InstanceID())
+	var aID *string
+	idStr, ok := readSingleTag(tags, "crossonic_id_"+s.instanceID)
 	if ok && strings.HasPrefix(idStr, "tr_") {
-		id = &idStr
+		aID = &idStr
 	}
 
 	title, ok := readSingleTag(tags, "title")
@@ -836,9 +816,9 @@ func (s *Scanner) scanFile(path, img string, c chan<- mediaFile) (newImg string)
 	}
 
 	c <- mediaFile{
-		id:                        id,
+		id:                        aID,
 		path:                      path,
-		size:                      int(info.Size()),
+		size:                      info.Size(),
 		updated:                   info.ModTime(),
 		contentType:               mime.TypeByExtension(ext),
 		coverPath:                 coverPath,
@@ -926,7 +906,7 @@ func readSingleIntTagFirstOptional(tags map[string][]string, sep string, keys ..
 	return nil
 }
 
-func readReplayGainTag(tags map[string][]string, key string) *float32 {
+func readReplayGainTag(tags map[string][]string, key string) *float64 {
 	v, ok := tags[key]
 	if !ok {
 		return nil
@@ -938,12 +918,11 @@ func readReplayGainTag(tags map[string][]string, key string) *float32 {
 	str = strings.ReplaceAll(str, "db", "")
 	str = strings.ReplaceAll(str, "+", "")
 	str = strings.TrimSpace(str)
-	f64, err := strconv.ParseFloat(str, 32)
+	gain, err := strconv.ParseFloat(str, 64)
 	if err != nil {
 		return nil
 	}
-	f32 := float32(f64)
-	return &f32
+	return &gain
 }
 
 func readSingleBoolTag(tags map[string][]string, key string) bool {
@@ -967,13 +946,4 @@ func readStringTags(tags map[string][]string, keys ...string) []string {
 		return v
 	}
 	return []string{}
-}
-
-func intPtrToInt32Ptr(ptr *int) *int32 {
-	if ptr == nil {
-		return nil
-	}
-	v := *ptr
-	v32 := int32(v)
-	return &v32
 }

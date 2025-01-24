@@ -13,7 +13,6 @@ import (
 
 	"github.com/andybalholm/cascadia"
 	"github.com/juho05/crossonic-server"
-	"github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/log"
 	"golang.org/x/net/html"
 )
@@ -28,13 +27,11 @@ var (
 const baseURL = "https://ws.audioscrobbler.com/2.0"
 
 type LastFm struct {
-	store  sqlc.Store
 	apiKey string
 }
 
-func New(apiKey string, store sqlc.Store) *LastFm {
+func New(apiKey string) *LastFm {
 	return &LastFm{
-		store:  store,
 		apiKey: apiKey,
 	}
 }
@@ -118,7 +115,7 @@ func lastFMRequest[T any](l *LastFm, ctx context.Context, method, responseKey st
 		res.Body.Close()
 		secondsStr := res.Header.Get("X-RateLimit-Reset-In")
 		if secondsStr == "" {
-			secondsStr := res.Header.Get("Retry-After")
+			secondsStr = res.Header.Get("Retry-After")
 			if secondsStr == "" {
 				log.Error("missing X-RateLimit-Reset-In or Retry-After in 429 last.fm response")
 				secondsStr = "1"

@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	"github.com/gobwas/ws/wsutil"
-	"github.com/juho05/crossonic-server"
-	"github.com/juho05/crossonic-server/db/sqlc"
+	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/sonos"
 	"github.com/juho05/log"
 )
@@ -27,14 +27,14 @@ type ConnectionManager struct {
 	sonosListeners     map[string]*sonosListeners
 	sonosListenersLock sync.RWMutex
 
-	store sqlc.Store
+	db    repos.DB
 	sonos *sonos.SonosController
 }
 
-func NewConnectionManager(store sqlc.Store) *ConnectionManager {
+func NewConnectionManager(db repos.DB) *ConnectionManager {
 	cm := &ConnectionManager{
 		userConnections: make(map[string]*connections),
-		store:           store,
+		db:              db,
 		sonosListeners:  make(map[string]*sonosListeners),
 	}
 	cm.sonos = sonos.NewController(cm.onNewSonosDevice, cm.onSonosDeviceRemoved)

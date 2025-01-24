@@ -3,21 +3,15 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/juho05/crossonic-server"
-	"github.com/juho05/crossonic-server/db"
-	sqlc "github.com/juho05/crossonic-server/db/sqlc"
+	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/listenbrainz"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
@@ -92,165 +86,138 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := h.Store.BeginTransaction(r.Context())
-	if err != nil {
-		log.Errorf("scrobble: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	defer tx.Rollback(r.Context())
-
-	if submission {
-		pgTimes := make([]pgtype.Timestamptz, len(times))
-		for i, t := range times {
-			pgTimes[i] = pgtype.Timestamptz{
-				Time:  t,
-				Valid: true,
+	err := h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
+		if submission {
+			possibleConflicts, err := h.DB.Scrobble().FindPossibleConflicts(r.Context(), user, ids, times)
+			if err != nil {
+				return fmt.Errorf("find possible conflicts: %w", err)
 			}
-		}
-		possibleConflicts, err := h.Store.FindPossibleScrobbleConflicts(r.Context(), sqlc.FindPossibleScrobbleConflictsParams{
-			UserName: user,
-			SongIds:  ids,
-			Times:    pgTimes,
-		})
-		if err != nil {
-			log.Errorf("scrobble: find possible conflicts: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		if len(possibleConflicts) > 0 {
-			newIds := make([]string, 0, len(ids))
-			newTimes := make([]time.Time, 0, len(times))
-			newDurationsMs := make([]*int, 0, len(durationsMs))
-			for i, songID := range ids {
-				var isConflict bool
-				for _, c := range possibleConflicts {
-					if c.SongID == songID && times[i].Compare(c.Time.Time) == 0 {
-						isConflict = true
-						break
+			if len(possibleConflicts) > 0 {
+				newIds := make([]string, 0, len(ids))
+				newTimes := make([]time.Time, 0, len(times))
+				newDurationsMs := make([]*int, 0, len(durationsMs))
+				for i, songID := range ids {
+					var isConflict bool
+					for _, c := range possibleConflicts {
+						if c.SongID == songID && times[i].Compare(c.Time) == 0 {
+							isConflict = true
+							break
+						}
+					}
+					if !isConflict {
+						newIds = append(newIds, ids[i])
+						newTimes = append(newTimes, times[i])
+						newDurationsMs = append(newDurationsMs, durationsMs[i])
 					}
 				}
-				if !isConflict {
-					newIds = append(newIds, ids[i])
-					newTimes = append(newTimes, times[i])
-					newDurationsMs = append(newDurationsMs, durationsMs[i])
-				}
-			}
-			ids = newIds
-			times = newTimes
-			durationsMs = newDurationsMs
-		}
-	}
-
-	listens := make([]*listenbrainz.Listen, 0, len(ids))
-	listenMap := make(map[string]*listenbrainz.Listen, len(ids))
-	createScrobblesParams := make([]sqlc.CreateScrobblesParams, 0, len(ids))
-	for i, id := range ids {
-		if !submission {
-			err = tx.DeleteNowPlaying(r.Context(), user)
-			if err != nil {
-				log.Errorf("scrobble: delete old now playing: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-				return
-			}
-		}
-		song, err := h.Store.FindSong(r.Context(), id)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-			} else {
-				log.Errorf("scrobble: get song: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			}
-			return
-		}
-
-		shouldSubmit := !submission || durationsMs[i] == nil || *durationsMs[i] > 4*60*1000 || float64(*durationsMs[i]) > float64(song.DurationMs)*0.5
-		createScrobblesParams = append(createScrobblesParams, sqlc.CreateScrobblesParams{
-			UserName: user,
-			SongID:   song.ID,
-			AlbumID:  song.AlbumID,
-			Time: pgtype.Timestamptz{
-				Time:  times[i],
-				Valid: true,
-			},
-			SongDurationMs:          song.DurationMs,
-			DurationMs:              intPtrToInt32Ptr(durationsMs[i]),
-			SubmittedToListenbrainz: shouldSubmit,
-			NowPlaying:              !submission,
-		})
-		if shouldSubmit {
-			listen := &listenbrainz.Listen{
-				ListenedAt:  times[i],
-				SongName:    song.Title,
-				AlbumName:   song.AlbumName,
-				SongMBID:    song.MusicBrainzID,
-				AlbumMBID:   song.AlbumMusicBrainzID,
-				ReleaseMBID: song.AlbumReleaseMbid,
-				TrackNumber: int32PtrToIntPtr(song.Track),
-				DurationMS:  int32PtrToIntPtr(&song.DurationMs),
-			}
-			listens = append(listens, listen)
-			listenMap[song.ID] = listen
-		}
-	}
-
-	var listenbrainzSuccess bool
-	if len(listens) > 0 {
-		artists, err := tx.FindArtistRefsBySongs(r.Context(), ids)
-		if err != nil {
-			log.Errorf("scrobble: find artist refs: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		for _, a := range artists {
-			listen, ok := listenMap[a.SongID]
-			if !ok {
-				continue
-			}
-			if listen.ArtistName == nil {
-				listen.ArtistName = &a.Name
-			}
-			if a.MusicBrainzID != nil {
-				listen.ArtistMBIDs = append(listen.ArtistMBIDs, *a.MusicBrainzID)
+				ids = newIds
+				times = newTimes
+				durationsMs = newDurationsMs
 			}
 		}
 
-		if lbCon, err := h.ListenBrainz.GetListenbrainzConnection(r.Context(), user); err == nil {
-			var err error
+		listens := make([]*listenbrainz.Listen, 0, len(ids))
+		createScrobblesParams := make([]repos.CreateScrobbleParams, 0, len(ids))
+		for i, id := range ids {
 			if !submission {
-				err = h.ListenBrainz.SubmitPlayingNow(r.Context(), lbCon, listens[0], query.Get("c"))
-			} else {
-				if len(listens) == 1 {
-					err = h.ListenBrainz.SubmitSingle(r.Context(), lbCon, listens[0], query.Get("c"))
-				} else {
-					err = h.ListenBrainz.SubmitImport(r.Context(), lbCon, listens, query.Get("c"))
+				err := tx.Scrobble().DeleteNowPlaying(r.Context(), user)
+				if err != nil {
+					return fmt.Errorf("delete old now playing: %w", err)
 				}
 			}
-			listenbrainzSuccess = err == nil
-			if !listenbrainzSuccess {
-				log.Errorf("failed to scrobble to listenbrainz: %s", err)
+			song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfo{
+				Album: true,
+				Lists: true,
+			})
+			if err != nil {
+				return fmt.Errorf("get song: %w", err)
 			}
-		} else if !errors.Is(err, listenbrainz.ErrUnauthenticated) {
-			log.Errorf("failed to get listenbrainz connection for user %s: %s", user, err)
+
+			shouldSubmit := !submission || durationsMs[i] == nil || *durationsMs[i] > 4*60*1000 || float64(*durationsMs[i]) > float64(song.Duration.ToStd().Milliseconds())*0.5
+
+			var duration repos.NullDurationMS
+			if durationsMs[i] != nil {
+				d := repos.NewDurationMS(int64(*durationsMs[i]))
+				duration = repos.NullDurationMS{
+					Duration: d,
+					Valid:    true,
+				}
+			}
+			createScrobblesParams = append(createScrobblesParams, repos.CreateScrobbleParams{
+				User:                    user,
+				SongID:                  song.ID,
+				AlbumID:                 song.AlbumID,
+				Time:                    times[i],
+				SongDuration:            song.Duration,
+				Duration:                duration,
+				SubmittedToListenBrainz: shouldSubmit,
+				NowPlaying:              !submission,
+			})
+			if shouldSubmit {
+				var artistName *string
+				if len(song.Artists) > 0 {
+					artistName = &song.Artists[0].Name
+				}
+				mbids := make([]string, 0, len(song.Artists))
+				for _, a := range song.Artists {
+					if a.MusicBrainzID != nil {
+						mbids = append(mbids, *a.MusicBrainzID)
+					}
+				}
+				listen := &listenbrainz.Listen{
+					ListenedAt:  times[i],
+					SongName:    song.Title,
+					AlbumName:   song.AlbumName,
+					SongMBID:    song.MusicBrainzID,
+					AlbumMBID:   song.AlbumMusicBrainzID,
+					ReleaseMBID: song.AlbumReleaseMBID,
+					TrackNumber: song.Track,
+					Duration:    &song.Duration,
+					ArtistName:  artistName,
+					ArtistMBIDs: mbids,
+				}
+				listens = append(listens, listen)
+			}
 		}
-	}
 
-	for i := range createScrobblesParams {
-		createScrobblesParams[i].SubmittedToListenbrainz = createScrobblesParams[i].SubmittedToListenbrainz && listenbrainzSuccess
-	}
+		var listenbrainzSuccess bool
+		if len(listens) > 0 {
+			if lbCon, err := h.ListenBrainz.GetListenbrainzConnection(r.Context(), user); err == nil {
+				var err error
+				if !submission {
+					err = h.ListenBrainz.SubmitPlayingNow(r.Context(), lbCon, listens[0], query.Get("c"))
+				} else {
+					if len(listens) == 1 {
+						err = h.ListenBrainz.SubmitSingle(r.Context(), lbCon, listens[0], query.Get("c"))
+					} else {
+						err = h.ListenBrainz.SubmitImport(r.Context(), lbCon, listens, query.Get("c"))
+					}
+				}
+				listenbrainzSuccess = err == nil
+				if !listenbrainzSuccess {
+					log.Errorf("failed to scrobble to listenbrainz: %s", err)
+				}
+			} else if !errors.Is(err, listenbrainz.ErrUnauthenticated) {
+				log.Errorf("failed to get listenbrainz connection for user %s: %s", user, err)
+			}
+		}
 
-	_, err = tx.CreateScrobbles(r.Context(), createScrobblesParams)
+		for i := range createScrobblesParams {
+			createScrobblesParams[i].SubmittedToListenBrainz = createScrobblesParams[i].SubmittedToListenBrainz && listenbrainzSuccess
+		}
+
+		err := tx.Scrobble().CreateMultiple(r.Context(), createScrobblesParams)
+		if err != nil {
+			return fmt.Errorf("create scrobbles: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		log.Errorf("scrobble: create scrobble(s): %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-
-	err = tx.Commit(r.Context())
-	if err != nil {
-		log.Errorf("scrobble: commit: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		if errors.Is(err, repos.ErrNotFound) {
+			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		} else {
+			respondInternalErr(w, query.Get("f"), fmt.Errorf("scrobble: %w", err))
+		}
 		return
 	}
 
@@ -260,7 +227,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 // https://opensubsonic.netlify.app/docs/endpoints/getnowplaying/
 func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
-	dbSongs, err := h.Store.GetNowPlayingSongs(r.Context(), query.Get("u"))
+	dbSongs, err := h.DB.Scrobble().GetNowPlayingSongs(r.Context(), repos.IncludeSongInfoFull(query.Get("u")))
 	if err != nil {
 		log.Errorf("get now playing: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
@@ -268,22 +235,12 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 	}
 
 	songs := make([]*responses.Song, 0, len(dbSongs))
-	entries := mapData(dbSongs, func(s *sqlc.GetNowPlayingSongsRow) *responses.NowPlayingEntry {
-		var starred *time.Time
-		if s.Starred.Valid {
-			starred = &s.Starred.Time
-		}
-		var averageRating *float64
-		if s.AvgRating != 0 {
-			avgRating := math.Round(s.AvgRating*100) / 100
-			averageRating = &avgRating
-		}
-		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
+	entries := mapList(dbSongs, func(s *repos.NowPlayingSong) *responses.NowPlayingEntry {
 		song := &responses.Song{
 			ID:            s.ID,
 			Title:         s.Title,
-			Track:         int32PtrToIntPtr(s.Track),
-			Year:          int32PtrToIntPtr(s.Year),
+			Track:         s.Track,
+			Year:          s.Year,
 			CoverArt:      s.CoverID,
 			Size:          s.Size,
 			ContentType:   s.ContentType,
@@ -291,29 +248,45 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 			BitRate:       int(s.BitRate),
 			SamplingRate:  int(s.SamplingRate),
 			ChannelCount:  int(s.ChannelCount),
-			Duration:      int(s.DurationMs) / 1000,
-			UserRating:    int32PtrToIntPtr(s.UserRating),
-			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
-			Created:       s.Created.Time,
+			Duration:      int(s.Duration.ToStd().Seconds()),
+			UserRating:    s.UserRating,
+			DiscNumber:    s.Disc,
+			Created:       s.Created,
 			AlbumID:       s.AlbumID,
 			Album:         s.AlbumName,
-			BPM:           int32PtrToIntPtr(s.Bpm),
+			BPM:           s.BPM,
 			MusicBrainzID: s.MusicBrainzID,
-			AverageRating: averageRating,
-			Starred:       starred,
+			AverageRating: s.AverageRating,
+			Starred:       s.Starred,
+			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
+				return &responses.GenreRef{
+					Name: g,
+				}
+			}),
+			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
+			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
 			ReplayGain: &responses.ReplayGain{
-				TrackGain:    s.ReplayGain,
-				AlbumGain:    s.AlbumReplayGain,
-				TrackPeak:    s.ReplayGainPeak,
-				AlbumPeak:    s.AlbumReplayGainPeak,
-				FallbackGain: &fallbackGain,
+				TrackGain: s.ReplayGain,
+				AlbumGain: s.AlbumReplayGain,
+				TrackPeak: s.ReplayGainPeak,
+				AlbumPeak: s.AlbumReplayGainPeak,
 			},
 		}
 		songs = append(songs, song)
 		return &responses.NowPlayingEntry{
 			Song:       song,
-			Username:   s.UserName,
-			MinutesAgo: int(time.Since(s.Time.Time).Minutes()),
+			Username:   s.User,
+			MinutesAgo: int(time.Since(s.Time).Minutes()),
 		}
 	})
 
@@ -361,52 +334,25 @@ func (h *Handler) handleSetRating(w http.ResponseWriter, r *http.Request) {
 	switch idType {
 	case crossonic.IDTypeSong:
 		if rating == 0 {
-			err = h.Store.RemoveSongRating(r.Context(), sqlc.RemoveSongRatingParams{
-				UserName: user,
-				SongID:   id,
-			})
+			err = h.DB.Song().RemoveRating(r.Context(), user, id)
 		} else {
-			err = h.Store.SetSongRating(r.Context(), sqlc.SetSongRatingParams{
-				SongID:   id,
-				UserName: user,
-				Rating:   int32(rating),
-			})
+			err = h.DB.Song().SetRating(r.Context(), user, id, rating)
 		}
 	case crossonic.IDTypeAlbum:
 		if rating == 0 {
-			err = h.Store.RemoveAlbumRating(r.Context(), sqlc.RemoveAlbumRatingParams{
-				UserName: user,
-				AlbumID:  id,
-			})
+			err = h.DB.Album().RemoveRating(r.Context(), user, id)
 		} else {
-			err = h.Store.SetAlbumRating(r.Context(), sqlc.SetAlbumRatingParams{
-				AlbumID:  id,
-				UserName: user,
-				Rating:   int32(rating),
-			})
+			err = h.DB.Album().SetRating(r.Context(), user, id, rating)
 		}
 	case crossonic.IDTypeArtist:
 		if rating == 0 {
-			err = h.Store.RemoveArtistRating(r.Context(), sqlc.RemoveArtistRatingParams{
-				UserName: user,
-				ArtistID: id,
-			})
+			err = h.DB.Artist().RemoveRating(r.Context(), user, id)
 		} else {
-			err = h.Store.SetArtistRating(r.Context(), sqlc.SetArtistRatingParams{
-				ArtistID: id,
-				UserName: user,
-				Rating:   int32(rating),
-			})
+			err = h.DB.Artist().SetRating(r.Context(), user, id, rating)
 		}
 	}
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			if pgErr.Code == pgerrcode.ForeignKeyViolation {
-				responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-				return
-			}
-		}
+		// TODO handle not found
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return
 	}
@@ -435,90 +381,64 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 		ids = append(ids, query["albumId"]...)
 		ids = append(ids, query["artistId"]...)
 
-		tx, err := h.Store.BeginTransaction(r.Context())
-		if err != nil {
-			log.Errorf("(un)star: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		defer tx.Rollback(r.Context())
-
 		songIDs := make([]string, 0, len(ids))
-		for _, id := range ids {
-			idType, ok := crossonic.GetIDType(id)
-			if !ok {
-				responses.EncodeError(w, query.Get("f"), "unknown id type", responses.SubsonicErrorNotFound)
-				return
-			}
-			var err error
-			switch idType {
-			case crossonic.IDTypeSong:
-				songIDs = append(songIDs, id)
-				if star {
-					err = tx.StarSong(r.Context(), sqlc.StarSongParams{
-						SongID:   id,
-						UserName: user,
-					})
-				} else {
-					err = tx.UnstarSong(r.Context(), sqlc.UnstarSongParams{
-						SongID:   id,
-						UserName: user,
-					})
+		err := h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
+			for _, id := range ids {
+				idType, ok := crossonic.GetIDType(id)
+				if !ok {
+					return fmt.Errorf("%w: unknown id type", repos.ErrNotFound)
 				}
-			case crossonic.IDTypeAlbum:
-				if star {
-					err = tx.StarAlbum(r.Context(), sqlc.StarAlbumParams{
-						AlbumID:  id,
-						UserName: user,
-					})
-				} else {
-					err = tx.UnstarAlbum(r.Context(), sqlc.UnstarAlbumParams{
-						AlbumID:  id,
-						UserName: user,
-					})
-				}
-			case crossonic.IDTypeArtist:
-				if star {
-					err = tx.StarArtist(r.Context(), sqlc.StarArtistParams{
-						ArtistID: id,
-						UserName: user,
-					})
-				} else {
-					err = tx.UnstarArtist(r.Context(), sqlc.UnstarArtistParams{
-						ArtistID: id,
-						UserName: user,
-					})
-				}
-			}
-			if err != nil {
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) {
-					if pgErr.Code == pgerrcode.ForeignKeyViolation {
-						responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-						return
+				var err error
+				switch idType {
+				case crossonic.IDTypeSong:
+					songIDs = append(songIDs, id)
+					if star {
+						err = tx.Song().Star(r.Context(), user, id)
+					} else {
+						err = tx.Song().UnStar(r.Context(), user, id)
+					}
+				case crossonic.IDTypeAlbum:
+					if star {
+						err = tx.Album().Star(r.Context(), user, id)
+					} else {
+						err = tx.Album().UnStar(r.Context(), user, id)
+					}
+				case crossonic.IDTypeArtist:
+					if star {
+						err = tx.Artist().Star(r.Context(), user, id)
+					} else {
+						err = tx.Artist().UnStar(r.Context(), user, id)
 					}
 				}
-				log.Errorf("star: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-				return
+				if err != nil {
+					// TODO handle not found
+					return fmt.Errorf("star: %w", err)
+				}
 			}
-		}
 
-		err = tx.RemoveLBFeedbackUpdated(r.Context(), sqlc.RemoveLBFeedbackUpdatedParams{
-			UserName: user,
-			SongIds:  songIDs,
+			err := tx.Song().RemoveLBFeedbackUpdated(r.Context(), user, songIDs)
+			if err != nil {
+				return fmt.Errorf("remove ListenBrainz feedback updated: %w", err)
+			}
+
+			return nil
 		})
 		if err != nil {
-			log.Errorf("(un)star: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			if errors.Is(err, repos.ErrNotFound) {
+				responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			} else {
+				respondInternalErr(w, query.Get("f"), fmt.Errorf("(un)star: %w", err))
+			}
 			return
 		}
 
 		if len(songIDs) > 0 {
-			songs, err := tx.FindSongs(r.Context(), songIDs)
+			songs, err := h.DB.Song().FindByIDs(r.Context(), songIDs, repos.IncludeSongInfo{
+				Album: true,
+				Lists: true,
+			})
 			if err != nil {
-				log.Errorf("(un)star: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				respondInternalErr(w, query.Get("f"), fmt.Errorf("handle (un)star: %w", err))
 				return
 			}
 			lbFeedback := make([]*listenbrainz.Feedback, 0, len(songs))
@@ -528,37 +448,20 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 				if star {
 					score = listenbrainz.FeedbackScoreLove
 				}
+				var artistName *string
+				if len(s.Artists) > 0 {
+					artistName = &s.Artists[0].Name
+				}
 				feedback := &listenbrainz.Feedback{
-					SongID:    s.ID,
-					SongName:  s.Title,
-					SongMBID:  s.MusicBrainzID,
-					AlbumName: s.AlbumName,
-					Score:     score,
+					SongID:     s.ID,
+					SongName:   s.Title,
+					SongMBID:   s.MusicBrainzID,
+					AlbumName:  s.AlbumName,
+					Score:      score,
+					ArtistName: artistName,
 				}
 				lbFeedback = append(lbFeedback, feedback)
 				feedbackMap[s.ID] = feedback
-			}
-
-			if len(feedbackMap) > 0 {
-				artists, err := tx.FindArtistRefsBySongs(r.Context(), songIDs)
-				if err != nil {
-					log.Errorf("(un)star: %s", err)
-					responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-					return
-				}
-				for _, a := range artists {
-					feedback := feedbackMap[a.SongID]
-					if feedback.ArtistName == nil {
-						feedback.ArtistName = &a.Name
-					}
-				}
-			}
-
-			err = tx.Commit(r.Context())
-			if err != nil {
-				log.Errorf("(un)star: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-				return
 			}
 
 			lbCon, err := h.ListenBrainz.GetListenbrainzConnection(r.Context(), user)
@@ -571,13 +474,6 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 				if !errors.Is(err, listenbrainz.ErrUnauthenticated) {
 					log.Errorf("(un)star: %s", err)
 				}
-			}
-		} else {
-			err = tx.Commit(r.Context())
-			if err != nil {
-				log.Errorf("(un)star: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-				return
 			}
 		}
 

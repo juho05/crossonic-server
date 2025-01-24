@@ -2,16 +2,13 @@ package handlers
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/juho05/crossonic-server/db"
-	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/repos"
 )
 
 func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
@@ -29,50 +26,28 @@ func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	start := pgtype.Timestamptz{
-		Time:  time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC),
-		Valid: true,
-	}
-	end := pgtype.Timestamptz{
-		Time:  time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC),
-		Valid: true,
-	}
+	start := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-	totalDuration, err := h.Store.GetScrobbleDurationSumMS(r.Context(), sqlc.GetScrobbleDurationSumMSParams{
-		UserName: user,
-		Start:    start,
-		End:      end,
-	})
+	totalDuration, err := h.DB.Scrobble().GetDurationSum(r.Context(), user, start, end)
 	if err != nil {
 		respondInternalErr(w, format, fmt.Errorf("get recap: get duration: %w", err))
 		return
 	}
 
-	songCount, err := h.Store.GetScrobbleDistinctSongCount(r.Context(), sqlc.GetScrobbleDistinctSongCountParams{
-		UserName: user,
-		Start:    start,
-		End:      end,
-	})
+	songCount, err := h.DB.Scrobble().GetDistinctSongCount(r.Context(), user, start, end)
 	if err != nil {
 		respondInternalErr(w, format, fmt.Errorf("get recap: get song count: %w", err))
 		return
 	}
 
-	albumCount, err := h.Store.GetScrobbleDistinctAlbumCount(r.Context(), sqlc.GetScrobbleDistinctAlbumCountParams{
-		UserName: user,
-		Start:    start,
-		End:      end,
-	})
+	albumCount, err := h.DB.Scrobble().GetDistinctAlbumCount(r.Context(), user, start, end)
 	if err != nil {
 		respondInternalErr(w, format, fmt.Errorf("get recap: get album count: %w", err))
 		return
 	}
 
-	artistCount, err := h.Store.GetScrobbleDistinctArtistCount(r.Context(), sqlc.GetScrobbleDistinctArtistCountParams{
-		UserName: user,
-		Start:    start,
-		End:      end,
-	})
+	artistCount, err := h.DB.Scrobble().GetDistinctArtistCount(r.Context(), user, start, end)
 	if err != nil {
 		respondInternalErr(w, format, fmt.Errorf("get recap: get artist count: %w", err))
 		return
@@ -80,10 +55,10 @@ func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
 
 	res := responses.New()
 	res.Recap = &responses.Recap{
-		TotalDurationMS: totalDuration.(int64),
-		SongCount:       songCount.(int64),
-		AlbumCount:      albumCount.(int64),
-		ArtistCount:     artistCount.(int64),
+		TotalDurationMS: totalDuration.ToStd().Milliseconds(),
+		SongCount:       songCount,
+		AlbumCount:      albumCount,
+		ArtistCount:     artistCount,
 	}
 	res.EncodeOrLog(w, format)
 }
@@ -123,74 +98,68 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	start := pgtype.Timestamptz{
-		Time:  time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC),
-		Valid: true,
-	}
-	end := pgtype.Timestamptz{
-		Time:  time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC),
-		Valid: true,
-	}
+	start := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-	dbSongs, err := h.Store.GetScrobbleTopSongsByDuration(r.Context(), sqlc.GetScrobbleTopSongsByDurationParams{
-		UserName: user,
-		Start:    start,
-		End:      end,
-		Limit:    int32(limit),
-		Offset:   int32(offset),
-	})
+	dbSongs, err := h.DB.Scrobble().GetTopSongsByDuration(r.Context(), user, start, end, offset, limit, repos.IncludeSongInfoFull(user))
 	if err != nil {
 		respondInternalErr(w, format, fmt.Errorf("get top songs recap: get songs: %w", err))
 		return
 	}
 
 	songs := make([]*responses.Song, 0, len(dbSongs))
-	topSongs := mapData(dbSongs, func(s *sqlc.GetScrobbleTopSongsByDurationRow) *responses.TopSongsRecapSong {
-		var starred *time.Time
-		if s.Starred.Valid {
-			starred = &s.Starred.Time
-		}
-		var averageRating *float64
-		if s.AvgRating != 0 {
-			avgRating := math.Round(s.AvgRating*100) / 100
-			averageRating = &avgRating
-		}
-		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
+	topSongs := mapList(dbSongs, func(s *repos.ScrobbleTopSong) *responses.TopSongsRecapSong {
 		song := &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,
 			Title:         s.Title,
 			Album:         s.AlbumName,
-			Track:         int32PtrToIntPtr(s.Track),
-			Year:          int32PtrToIntPtr(s.Year),
+			Track:         s.Track,
+			Year:          s.Year,
 			CoverArt:      s.CoverID,
 			Size:          s.Size,
 			ContentType:   s.ContentType,
 			Suffix:        filepath.Ext(s.Path),
-			Duration:      int(s.DurationMs) / 1000,
-			BitRate:       int(s.BitRate),
-			SamplingRate:  int(s.SamplingRate),
-			ChannelCount:  int(s.ChannelCount),
-			UserRating:    int32PtrToIntPtr(s.UserRating),
-			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
-			Created:       s.Created.Time,
+			Duration:      int(s.Duration.ToStd().Seconds()),
+			BitRate:       s.BitRate,
+			SamplingRate:  s.SamplingRate,
+			ChannelCount:  s.ChannelCount,
+			UserRating:    s.UserRating,
+			DiscNumber:    s.Disc,
+			Created:       s.Created,
 			AlbumID:       s.AlbumID,
-			BPM:           int32PtrToIntPtr(s.Bpm),
+			BPM:           s.BPM,
 			MusicBrainzID: s.MusicBrainzID,
-			Starred:       starred,
-			AverageRating: averageRating,
+			Starred:       s.Starred,
+			AverageRating: s.AverageRating,
+			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
+				return &responses.GenreRef{
+					Name: g,
+				}
+			}),
+			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
+			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
 			ReplayGain: &responses.ReplayGain{
-				TrackGain:    s.ReplayGain,
-				AlbumGain:    s.AlbumReplayGain,
-				TrackPeak:    s.ReplayGainPeak,
-				AlbumPeak:    s.AlbumReplayGainPeak,
-				FallbackGain: &fallbackGain,
+				TrackGain: s.ReplayGain,
+				AlbumGain: s.AlbumReplayGain,
+				TrackPeak: s.ReplayGainPeak,
+				AlbumPeak: s.AlbumReplayGainPeak,
 			},
 		}
 		songs = append(songs, song)
 		return &responses.TopSongsRecapSong{
 			Song:            song,
-			TotalDurationMS: s.TotalDurationMs,
+			TotalDurationMS: s.TotalDuration.ToStd().Milliseconds(),
 		}
 	})
 

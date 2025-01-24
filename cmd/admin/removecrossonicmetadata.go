@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -10,11 +11,11 @@ import (
 
 	"github.com/juho05/crossonic-server/audiotags"
 	"github.com/juho05/crossonic-server/config"
-	"github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
-func removeCrossonicMetadata(args []string, store sqlc.Store) error {
+func removeCrossonicMetadata(args []string, db repos.DB) error {
 	if len(args) < 3 {
 		fmt.Println("USAGE:", args[0], "remove-crossonic-metadata <selection> <path?>\n\nSELECTION:\n  current (delete metadata created by this crossonic instance\n  all (delete metadata created by any crossonic instance)")
 		os.Exit(1)
@@ -33,6 +34,16 @@ func removeCrossonicMetadata(args []string, store sqlc.Store) error {
 	if len(args) == 4 {
 		path = args[3]
 	}
+
+	var instanceID string
+	if selection != "all" {
+		var err error
+		instanceID, err = db.System().InstanceID(context.Background())
+		if err != nil {
+			return fmt.Errorf("remove crossonic id in %s: get instance ID: %w", path, err)
+		}
+	}
+
 	fmt.Printf("Removing crossonic tags in %s...\n", path)
 	var counter int
 	err := filepath.WalkDir(path, func(path string, d fs.DirEntry, _ error) error {
@@ -56,8 +67,8 @@ func removeCrossonicMetadata(args []string, store sqlc.Store) error {
 		tags := file.ReadTags()
 		var changed bool
 		if selection == "current" {
-			_, changed = tags["crossonic_id_"+store.InstanceID()]
-			delete(tags, "crossonic_id_"+store.InstanceID())
+			_, changed = tags["crossonic_id_"+instanceID]
+			delete(tags, "crossonic_id_"+instanceID)
 		} else {
 			for k := range tags {
 				if strings.HasPrefix(k, "crossonic_") {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/juho05/crossonic-server"
+	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 )
 

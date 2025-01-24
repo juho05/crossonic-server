@@ -133,12 +133,12 @@ type Song struct {
 }
 
 type ReplayGain struct {
-	TrackGain    *float32 `xml:"trackGain,attr,omitempty" json:"trackGain,omitempty"`
-	AlbumGain    *float32 `xml:"albumGain,attr,omitempty" json:"albumGain,omitempty"`
-	TrackPeak    *float32 `xml:"trackPeak,attr,omitempty" json:"trackPeak,omitempty"`
-	AlbumPeak    *float32 `xml:"albumPeak,attr,omitempty" json:"albumPeak,omitempty"`
-	BaseGain     *float32 `xml:"baseGain,attr,omitempty" json:"baseGain,omitempty"`
-	FallbackGain *float32 `xml:"fallbackGain,attr,omitempty" json:"fallbackGain,omitempty"`
+	TrackGain    *float64 `xml:"trackGain,attr,omitempty" json:"trackGain,omitempty"`
+	AlbumGain    *float64 `xml:"albumGain,attr,omitempty" json:"albumGain,omitempty"`
+	TrackPeak    *float64 `xml:"trackPeak,attr,omitempty" json:"trackPeak,omitempty"`
+	AlbumPeak    *float64 `xml:"albumPeak,attr,omitempty" json:"albumPeak,omitempty"`
+	BaseGain     *float64 `xml:"baseGain,attr,omitempty" json:"baseGain,omitempty"`
+	FallbackGain *float64 `xml:"fallbackGain,attr,omitempty" json:"fallbackGain,omitempty"`
 }
 
 type AlbumWithSongs struct {

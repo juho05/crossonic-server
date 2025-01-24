@@ -8,18 +8,18 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
-	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/ffmpeg"
 	"github.com/juho05/crossonic-server/handlers/connect"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/listenbrainz"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/scanner"
 	"github.com/juho05/log"
 )
 
 type Handler struct {
 	router            chi.Router
-	Store             sqlc.Store
+	DB                repos.DB
 	Scanner           *scanner.Scanner
 	ListenBrainz      *listenbrainz.ListenBrainz
 	LastFM            *lastfm.LastFm
@@ -30,14 +30,14 @@ type Handler struct {
 	TranscodeCache *cache.Cache
 }
 
-func New(store sqlc.Store, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
+func New(db repos.DB, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
 	h := &Handler{
-		Store:             store,
+		DB:                db,
 		Scanner:           scanner,
 		ListenBrainz:      listenBrainz,
 		LastFM:            lastFM,
 		Transcoder:        transcoder,
-		ConnectionManager: connect.NewConnectionManager(store),
+		ConnectionManager: connect.NewConnectionManager(db),
 		TranscodeCache:    transcodeCache,
 		CoverCache:        coverCache,
 	}

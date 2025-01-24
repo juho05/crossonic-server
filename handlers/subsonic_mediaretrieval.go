@@ -15,11 +15,11 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
-	"github.com/jackc/pgx/v5"
-	"github.com/juho05/crossonic-server"
+	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
@@ -53,9 +53,9 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	info, err := h.Store.GetStreamInfo(r.Context(), id)
+	info, err := h.DB.Song().GetStreamInfo(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		} else {
 			log.Errorf("stream: get info: %s", err)
@@ -83,7 +83,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", fileFormat.Mime)
 
 	if estimate, _ := strconv.ParseBool(query.Get("estimateContentLength")); estimate {
-		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.DurationMs-int32(timeOffset)*1000)/1000*float64(bitRate)/8*1024)))
+		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.Duration.ToStd().Milliseconds()-int64(timeOffset*1000))/1000*float64(bitRate)/8*1024)))
 	}
 	if r.Method == http.MethodHead {
 		w.WriteHeader(http.StatusOK)
@@ -165,9 +165,9 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
-	info, err := h.Store.GetStreamInfo(r.Context(), id)
+	info, err := h.DB.Song().GetStreamInfo(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 		} else {
 			log.Errorf("stream: get info: %s", err)
@@ -187,7 +187,7 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
-	song, err := h.Store.FindSong(r.Context(), id)
+	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoBare())
 	if err != nil {
 		responses.EncodeError(w, query.Get("f"), "song not found", responses.SubsonicErrorNotFound)
 		return
@@ -230,7 +230,7 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 			{
 				Lang:   "und",
 				Synced: false,
-				Line: mapData(lines, func(l string) *responses.Line {
+				Line: mapList(lines, func(l string) *responses.Line {
 					return &responses.Line{
 						Value: l,
 					}
@@ -319,7 +319,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err = h.loadArtistCoverFromLastFMByID(r.Context(), id)
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, repos.ErrNotFound) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 			return
 		}
@@ -381,7 +381,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) error {
-	artist, err := h.Store.FindArtistSimple(ctx, id)
+	artist, err := h.DB.Artist().FindByID(ctx, id, repos.IncludeArtistInfoBare())
 	if err != nil {
 		return fmt.Errorf("load artist cover from last fm by id: %w", err)
 	}

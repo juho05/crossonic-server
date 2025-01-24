@@ -26,9 +26,9 @@ func (h *Handler) handleGetOpenSubsonicExtensions(w http.ResponseWriter, r *http
 	query := getQuery(r)
 	res := responses.New()
 	res.OpenSubsonicExtensions = &responses.OpenSubsonicExtensions{
-		{Name: "formPost", Versions: []int{1}},
-		{Name: "transcodeOffset", Versions: []int{1}},
-		{Name: "songLyrics", Versions: []int{1}},
+		responses.OpenSubsonicExtension{Name: "formPost", Versions: []int{1}},
+		responses.OpenSubsonicExtension{Name: "transcodeOffset", Versions: []int{1}},
+		responses.OpenSubsonicExtension{Name: "songLyrics", Versions: []int{1}},
 	}
 	res.EncodeOrLog(w, query.Get("f"))
 }

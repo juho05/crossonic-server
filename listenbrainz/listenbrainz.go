@@ -11,10 +11,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/juho05/crossonic-server"
+	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
-	"github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
@@ -27,7 +26,7 @@ var (
 )
 
 type ListenBrainz struct {
-	Store  sqlc.Store
+	db     repos.DB
 	cancel context.CancelFunc
 }
 
@@ -41,7 +40,7 @@ type Listen struct {
 	ReleaseMBID *string
 	ArtistMBIDs []string
 	TrackNumber *int
-	DurationMS  *int
+	Duration    *repos.DurationMS
 }
 
 type FeedbackScore int
@@ -68,9 +67,9 @@ type Connection struct {
 	Token      string
 }
 
-func New(store sqlc.Store) *ListenBrainz {
+func New(db repos.DB) *ListenBrainz {
 	return &ListenBrainz{
-		Store: store,
+		db: db,
 	}
 }
 
@@ -83,7 +82,7 @@ type additionalInfo struct {
 	ReleaseMBID             *string  `json:"release_mbid,omitempty"`
 	RecordingMBID           *string  `json:"recording_mbid,omitempty"`
 	TrackNumber             *int     `json:"tracknumber,omitempty"`
-	DurationMS              *int     `json:"duration_ms,omitempty"`
+	DurationMS              *int64   `json:"duration_ms,omitempty"`
 }
 
 type trackMetadata struct {
@@ -104,6 +103,7 @@ type body struct {
 }
 
 func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, listen *Listen, mediaPlayer string) error {
+	durationMs := listen.Duration.ToStd().Milliseconds()
 	_, err := listenBrainzRequest[any](ctx, "/1/submit-listens", http.MethodPost, con.Token, body{
 		ListenType: "playing_now",
 		Payload: []payload{
@@ -121,7 +121,7 @@ func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, lis
 						ReleaseMBID:             listen.ReleaseMBID,
 						RecordingMBID:           listen.SongMBID,
 						TrackNumber:             listen.TrackNumber,
-						DurationMS:              listen.DurationMS,
+						DurationMS:              &durationMs,
 					},
 				},
 			},
@@ -134,6 +134,7 @@ func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, lis
 }
 
 func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen *Listen, mediaPlayer string) error {
+	durationMs := listen.Duration.ToStd().Milliseconds()
 	_, err := listenBrainzRequest[any](ctx, "/1/submit-listens", http.MethodPost, con.Token, body{
 		ListenType: "single",
 		Payload: []payload{
@@ -152,7 +153,7 @@ func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen 
 						ReleaseMBID:             listen.ReleaseMBID,
 						RecordingMBID:           listen.SongMBID,
 						TrackNumber:             listen.TrackNumber,
-						DurationMS:              listen.DurationMS,
+						DurationMS:              &durationMs,
 					},
 				},
 			},
@@ -167,6 +168,7 @@ func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen 
 func (l *ListenBrainz) SubmitImport(ctx context.Context, con Connection, listens []*Listen, mediaPlayer string) error {
 	payloads := make([]payload, 0, len(listens))
 	for _, listen := range listens {
+		durationMs := listen.Duration.ToStd().Milliseconds()
 		payloads = append(payloads, payload{
 			ListenedAt: listen.ListenedAt.Unix(),
 			TrackMetadata: trackMetadata{
@@ -182,7 +184,7 @@ func (l *ListenBrainz) SubmitImport(ctx context.Context, con Connection, listens
 					ReleaseMBID:             listen.ReleaseMBID,
 					RecordingMBID:           listen.SongMBID,
 					TrackNumber:             listen.TrackNumber,
-					DurationMS:              listen.DurationMS,
+					DurationMS:              &durationMs,
 				},
 			},
 		})
@@ -222,26 +224,26 @@ func (l *ListenBrainz) CheckToken(ctx context.Context, token string) (Connection
 }
 
 func (l *ListenBrainz) GetListenbrainzConnection(ctx context.Context, user string) (Connection, error) {
-	u, err := l.Store.FindUser(ctx, user)
+	u, err := l.db.User().FindByName(ctx, user)
 	if err != nil {
 		return Connection{}, fmt.Errorf("get listenbrainz token: %w", err)
 	}
-	if u.EncryptedListenbrainzToken == nil || u.ListenbrainzUsername == nil {
+	if u.EncryptedListenBrainzToken == nil || u.ListenBrainzUsername == nil {
 		return Connection{}, ErrUnauthenticated
 	}
-	token, err := sqlc.DecryptPassword(u.EncryptedListenbrainzToken)
+	token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken)
 	if err != nil {
 		return Connection{}, fmt.Errorf("get listenbrainz token: %w", err)
 	}
 	return Connection{
 		User:       user,
-		LBUsername: *u.ListenbrainzUsername,
+		LBUsername: *u.ListenBrainzUsername,
 		Token:      token,
 	}, nil
 }
 
 func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
-	scrobbles, err := l.Store.FindUnsubmittedLBScrobbles(ctx)
+	scrobbles, err := l.db.Scrobble().FindUnsubmittedLBScrobbles(ctx)
 	if err != nil {
 		return fmt.Errorf("submit missing listenbrainz scrobbles: find unsubmitted scrobbles: %w", err)
 	}
@@ -253,7 +255,10 @@ func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
 	for i, s := range scrobbles {
 		ids[i] = s.SongID
 	}
-	songs, err := l.Store.FindSongs(ctx, ids)
+	songs, err := l.db.Song().FindByIDs(ctx, ids, repos.IncludeSongInfo{
+		Album: true,
+		Lists: true,
+	})
 	if err != nil {
 		return fmt.Errorf("submit missing listenbrainz scrobbles: find songs: %w", err)
 	}
@@ -267,42 +272,42 @@ func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
 		ArtistName  *string
 		ArtistMBIDs []string
 		TrackNumber *int
-		DurationMS  int
+		DurationMS  int64
 	}
 	songMap := make(map[string]*song, len(songs))
 	for _, s := range songs {
+		var artistName *string
+		if len(s.Artists) > 0 {
+			artistName = &s.Artists[0].Name
+		}
+		artistMBIDs := make([]string, 0, len(s.Artists))
+		for _, a := range s.Artists {
+			if a.MusicBrainzID != nil {
+				artistMBIDs = append(artistMBIDs, *a.MusicBrainzID)
+			}
+		}
 		songMap[s.ID] = &song{
 			ID:          s.ID,
 			Name:        s.Title,
 			MBID:        s.MusicBrainzID,
 			AlbumName:   s.AlbumName,
 			AlbumMBID:   s.AlbumMusicBrainzID,
-			ReleaseMBID: s.AlbumReleaseMbid,
-			TrackNumber: int32PtrToIntPtr(s.Track),
-			DurationMS:  int(s.DurationMs),
-		}
-	}
-	artists, err := l.Store.FindArtistRefsBySongs(ctx, ids)
-	if err != nil {
-		return fmt.Errorf("submit missing listenbrainz scrobbles: find artist refs: %s", err)
-	}
-	for _, a := range artists {
-		song := songMap[a.SongID]
-		if song.ArtistName == nil {
-			song.ArtistName = &a.Name
-		}
-		if a.MusicBrainzID != nil {
-			song.ArtistMBIDs = append(song.ArtistMBIDs, *a.MusicBrainzID)
+			ReleaseMBID: s.AlbumReleaseMBID,
+			TrackNumber: s.Track,
+			DurationMS:  s.Duration.ToStd().Milliseconds(),
+			ArtistName:  artistName,
+			ArtistMBIDs: artistMBIDs,
 		}
 	}
 	listensPerUser := make(map[string][]*Listen, len(scrobbles))
 	for _, s := range scrobbles {
-		if _, ok := listensPerUser[s.UserName]; !ok {
-			listensPerUser[s.UserName] = make([]*Listen, 0, 10)
+		if _, ok := listensPerUser[s.User]; !ok {
+			listensPerUser[s.User] = make([]*Listen, 0, 10)
 		}
 		song := songMap[s.SongID]
-		listensPerUser[s.UserName] = append(listensPerUser[s.UserName], &Listen{
-			ListenedAt:  s.Time.Time,
+		duration := repos.NewDurationMS(song.DurationMS)
+		listensPerUser[s.User] = append(listensPerUser[s.User], &Listen{
+			ListenedAt:  s.Time,
 			SongName:    song.Name,
 			AlbumName:   song.AlbumName,
 			ArtistName:  song.ArtistName,
@@ -311,7 +316,7 @@ func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
 			ReleaseMBID: song.ReleaseMBID,
 			ArtistMBIDs: song.ArtistMBIDs,
 			TrackNumber: song.TrackNumber,
-			DurationMS:  &song.DurationMS,
+			Duration:    &duration,
 		})
 	}
 
@@ -329,7 +334,7 @@ func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
 		successfulUsernames = append(successfulUsernames, user)
 		count += len(listens)
 	}
-	err = l.Store.SetLBSubmittedByUsers(context.Background(), successfulUsernames)
+	err = l.db.Scrobble().SetLBSubmittedByUsers(context.Background(), successfulUsernames)
 	if err != nil {
 		return fmt.Errorf("submit missing listenbrainz scrobbles: set submitted status in db: %w", err)
 	}
@@ -426,7 +431,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 		RecordingMBID string        `json:"recording_mbid"`
 		Score         FeedbackScore `json:"score"`
 	}
-	successSongs := make([]sqlc.SetLBFeedbackUpdatedParams, 0, len(feedback))
+	successSongs := make([]repos.SongSetLBFeedbackUpdatedParams, 0, len(feedback))
 	for _, f := range feedback {
 		if f.SongMBID == nil {
 			continue
@@ -439,14 +444,13 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 			log.Errorf("listenbrainz: update song feedback: %s", err)
 			continue
 		}
-		successSongs = append(successSongs, sqlc.SetLBFeedbackUpdatedParams{
-			SongID:   f.SongID,
-			UserName: con.User,
-			Mbid:     *f.SongMBID,
+		successSongs = append(successSongs, repos.SongSetLBFeedbackUpdatedParams{
+			SongID: f.SongID,
+			MBID:   *f.SongMBID,
 		})
 	}
 
-	_, err := l.Store.SetLBFeedbackUpdated(ctx, successSongs)
+	err := l.db.Song().SetLBFeedbackUpdated(ctx, con.User, successSongs)
 	if err != nil {
 		return 0, fmt.Errorf("listenbrainz: update song feedback: update lb_feedback_updated: %w", err)
 	}
@@ -454,7 +458,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 }
 
 func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
-	users, err := l.Store.FindUsers(ctx)
+	users, err := l.db.User().FindAll(ctx)
 	if err != nil {
 		return fmt.Errorf("sync song feedback: %w", err)
 	}
@@ -462,57 +466,45 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 	var createdLocal int
 	var uploadedLocal int
 	for _, u := range users {
-		if u.ListenbrainzUsername == nil {
+		if u.ListenBrainzUsername == nil {
 			continue
 		}
-		token, err := sqlc.DecryptPassword(u.EncryptedListenbrainzToken)
+		token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken)
 		if err != nil {
 			log.Errorf("listenbrainz: sync song feedback: decrypt listenbrainz token: %s", err)
 			continue
 		}
 
 		// upload non-uploaded feedback to ListenBrainz
-		songs, err := l.Store.FindNotLBUpdatedSongs(ctx, u.Name)
+		songs, err := l.db.Song().FindNotLBUpdatedSongs(ctx, u.Name, repos.IncludeSongInfoFull(u.Name))
 		if err != nil {
 			log.Errorf("listenbrainz: sync song feedback: find not lb updated songs: %s", err)
 			continue
 		}
-		notUpdatedSongIDs := make([]string, 0, len(songs))
-		songMap := make(map[string]*Feedback, len(songs))
 		feedbackList := make([]*Feedback, 0, len(songs))
 		for _, s := range songs {
 			score := FeedbackScoreNone
-			if s.Starred.Valid {
+			if s.Starred != nil {
 				score = FeedbackScoreLove
 			}
+			var artistName *string
+			if len(s.Artists) > 0 {
+				artistName = &s.Artists[0].Name
+			}
 			feedback := &Feedback{
-				SongID:    s.ID,
-				SongName:  s.Title,
-				SongMBID:  s.MusicBrainzID,
-				AlbumName: s.AlbumName,
-				Score:     score,
+				SongID:     s.ID,
+				SongName:   s.Title,
+				SongMBID:   s.MusicBrainzID,
+				AlbumName:  s.AlbumName,
+				Score:      score,
+				ArtistName: artistName,
 			}
 			feedbackList = append(feedbackList, feedback)
-			notUpdatedSongIDs = append(notUpdatedSongIDs, s.ID)
-		}
-
-		if len(songMap) > 0 {
-			artists, err := l.Store.FindArtistRefsBySongs(ctx, notUpdatedSongIDs)
-			if err != nil {
-				log.Errorf("listenbrainz: sync song feedback: find artists for not lb updated songs: %s", err)
-				continue
-			}
-			for _, a := range artists {
-				song := songMap[a.SongID]
-				if song.ArtistName == nil {
-					song.ArtistName = &a.Name
-				}
-			}
 		}
 
 		uploadCount, err := l.UpdateSongFeedback(ctx, Connection{
 			User:       u.Name,
-			LBUsername: *u.ListenbrainzUsername,
+			LBUsername: *u.ListenBrainzUsername,
 			Token:      token,
 		}, feedbackList)
 		if err != nil {
@@ -521,7 +513,7 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 		}
 		uploadedLocal += uploadCount
 
-		lbFeedback, err := l.collectListenbrainzLoveFeedback(ctx, *u.ListenbrainzUsername, token)
+		lbFeedback, err := l.collectListenbrainzLoveFeedback(ctx, *u.ListenBrainzUsername, token)
 		if err != nil {
 			log.Errorf("listenbrainz: sync song feedback: collect listenbrainz love feedback: %s", err)
 			continue
@@ -531,57 +523,28 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 			lbFeedbackMBIDs = append(lbFeedbackMBIDs, f.RecordingMBID)
 		}
 
-		tx, err := l.Store.BeginTransaction(ctx)
-		if err != nil {
-			log.Errorf("listenbrainz: sync song feedback: begin transaction: %s", err)
-			continue
-		}
+		err = l.db.Transaction(ctx, func(tx repos.Tx) error {
+			// delete local uploaded feedback that is not present on ListenBrainz
+			affected, err := tx.Song().DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx, u.Name, lbFeedbackMBIDs)
+			if err != nil {
+				return fmt.Errorf("delete stars when not in list of love feedback: %w", err)
+			}
+			deletedLocal += affected
 
-		// delete local uploaded feedback that is not present on ListenBrainz
-		result, err := tx.DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx, sqlc.DeleteLBFeedbackUpdatedStarsNotInMBIDListParams{
-			UserName:  u.Name,
-			SongMbids: lbFeedbackMBIDs,
+			// update local uploaded feedback that is present on ListenBrainz
+			songIDs, err := tx.Song().FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx, u.Name, lbFeedbackMBIDs)
+			if err != nil {
+				return fmt.Errorf("find non-starred songs in list of love feedback: %w", err)
+			}
+			newStarCount, err := tx.Song().StarMultiple(ctx, u.Name, songIDs)
+			if err != nil {
+				return fmt.Errorf("star non-starred songs in list of love feedback: %w", err)
+			}
+			createdLocal += int(newStarCount)
+			return nil
 		})
 		if err != nil {
-			log.Errorf("listenbrainz: sync song feedback: delete stars when not in list of love feedback: %s", err)
-			tx.Rollback(ctx)
-			continue
-		}
-		deletedLocal += int(result.RowsAffected())
-
-		// update local uploaded feedback that is present on ListenBrainz
-		songIDs, err := tx.FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx, sqlc.FindLBFeedbackUpdatedSongIDsInMBIDListNotStarredParams{
-			UserName:  u.Name,
-			SongMbids: lbFeedbackMBIDs,
-		})
-		if err != nil {
-			log.Errorf("listenbrainz: sync song feedback: find non-starred songs in list of love feedback: %s", err)
-			tx.Rollback(ctx)
-			continue
-		}
-		stars := make([]sqlc.StarSongsParams, 0, len(songIDs))
-		for _, s := range songIDs {
-			stars = append(stars, sqlc.StarSongsParams{
-				SongID:   s,
-				UserName: u.Name,
-				Created: pgtype.Timestamptz{
-					Time:  time.Now(),
-					Valid: true,
-				},
-			})
-		}
-		newStarCount, err := tx.StarSongs(ctx, stars)
-		if err != nil {
-			log.Errorf("listenbrainz: sync song feedback: star non-starred songs in list of love feedback: %s", err)
-			tx.Rollback(ctx)
-			continue
-		}
-		createdLocal += int(newStarCount)
-
-		err = tx.Commit(ctx)
-		if err != nil {
-			log.Errorf("listenbrainz: sync song feedback: commit transaction: %s", err)
-			tx.Rollback(ctx)
+			log.Errorf("listenbrainz: sync song feedback: %s", err)
 			continue
 		}
 	}
@@ -679,13 +642,4 @@ func listenBrainzRequest[T any](ctx context.Context, endpoint, method, token str
 func (l *ListenBrainz) Close() error {
 	l.cancel()
 	return nil
-}
-
-func int32PtrToIntPtr(ptr *int32) *int {
-	if ptr == nil {
-		return nil
-	}
-	v32 := *ptr
-	v := int(v32)
-	return &v
 }

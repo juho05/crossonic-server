@@ -8,11 +8,12 @@ require (
 	github.com/go-chi/chi/v5 v5.2.0
 	github.com/go-chi/cors v1.2.1
 	github.com/gobwas/ws v1.4.0
-	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/jaevor/go-nanoid v1.4.0
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/juho05/log v0.0.0-20230224211948-f9bad0acae34
+	github.com/nullism/bqb v1.7.2
 	github.com/rubenv/sql-migrate v1.7.1
 	golang.org/x/crypto v0.32.0
 	golang.org/x/net v0.34.0

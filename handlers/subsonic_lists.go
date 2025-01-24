@@ -2,17 +2,13 @@ package handlers
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/juho05/crossonic-server/db"
-	sqlc "github.com/juho05/crossonic-server/db/sqlc"
 	"github.com/juho05/crossonic-server/handlers/responses"
-	"github.com/juho05/log"
+	"github.com/juho05/crossonic-server/repos"
 )
 
 func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
@@ -31,85 +27,88 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fromYearStr := query.Get("fromYear")
-	var fromYear *int32
+	var fromYear *int
 	if fromYearStr != "" {
 		y, err := strconv.Atoi(fromYearStr)
 		if err != nil {
 			responses.EncodeError(w, query.Get("f"), "invalid fromYear value", responses.SubsonicErrorGeneric)
 			return
 		}
-		y32 := int32(y)
-		fromYear = &y32
+		fromYear = &y
 	}
 
 	toYearStr := query.Get("toYear")
-	var toYear *int32
+	var toYear *int
 	if toYearStr != "" {
 		y, err := strconv.Atoi(toYearStr)
 		if err != nil {
 			responses.EncodeError(w, query.Get("f"), "invalid toYear value", responses.SubsonicErrorGeneric)
 			return
 		}
-		y32 := int32(y)
-		toYear = &y32
+		toYear = &y
 	}
 
-	genres := mapData(query["genre"], func(g string) string {
+	genres := mapList(query["genre"], func(g string) string {
 		return strings.ToLower(g)
 	})
 
-	dbSongs, err := h.Store.FindRandomSongs(r.Context(), sqlc.FindRandomSongsParams{
-		UserName:    user,
-		Limit:       int32(limit),
-		FromYear:    fromYear,
-		ToYear:      toYear,
-		GenresLower: genres,
-	})
+	dbSongs, err := h.DB.Song().FindRandom(r.Context(), repos.SongFindRandomParams{
+		Limit:    limit,
+		FromYear: fromYear,
+		ToYear:   toYear,
+		Genres:   genres,
+	}, repos.IncludeSongInfoFull(user))
 	if err != nil {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("get random songs: %w", err))
 		return
 	}
-	songs := mapData(dbSongs, func(s *sqlc.FindRandomSongsRow) *responses.Song {
-		var starred *time.Time
-		if s.Starred.Valid {
-			starred = &s.Starred.Time
-		}
-		var averageRating *float64
-		if s.AvgRating != 0 {
-			avgRating := math.Round(s.AvgRating*100) / 100
-			averageRating = &avgRating
-		}
-		fallbackGain := float32(db.GetFallbackGain(r.Context(), h.Store))
+	songs := mapList(dbSongs, func(s *repos.CompleteSong) *responses.Song {
 		return &responses.Song{
 			ID:            s.ID,
 			IsDir:         false,
 			Title:         s.Title,
 			Album:         s.AlbumName,
-			Track:         int32PtrToIntPtr(s.Track),
-			Year:          int32PtrToIntPtr(s.Year),
+			Track:         s.Track,
+			Year:          s.Year,
 			CoverArt:      s.CoverID,
 			Size:          s.Size,
 			ContentType:   s.ContentType,
 			Suffix:        filepath.Ext(s.Path),
-			Duration:      int(s.DurationMs) / 1000,
-			BitRate:       int(s.BitRate),
-			SamplingRate:  int(s.SamplingRate),
-			ChannelCount:  int(s.ChannelCount),
-			UserRating:    int32PtrToIntPtr(s.UserRating),
-			DiscNumber:    int32PtrToIntPtr(s.DiscNumber),
-			Created:       s.Created.Time,
+			Duration:      int(s.Duration.ToStd().Seconds()),
+			BitRate:       s.BitRate,
+			SamplingRate:  s.SamplingRate,
+			ChannelCount:  s.ChannelCount,
+			UserRating:    s.UserRating,
+			DiscNumber:    s.Disc,
+			Created:       s.Created,
 			AlbumID:       s.AlbumID,
-			BPM:           int32PtrToIntPtr(s.Bpm),
+			BPM:           s.BPM,
 			MusicBrainzID: s.MusicBrainzID,
-			Starred:       starred,
-			AverageRating: averageRating,
+			Starred:       s.Starred,
+			AverageRating: s.AverageRating,
 			ReplayGain: &responses.ReplayGain{
-				TrackGain:    s.ReplayGain,
-				AlbumGain:    s.AlbumReplayGain,
-				TrackPeak:    s.ReplayGainPeak,
-				AlbumPeak:    s.AlbumReplayGainPeak,
-				FallbackGain: &fallbackGain,
+				TrackGain: s.ReplayGain,
+				AlbumGain: s.AlbumReplayGain,
+				TrackPeak: s.ReplayGainPeak,
+				AlbumPeak: s.AlbumReplayGainPeak,
 			},
+			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
+				return &responses.GenreRef{
+					Name: g,
+				}
+			}),
+			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
+			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
 		}
 	})
 	err = h.completeSongInfo(r.Context(), songs)
@@ -153,30 +152,28 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fromYearStr := query.Get("fromYear")
-	var fromYear *int32
+	var fromYear *int
 	if fromYearStr != "" {
 		y, err := strconv.Atoi(fromYearStr)
 		if err != nil {
 			responses.EncodeError(w, query.Get("f"), "invalid fromYear value", responses.SubsonicErrorGeneric)
 			return
 		}
-		y32 := int32(y)
-		fromYear = &y32
+		fromYear = &y
 	} else if listType == "byYear" {
 		responses.EncodeError(w, query.Get("f"), "missing fromYear parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
 
 	toYearStr := query.Get("toYear")
-	var toYear *int32
+	var toYear *int
 	if toYearStr != "" {
 		y, err := strconv.Atoi(toYearStr)
 		if err != nil {
 			responses.EncodeError(w, query.Get("f"), "invalid toYear value", responses.SubsonicErrorGeneric)
 			return
 		}
-		y32 := int32(y)
-		toYear = &y32
+		toYear = &y
 	} else if listType == "byYear" {
 		responses.EncodeError(w, query.Get("f"), "missing toYear parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
@@ -187,392 +184,72 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "missing genre parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
-	genres = mapData(genres, func(g string) string {
-		return strings.ToLower(g)
-	})
 
 	var albums []*responses.Album
-	switch listType {
-	case "random":
-		if offset != 0 {
-			responses.EncodeError(w, query.Get("f"), "offset is not supported for list type random", responses.SubsonicErrorGeneric)
-			return
-		}
-		a, err := h.Store.FindAlbumsRandom(r.Context(), sqlc.FindAlbumsRandomParams{
-			UserName:    user,
-			Limit:       int32(limit),
-			FromYear:    fromYear,
-			ToYear:      toYear,
-			GenresLower: genres,
-		})
-		if err != nil {
-			log.Errorf("get album list 2: random: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		albums = mapData(a, func(album *sqlc.FindAlbumsRandomRow) *responses.Album {
-			var starred *time.Time
-			if album.Starred.Valid {
-				starred = &album.Starred.Time
-			}
-			var averageRating *float64
-			if album.AvgRating != 0 {
-				avgRating := math.Round(album.AvgRating*100) / 100
-				averageRating = &avgRating
-			}
-			var releaseTypes []string
-			if album.ReleaseTypes != nil {
-				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
-			}
-			var recordLabels []*responses.RecordLabel
-			if album.RecordLabels != nil {
-				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
-					return &responses.RecordLabel{
-						Name: l,
-					}
-				})
-			}
-			return &responses.Album{
-				ID:            album.ID,
-				Created:       album.Created.Time,
-				Title:         album.Name,
-				Name:          album.Name,
-				SongCount:     int(album.TrackCount),
-				Duration:      int(album.DurationMs / 1000),
-				Year:          int32PtrToIntPtr(album.Year),
-				Starred:       starred,
-				UserRating:    int32PtrToIntPtr(album.UserRating),
-				AverageRating: averageRating,
-				MusicBrainzID: album.MusicBrainzID,
-				IsCompilation: album.IsCompilation,
-				ReleaseTypes:  releaseTypes,
-				RecordLabels:  recordLabels,
-			}
-		})
-	case "newest":
-		a, err := h.Store.FindAlbumsNewest(r.Context(), sqlc.FindAlbumsNewestParams{
-			UserName:    user,
-			Offset:      int32(offset),
-			Limit:       int32(limit),
-			FromYear:    fromYear,
-			ToYear:      toYear,
-			GenresLower: genres,
-		})
-		if err != nil {
-			log.Errorf("get album list 2: newest: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		albums = mapData(a, func(album *sqlc.FindAlbumsNewestRow) *responses.Album {
-			var starred *time.Time
-			if album.Starred.Valid {
-				starred = &album.Starred.Time
-			}
-			var averageRating *float64
-			if album.AvgRating != 0 {
-				avgRating := math.Round(album.AvgRating*100) / 100
-				averageRating = &avgRating
-			}
-			var releaseTypes []string
-			if album.ReleaseTypes != nil {
-				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
-			}
-			var recordLabels []*responses.RecordLabel
-			if album.RecordLabels != nil {
-				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
-					return &responses.RecordLabel{
-						Name: l,
-					}
-				})
-			}
-			return &responses.Album{
-				ID:            album.ID,
-				Created:       album.Created.Time,
-				Title:         album.Name,
-				Name:          album.Name,
-				SongCount:     int(album.TrackCount),
-				Duration:      int(album.DurationMs / 1000),
-				Year:          int32PtrToIntPtr(album.Year),
-				Starred:       starred,
-				UserRating:    int32PtrToIntPtr(album.UserRating),
-				AverageRating: averageRating,
-				MusicBrainzID: album.MusicBrainzID,
-				IsCompilation: album.IsCompilation,
-				ReleaseTypes:  releaseTypes,
-				RecordLabels:  recordLabels,
-			}
-		})
-	case "highest":
-		a, err := h.Store.FindAlbumsHighestRated(r.Context(), sqlc.FindAlbumsHighestRatedParams{
-			UserName:    user,
-			Offset:      int32(offset),
-			Limit:       int32(limit),
-			FromYear:    fromYear,
-			ToYear:      toYear,
-			GenresLower: genres,
-		})
-		if err != nil {
-			log.Errorf("get album list 2: highest: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		albums = mapData(a, func(album *sqlc.FindAlbumsHighestRatedRow) *responses.Album {
-			var starred *time.Time
-			if album.Starred.Valid {
-				starred = &album.Starred.Time
-			}
-			var averageRating *float64
-			if album.AvgRating != 0 {
-				avgRating := math.Round(album.AvgRating*100) / 100
-				averageRating = &avgRating
-			}
-			var releaseTypes []string
-			if album.ReleaseTypes != nil {
-				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
-			}
-			var recordLabels []*responses.RecordLabel
-			if album.RecordLabels != nil {
-				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
-					return &responses.RecordLabel{
-						Name: l,
-					}
-				})
-			}
-			return &responses.Album{
-				ID:            album.ID,
-				Created:       album.Created.Time,
-				Title:         album.Name,
-				Name:          album.Name,
-				SongCount:     int(album.TrackCount),
-				Duration:      int(album.DurationMs / 1000),
-				Year:          int32PtrToIntPtr(album.Year),
-				Starred:       starred,
-				UserRating:    int32PtrToIntPtr(album.UserRating),
-				AverageRating: averageRating,
-				MusicBrainzID: album.MusicBrainzID,
-				IsCompilation: album.IsCompilation,
-				ReleaseTypes:  releaseTypes,
-				RecordLabels:  recordLabels,
-			}
-		})
-	case "alphabeticalByName":
-		a, err := h.Store.FindAlbumsAlphabeticalByName(r.Context(), sqlc.FindAlbumsAlphabeticalByNameParams{
-			UserName:    user,
-			Offset:      int32(offset),
-			Limit:       int32(limit),
-			FromYear:    fromYear,
-			ToYear:      toYear,
-			GenresLower: genres,
-		})
-		if err != nil {
-			log.Errorf("get album list 2: alphabetical by name: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		albums = mapData(a, func(album *sqlc.FindAlbumsAlphabeticalByNameRow) *responses.Album {
-			var starred *time.Time
-			if album.Starred.Valid {
-				starred = &album.Starred.Time
-			}
-			var averageRating *float64
-			if album.AvgRating != 0 {
-				avgRating := math.Round(album.AvgRating*100) / 100
-				averageRating = &avgRating
-			}
-			var releaseTypes []string
-			if album.ReleaseTypes != nil {
-				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
-			}
-			var recordLabels []*responses.RecordLabel
-			if album.RecordLabels != nil {
-				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
-					return &responses.RecordLabel{
-						Name: l,
-					}
-				})
-			}
-			return &responses.Album{
-				ID:            album.ID,
-				Created:       album.Created.Time,
-				Title:         album.Name,
-				Name:          album.Name,
-				SongCount:     int(album.TrackCount),
-				Duration:      int(album.DurationMs / 1000),
-				Year:          int32PtrToIntPtr(album.Year),
-				Starred:       starred,
-				UserRating:    int32PtrToIntPtr(album.UserRating),
-				AverageRating: averageRating,
-				MusicBrainzID: album.MusicBrainzID,
-				IsCompilation: album.IsCompilation,
-				ReleaseTypes:  releaseTypes,
-				RecordLabels:  recordLabels,
-			}
-		})
-	case "starred":
-		a, err := h.Store.FindAlbumsStarred(r.Context(), sqlc.FindAlbumsStarredParams{
-			UserName:    user,
-			Offset:      int32(offset),
-			Limit:       int32(limit),
-			FromYear:    fromYear,
-			ToYear:      toYear,
-			GenresLower: genres,
-		})
-		if err != nil {
-			log.Errorf("get album list 2: starred: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		albums = mapData(a, func(album *sqlc.FindAlbumsStarredRow) *responses.Album {
-			var starred *time.Time
-			if album.Starred.Valid {
-				starred = &album.Starred.Time
-			}
-			var averageRating *float64
-			if album.AvgRating != 0 {
-				avgRating := math.Round(album.AvgRating*100) / 100
-				averageRating = &avgRating
-			}
-			var releaseTypes []string
-			if album.ReleaseTypes != nil {
-				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
-			}
-			var recordLabels []*responses.RecordLabel
-			if album.RecordLabels != nil {
-				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
-					return &responses.RecordLabel{
-						Name: l,
-					}
-				})
-			}
-			return &responses.Album{
-				ID:            album.ID,
-				Created:       album.Created.Time,
-				Title:         album.Name,
-				Name:          album.Name,
-				SongCount:     int(album.TrackCount),
-				Duration:      int(album.DurationMs / 1000),
-				Year:          int32PtrToIntPtr(album.Year),
-				Starred:       starred,
-				UserRating:    int32PtrToIntPtr(album.UserRating),
-				AverageRating: averageRating,
-				MusicBrainzID: album.MusicBrainzID,
-				IsCompilation: album.IsCompilation,
-				ReleaseTypes:  releaseTypes,
-				RecordLabels:  recordLabels,
-			}
-		})
-	case "byYear":
-		a, err := h.Store.FindAlbumsByYear(r.Context(), sqlc.FindAlbumsByYearParams{
-			UserName:    user,
-			Offset:      int32(offset),
-			Limit:       int32(limit),
-			FromYear:    fromYear,
-			ToYear:      toYear,
-			GenresLower: genres,
-		})
-		if err != nil {
-			log.Errorf("get album list 2: by year: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		albums = mapData(a, func(album *sqlc.FindAlbumsByYearRow) *responses.Album {
-			var starred *time.Time
-			if album.Starred.Valid {
-				starred = &album.Starred.Time
-			}
-			var averageRating *float64
-			if album.AvgRating != 0 {
-				avgRating := math.Round(album.AvgRating*100) / 100
-				averageRating = &avgRating
-			}
-			var releaseTypes []string
-			if album.ReleaseTypes != nil {
-				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
-			}
-			var recordLabels []*responses.RecordLabel
-			if album.RecordLabels != nil {
-				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
-					return &responses.RecordLabel{
-						Name: l,
-					}
-				})
-			}
-			return &responses.Album{
-				ID:            album.ID,
-				Created:       album.Created.Time,
-				Title:         album.Name,
-				Name:          album.Name,
-				SongCount:     int(album.TrackCount),
-				Duration:      int(album.DurationMs / 1000),
-				Year:          int32PtrToIntPtr(album.Year),
-				Starred:       starred,
-				UserRating:    int32PtrToIntPtr(album.UserRating),
-				AverageRating: averageRating,
-				MusicBrainzID: album.MusicBrainzID,
-				IsCompilation: album.IsCompilation,
-				ReleaseTypes:  releaseTypes,
-				RecordLabels:  recordLabels,
-			}
-		})
-	case "byGenre":
-		a, err := h.Store.FindAlbumsByGenre(r.Context(), sqlc.FindAlbumsByGenreParams{
-			UserName:    user,
-			Offset:      int32(offset),
-			Limit:       int32(limit),
-			FromYear:    fromYear,
-			ToYear:      toYear,
-			GenresLower: genres,
-		})
-		if err != nil {
-			log.Errorf("get album list 2: by genre: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			return
-		}
-		albums = mapData(a, func(album *sqlc.FindAlbumsByGenreRow) *responses.Album {
-			var starred *time.Time
-			if album.Starred.Valid {
-				starred = &album.Starred.Time
-			}
-			var averageRating *float64
-			if album.AvgRating != 0 {
-				avgRating := math.Round(album.AvgRating*100) / 100
-				averageRating = &avgRating
-			}
-			var releaseTypes []string
-			if album.ReleaseTypes != nil {
-				releaseTypes = strings.Split(*album.ReleaseTypes, "\003")
-			}
-			var recordLabels []*responses.RecordLabel
-			if album.RecordLabels != nil {
-				recordLabels = mapData(strings.Split(*album.RecordLabels, "\003"), func(l string) *responses.RecordLabel {
-					return &responses.RecordLabel{
-						Name: l,
-					}
-				})
-			}
-			return &responses.Album{
-				ID:            album.ID,
-				Created:       album.Created.Time,
-				Title:         album.Name,
-				Name:          album.Name,
-				SongCount:     int(album.TrackCount),
-				Duration:      int(album.DurationMs / 1000),
-				Year:          int32PtrToIntPtr(album.Year),
-				Starred:       starred,
-				UserRating:    int32PtrToIntPtr(album.UserRating),
-				AverageRating: averageRating,
-				MusicBrainzID: album.MusicBrainzID,
-				IsCompilation: album.IsCompilation,
-				ReleaseTypes:  releaseTypes,
-				RecordLabels:  recordLabels,
-			}
-		})
-	default:
+	sortTypes := map[string]repos.FindAlbumSortBy{
+		"random":             repos.FindAlbumSortRandom,
+		"newest":             repos.FindAlbumSortByCreated,
+		"highest":            repos.FindAlbumSortByRating,
+		"alphabeticalByName": repos.FindAlbumSortByName,
+		"starred":            repos.FindAlbumSortByStarred,
+		"byYear":             repos.FindAlbumSortByYear,
+		"byGenre":            repos.FindAlbumSortByName,
+	}
+
+	sortBy, ok := sortTypes[listType]
+	if !ok {
 		responses.EncodeError(w, query.Get("f"), "unsupported list type: "+listType, responses.SubsonicErrorGeneric)
 		return
 	}
 
-	err = h.completeAlbumInfo(r.Context(), albums)
+	a, err := h.DB.Album().FindAll(r.Context(), repos.FindAlbumParams{
+		SortBy:   sortBy,
+		FromYear: fromYear,
+		ToYear:   toYear,
+		Genres:   genres,
+		Offset:   offset,
+		Limit:    limit,
+	}, repos.IncludeAlbumInfoFull(user))
+	if err != nil {
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("get album list 2: find all: %w", err))
+		return
+	}
+
+	albums = mapList(a, func(album *repos.CompleteAlbum) *responses.Album {
+		return &responses.Album{
+			ID:            album.ID,
+			Created:       album.Created,
+			Title:         album.Name,
+			Name:          album.Name,
+			SongCount:     album.TrackCount,
+			Duration:      int(album.Duration.ToStd().Seconds()),
+			Year:          album.Year,
+			Starred:       album.Starred,
+			UserRating:    album.UserRating,
+			AverageRating: album.AverageRating,
+			MusicBrainzID: album.MusicBrainzID,
+			IsCompilation: album.IsCompilation,
+			ReleaseTypes:  album.ReleaseTypes,
+			RecordLabels: mapList(album.RecordLabels, func(label string) *responses.RecordLabel {
+				return &responses.RecordLabel{
+					Name: label,
+				}
+			}),
+			Genres: mapList(album.Genres, func(g string) *responses.GenreRef {
+				return &responses.GenreRef{
+					Name: g,
+				}
+			}),
+			Artists: mapList(album.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
+				return &responses.ArtistRef{
+					ID:   a.ID,
+					Name: a.Name,
+				}
+			}),
+		}
+	})
+
+	err = h.completeAlbumInfo(albums)
 	if err != nil {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("get album list2: %w", err))
 		return

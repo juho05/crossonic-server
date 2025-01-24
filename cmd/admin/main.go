@@ -9,18 +9,18 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/juho05/crossonic-server/config"
-	"github.com/juho05/crossonic-server/db/sqlc"
+	"github.com/juho05/crossonic-server/repos/postgres"
 	"github.com/juho05/log"
 )
 
 func init() {
-	mime.AddExtensionType(".aac", "audio/aac")
-	mime.AddExtensionType(".mp3", "audio/mpeg")
-	mime.AddExtensionType(".oga", "audio/ogg")
-	mime.AddExtensionType(".ogg", "audio/ogg")
-	mime.AddExtensionType(".opus", "audio/opus")
-	mime.AddExtensionType(".wav", "audio/wav")
-	mime.AddExtensionType(".flac", "audio/flac")
+	_ = mime.AddExtensionType(".aac", "audio/aac")
+	_ = mime.AddExtensionType(".mp3", "audio/mpeg")
+	_ = mime.AddExtensionType(".oga", "audio/ogg")
+	_ = mime.AddExtensionType(".ogg", "audio/ogg")
+	_ = mime.AddExtensionType(".opus", "audio/opus")
+	_ = mime.AddExtensionType(".wav", "audio/wav")
+	_ = mime.AddExtensionType(".flac", "audio/flac")
 }
 
 func genEncryptionKey() error {
@@ -42,29 +42,17 @@ func run(args []string) error {
 		return genEncryptionKey()
 	}
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", config.DBUser(), config.DBPassword(), config.DBHost(), config.DBPort(), config.DBName())
-	dbConn, err := sqlc.Connect(dsn)
+	db, err := postgres.NewDB(dsn)
 	if err != nil {
 		return err
 	}
-	defer sqlc.Close(dbConn)
-
-	if config.AutoMigrate() {
-		err = sqlc.AutoMigrate(dsn)
-		if err != nil {
-			return err
-		}
-	}
-
-	store, err := sqlc.NewStore(dbConn)
-	if err != nil {
-		return err
-	}
+	defer db.Close()
 
 	switch args[1] {
 	case "users":
-		err = users(args, store)
+		err = users(args, db)
 	case "remove-crossonic-metadata":
-		err = removeCrossonicMetadata(args, store)
+		err = removeCrossonicMetadata(args, db)
 	default:
 		fmt.Println("Unknown command")
 		fmt.Println("USAGE:", args[0], "<command>\n\nCOMMANDS:\n  gen-encryption-key\n  users\n  remove-crossonic-metadata")
@@ -75,7 +63,7 @@ func run(args []string) error {
 }
 
 func main() {
-	godotenv.Load()
+	_ = godotenv.Load()
 
 	log.SetSeverity(config.LogLevel())
 	log.SetOutput(config.LogFile())
