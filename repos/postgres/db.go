@@ -26,6 +26,10 @@ func NewDB(dsn string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open db: postgres: %w", err)
 	}
+	err = db.Ping()
+	if err != nil {
+		return nil, fmt.Errorf("open db: postgres: %w", err)
+	}
 
 	if config.AutoMigrate() {
 		err = autoMigrate(db.DB)

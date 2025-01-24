@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/log"
 	"github.com/nullism/bqb"
 )
 
@@ -14,6 +15,7 @@ func executeQuery(ctx context.Context, db executer, query *bqb.Query) error {
 		return wrapErr("build query", err)
 	}
 	_, err = db.ExecContext(ctx, sql, args...)
+	printQueryOnErr(sql, err)
 	return wrapErr("execute exec query", err)
 }
 
@@ -23,6 +25,7 @@ func executeQueryCountAffectedRows(ctx context.Context, db executer, query *bqb.
 		return 0, wrapErr("build query", err)
 	}
 	res, err := db.ExecContext(ctx, sql, args...)
+	printQueryOnErr(sql, err)
 	count, _ := res.RowsAffected()
 	return int(count), wrapErr("execute exec query", err)
 }
@@ -34,6 +37,7 @@ func executeQueryExpectAffectedRows(ctx context.Context, db executer, query *bqb
 	}
 
 	res, err := db.ExecContext(ctx, sql, args...)
+	printQueryOnErr(sql, err)
 	return wrapResErr("execute exec query (expect affected rows)", res, err)
 }
 
@@ -61,7 +65,17 @@ func selectQuery[T any](ctx context.Context, db executer, query *bqb.Query) ([]T
 
 	var result []T
 	err = db.SelectContext(ctx, &result, sql, args...)
+	printQueryOnErr(sql, err)
 	return result, wrapErr("execute select query", err)
+}
+
+func printQueryOnErr(query string, err error) {
+	if err == nil {
+		return
+	}
+	if sqlErrToErrType(err) == repos.ErrGeneral {
+		log.Errorf("error on query: %s", query)
+	}
 }
 
 func genUpdateList(values map[string]repos.OptionalGetter, updatedField bool) *bqb.Query {

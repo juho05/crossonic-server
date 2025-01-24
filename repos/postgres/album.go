@@ -61,7 +61,7 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 	if params.ToYear != nil {
 		where.And("(albums.year IS NOT NULL AND albums.year <= ?)", *params.ToYear)
 	}
-	if params.Genres != nil {
+	if len(params.Genres) > 0 {
 		genres := mapList(params.Genres, func(g string) string {
 			return strings.ToLower(g)
 		})
@@ -197,6 +197,9 @@ func (a albumRepository) RemoveRating(ctx context.Context, user, albumID string)
 }
 
 func (a albumRepository) FindAlbumsByNameWithArtistMatchCount(ctx context.Context, albumName string, artistNames []string) ([]*repos.FindAlbumsByNameWithArtistMatchCountResult, error) {
+	if len(artistNames) == 0 {
+		return []*repos.FindAlbumsByNameWithArtistMatchCountResult{}, nil
+	}
 	q := bqb.New(`SELECT albums.id, albums.music_brainz_id, COALESCE(COUNT(artists.id), 0) AS artist_matches FROM albums
 		LEFT JOIN album_artist ON albums.id = album_artist.album_id
 		LEFT JOIN artists ON album_artist.artist_id = artists.id AND artists.name IN (?)

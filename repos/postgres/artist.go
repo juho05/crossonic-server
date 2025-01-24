@@ -87,6 +87,9 @@ func (a artistRepository) FindByID(ctx context.Context, id string, include repos
 }
 
 func (a artistRepository) FindByNames(ctx context.Context, names []string, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
+	if len(names) == 0 {
+		return []*repos.CompleteArtist{}, nil
+	}
 	q := bqb.New("SELECT ? FROM artists ? WHERE artists.name IN (?)", genArtistSelectList(include), genArtistJoins(include), names)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }

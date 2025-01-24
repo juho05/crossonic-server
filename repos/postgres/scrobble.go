@@ -27,6 +27,12 @@ func (s scrobbleRepository) CreateMultiple(ctx context.Context, params []repos.C
 }
 
 func (s scrobbleRepository) FindPossibleConflicts(ctx context.Context, user string, songIDs []string, times []time.Time) ([]*repos.Scrobble, error) {
+	if len(songIDs) != len(times) {
+		return nil, repos.NewError(fmt.Sprintf("songIDs (%d) and times (%d) length mismatch", len(songIDs), len(times)), repos.ErrInvalidParams, nil)
+	}
+	if len(songIDs) == 0 {
+		return []*repos.Scrobble{}, nil
+	}
 	q := bqb.New("SELECT scrobbles.* FROM scrobbles WHERE user_name = ? AND now_playing = false AND song_id IN (?) AND time = any(?)", user, songIDs, times)
 	return selectQuery[*repos.Scrobble](ctx, s.db, q)
 }
@@ -66,6 +72,9 @@ func (s scrobbleRepository) FindUnsubmittedLBScrobbles(ctx context.Context) ([]*
 }
 
 func (s scrobbleRepository) SetLBSubmittedByUsers(ctx context.Context, users []string) error {
+	if len(users) == 0 {
+		return nil
+	}
 	q := bqb.New(`UPDATE scrobbles SET submitted_to_listenbrainz = true
 		WHERE user_name IN (?) AND now_playing = false AND (duration_ms >= 4*60*1000 OR duration_ms >= song_duration_ms*0.5)`, users)
 	return executeQuery(ctx, s.db, q)

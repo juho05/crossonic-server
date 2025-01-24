@@ -23,6 +23,9 @@ func (s songRepository) FindByID(ctx context.Context, id string, include repos.I
 }
 
 func (s songRepository) FindByIDs(ctx context.Context, ids []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+	if len(ids) == 0 {
+		return []*repos.CompleteSong{}, nil
+	}
 	q := bqb.New("SELECT ? FROM songs ? WHERE songs.id IN (?)", genSongSelectList(include), genSongJoins(include), ids)
 	return execSongSelectMany(ctx, s.db, q, include)
 }
@@ -47,7 +50,7 @@ func (s songRepository) FindRandom(ctx context.Context, params repos.SongFindRan
 	if params.ToYear != nil {
 		where.And("songs.year IS NOT NULL AND songs.year <= ?", *params.ToYear)
 	}
-	if params.Genres != nil {
+	if len(params.Genres) > 0 {
 		lowerGenres := mapList(params.Genres, func(g string) string {
 			return strings.ToLower(g)
 		})
@@ -230,11 +233,17 @@ func (s songRepository) SetLBFeedbackUpdated(ctx context.Context, user string, p
 }
 
 func (s songRepository) RemoveLBFeedbackUpdated(ctx context.Context, user string, songIDs []string) error {
+	if len(songIDs) == 0 {
+		return nil
+	}
 	q := bqb.New("DELETE FROM lb_feedback_updated WHERE user_name = ? AND song_id IN (?)", user, songIDs)
 	return executeQuery(ctx, s.db, q)
 }
 
 func (s songRepository) FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx context.Context, user string, mbids []string) ([]string, error) {
+	if len(mbids) == 0 {
+		return []string{}, nil
+	}
 	q := bqb.New(`SELECT lb_feedback_updated.song_id FROM lb_feedback_updated
 		LEFT JOIN song_stars ON song_stars.user_name = ? AND song_stars.song_id = lb_feedback_updated.song_id
 		WHERE lb_feedback_updated.user_name = ? AND song_stars.song_id IS NULL AND lb_feedback_updated.mbid IN (?)`, user, user, mbids)
@@ -242,6 +251,9 @@ func (s songRepository) FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx con
 }
 
 func (s songRepository) DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx context.Context, user string, mbids []string) (int, error) {
+	if len(mbids) == 0 {
+		return 0, nil
+	}
 	q := bqb.New(`DELETE FROM song_stars WHERE song_stars.user_name = ? AND song_stars.song_id IN (
 			SELECT lb_feedback_updated.song_id FROM lb_feedback_updated WHERE lb_feedback_updated.user_name = ? AND NOT (lb_feedback_updated.mbid IN (?))
 		)`, user, user, mbids)
