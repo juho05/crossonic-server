@@ -39,24 +39,6 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/deletePlaylist", h.handleDeletePlaylist)
 }
 
-func int32PtrToIntPtr(ptr *int32) *int {
-	if ptr == nil {
-		return nil
-	}
-	v32 := *ptr
-	v := int(v32)
-	return &v
-}
-
-func intPtrToInt32Ptr(ptr *int) *int32 {
-	if ptr == nil {
-		return nil
-	}
-	v := *ptr
-	v32 := int32(v)
-	return &v32
-}
-
 func hasCoverArt(id string) bool {
 	idType, ok := crossonic.GetIDType(id)
 	if !ok {

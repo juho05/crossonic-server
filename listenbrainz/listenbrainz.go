@@ -375,6 +375,9 @@ func (l *ListenBrainz) StartPeriodicSync(period time.Duration) {
 	}()
 }
 
+// https://github.com/metabrainz/listenbrainz-server/blob/2dafb0da41c327d2831e5130086243b4dc5035c9/listenbrainz/webserver/views/metadata_api.py#L25
+const maxLookupsPerPost = 50
+
 func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, feedback []*Feedback) (int, error) {
 	var missingMBID []*Feedback
 	var missingMBIDIndices []int
@@ -390,39 +393,42 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 	}
 
 	if len(missingMBID) > 0 {
-		type response struct {
-			Index            int     `json:"index"`
-			RecordingMBID    *string `json:"recording_mbid"`
-			RecordingNameArg string  `json:"recording_name_arg"`
-			ArtistNameArg    string  `json:"artist_name_arg"`
-		}
-		type recording struct {
-			RecordingName string  `json:"recording_name"`
-			ArtistName    string  `json:"artist_name"`
-			ReleaseName   *string `json:"release_name,omitempty"`
-		}
-		type request struct {
-			Recordings []recording `json:"recordings"`
-		}
-		req := request{
-			Recordings: make([]recording, 0, len(missingMBID)),
-		}
-		for _, f := range missingMBID {
-			req.Recordings = append(req.Recordings, recording{
-				RecordingName: f.SongName,
-				ArtistName:    *f.ArtistName,
-				ReleaseName:   f.AlbumName,
-			})
-		}
-		res, err := listenBrainzRequest[[]response](ctx, "/1/metadata/lookup", http.MethodPost, con.Token, req)
-		if err != nil {
-			return 0, fmt.Errorf("update song favorites: %w", err)
-		}
-		for _, r := range res {
-			if r.RecordingMBID != nil {
-				feedback[missingMBIDIndices[r.Index]].SongMBID = r.RecordingMBID
-			} else {
-				log.Warnf("listenbrainz: update song feedback: not found: %s by %s", r.RecordingNameArg, r.ArtistNameArg)
+		for i := 0; i < len(missingMBID); i += maxLookupsPerPost {
+			mbids := missingMBID[i:min(len(missingMBID), i+maxLookupsPerPost)]
+			type response struct {
+				Index            int     `json:"index"`
+				RecordingMBID    *string `json:"recording_mbid"`
+				RecordingNameArg string  `json:"recording_name_arg"`
+				ArtistNameArg    string  `json:"artist_name_arg"`
+			}
+			type recording struct {
+				RecordingName string  `json:"recording_name"`
+				ArtistName    string  `json:"artist_name"`
+				ReleaseName   *string `json:"release_name,omitempty"`
+			}
+			type request struct {
+				Recordings []recording `json:"recordings"`
+			}
+			req := request{
+				Recordings: make([]recording, 0, len(mbids)),
+			}
+			for _, f := range mbids {
+				req.Recordings = append(req.Recordings, recording{
+					RecordingName: f.SongName,
+					ArtistName:    *f.ArtistName,
+					ReleaseName:   f.AlbumName,
+				})
+			}
+			res, err := listenBrainzRequest[[]response](ctx, "/1/metadata/lookup", http.MethodPost, con.Token, req)
+			if err != nil {
+				return 0, fmt.Errorf("update song favorites: %w", err)
+			}
+			for _, r := range res {
+				if r.RecordingMBID != nil {
+					feedback[missingMBIDIndices[r.Index]].SongMBID = r.RecordingMBID
+				} else {
+					log.Warnf("listenbrainz: update song feedback: not found: %s by %s", r.RecordingNameArg, r.ArtistNameArg)
+				}
 			}
 		}
 	}
