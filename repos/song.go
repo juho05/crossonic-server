@@ -31,7 +31,7 @@ type Song struct {
 	CoverID        *string    `db:"cover_id"`
 }
 
-type AlbumSongInfo struct {
+type SongAlbumInfo struct {
 	AlbumName           *string  `db:"album_name"`
 	AlbumReplayGain     *float64 `db:"album_replay_gain"`
 	AlbumReplayGainPeak *float64 `db:"album_replay_gain_peak"`
@@ -59,7 +59,7 @@ type ArtistRef struct {
 
 type CompleteSong struct {
 	Song
-	*AlbumSongInfo
+	*SongAlbumInfo
 	*SongAnnotations
 	*SongLists
 }
@@ -201,5 +201,5 @@ type SongRepository interface {
 	FindNotLBUpdatedSongs(ctx context.Context, user string, include IncludeSongInfo) ([]*CompleteSong, error)
 
 	Count(ctx context.Context) (int, error)
-	GetFallbackGain(ctx context.Context) float64
+	GetMedianReplayGain(ctx context.Context) (float64, error)
 }

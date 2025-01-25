@@ -8,7 +8,7 @@ import (
 
 	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
-	"github.com/juho05/log"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/nullism/bqb"
 )
 
@@ -51,7 +51,7 @@ func (s songRepository) FindRandom(ctx context.Context, params repos.SongFindRan
 		where.And("songs.year IS NOT NULL AND songs.year <= ?", *params.ToYear)
 	}
 	if len(params.Genres) > 0 {
-		lowerGenres := mapList(params.Genres, func(g string) string {
+		lowerGenres := util.Map(params.Genres, func(g string) string {
 			return strings.ToLower(g)
 		})
 		where.And(`EXISTS (
@@ -271,30 +271,11 @@ func (s songRepository) Count(ctx context.Context) (int, error) {
 	return getQuery[int](ctx, s.db, bqb.New("SELECT COUNT(songs.id) FROM songs"))
 }
 
-// invalidated in SystemRepository.SetLastScan()
-var fallbackGain *float64
-
-func (s songRepository) GetFallbackGain(ctx context.Context) float64 {
-	if fallbackGain == nil {
-		gain, err := s.getMedianReplayGain(ctx)
-		if err != nil {
-			log.Errorf("get fallback gain: %s, returning default -8", err)
-			gain = float64(-8)
-		}
-		if gain == 0 {
-			log.Warnf("get fallback gain: median gain is exactly 0 probably missing metadata, returning default -8")
-			gain = -8
-		}
-		fallbackGain = &gain
-	}
-	return *fallbackGain
+func (s songRepository) GetMedianReplayGain(ctx context.Context) (float64, error) {
+	return getQuery[float64](ctx, s.db, bqb.New("SELECT COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY songs.replay_gain), 0) FROM songs"))
 }
 
 // ================ helpers ================
-
-func (s songRepository) getMedianReplayGain(ctx context.Context) (float64, error) {
-	return getQuery[float64](ctx, s.db, bqb.New("SELECT COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY songs.replay_gain), 0) FROM songs"))
-}
 
 func genSongSelectList(include repos.IncludeSongInfo) *bqb.Query {
 	q := bqb.New(`songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type,
@@ -366,7 +347,7 @@ func loadSongLists(ctx context.Context, db executer, songs []*repos.CompleteSong
 		return nil
 	}
 
-	songIDs := mapList(songs, func(s *repos.CompleteSong) string {
+	songIDs := util.Map(songs, func(s *repos.CompleteSong) string {
 		return s.ID
 	})
 

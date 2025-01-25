@@ -90,14 +90,3 @@ func genUpdateList(values map[string]repos.OptionalGetter, updatedField bool) *b
 	}
 	return q
 }
-
-func mapList[T, U any](list []T, mapFn func(T) U) []U {
-	if list == nil {
-		return nil
-	}
-	newList := make([]U, len(list))
-	for i := range list {
-		newList[i] = mapFn(list[i])
-	}
-	return newList
-}

@@ -25,25 +25,7 @@ func (h *Handler) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("find all playlists: %w", err))
 		return
 	}
-	playlists := make([]*responses.Playlist, 0, len(dbPlaylists))
-	for _, p := range dbPlaylists {
-		var cover *string
-		if hasCoverArt(p.ID) {
-			cover = &p.ID
-		}
-		playlists = append(playlists, &responses.Playlist{
-			ID:        p.ID,
-			Name:      p.Name,
-			Comment:   p.Comment,
-			Owner:     p.Owner,
-			Public:    p.Public,
-			SongCount: int(p.TrackCount),
-			Duration:  int(p.Duration.ToStd().Seconds()),
-			Created:   p.Created,
-			Changed:   p.Updated,
-			CoverArt:  cover,
-		})
-	}
+	playlists := responses.NewPlaylists(dbPlaylists)
 	response := responses.New()
 	response.Playlists = &responses.Playlists{
 		Playlists: playlists,
@@ -246,7 +228,7 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if hasCoverArt(id) && crossonic.IDRegex.MatchString(id) {
+	if crossonic.IDRegex.MatchString(id) {
 		err = os.Remove(filepath.Join(config.DataDir(), "covers", "playlists", id))
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			log.Errorf("delete playlist: delete cover file: %s", err)
@@ -277,76 +259,9 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 		return nil, fmt.Errorf("get playlist by id: get tracks: %w", err)
 	}
 
-	songs := mapList(tracks, func(s *repos.CompleteSong) *responses.Song {
-		return &responses.Song{
-			ID:            s.ID,
-			IsDir:         false,
-			Title:         s.Title,
-			Album:         s.AlbumName,
-			Track:         s.Track,
-			Year:          s.Year,
-			CoverArt:      s.CoverID,
-			Size:          s.Size,
-			ContentType:   s.ContentType,
-			Suffix:        filepath.Ext(s.Path),
-			Duration:      int(s.Duration.ToStd().Seconds()),
-			BitRate:       s.BitRate,
-			SamplingRate:  s.SamplingRate,
-			ChannelCount:  s.ChannelCount,
-			UserRating:    s.UserRating,
-			DiscNumber:    s.Disc,
-			Created:       s.Created,
-			AlbumID:       s.AlbumID,
-			BPM:           s.BPM,
-			MusicBrainzID: s.MusicBrainzID,
-			Starred:       s.Starred,
-			AverageRating: s.AverageRating,
-			ReplayGain: &responses.ReplayGain{
-				TrackGain: s.ReplayGain,
-				AlbumGain: s.AlbumReplayGain,
-				TrackPeak: s.ReplayGainPeak,
-				AlbumPeak: s.AlbumReplayGainPeak,
-			},
-			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
-				return &responses.GenreRef{
-					Name: g,
-				}
-			}),
-			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-		}
-	})
+	songs := responses.NewSongs(tracks)
 
-	err = h.completeSongInfo(ctx, songs)
-	if err != nil {
-		return nil, fmt.Errorf("get playlist by id: %w", err)
-	}
-
-	var cover *string
-	if hasCoverArt(id) {
-		cover = &id
-	}
-	return &responses.Playlist{
-		ID:        dbPlaylist.ID,
-		Name:      dbPlaylist.Name,
-		Comment:   dbPlaylist.Comment,
-		Owner:     dbPlaylist.Owner,
-		Public:    dbPlaylist.Public,
-		SongCount: dbPlaylist.TrackCount,
-		Duration:  int(dbPlaylist.Duration.ToStd().Seconds()),
-		Created:   dbPlaylist.Created,
-		Changed:   dbPlaylist.Updated,
-		CoverArt:  cover,
-		Entry:     &songs,
-	}, nil
+	playlist := responses.NewPlaylist(dbPlaylist)
+	playlist.Entry = songs
+	return playlist, nil
 }

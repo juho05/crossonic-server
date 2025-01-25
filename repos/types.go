@@ -17,6 +17,14 @@ func NewDurationMSFromStd(d time.Duration) DurationMS {
 	return DurationMS(d)
 }
 
+func (nt DurationMS) Millis() int64 {
+	return nt.ToStd().Milliseconds()
+}
+
+func (nt DurationMS) Seconds() int {
+	return int(nt.ToStd().Seconds())
+}
+
 func (nt DurationMS) ToStd() time.Duration {
 	return time.Duration(nt)
 }

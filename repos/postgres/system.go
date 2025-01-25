@@ -42,7 +42,6 @@ func (s systemRepository) LastScan(ctx context.Context) (time.Time, error) {
 }
 
 func (s systemRepository) SetLastScan(ctx context.Context, lastScan time.Time) error {
-	fallbackGain = nil
 	return s.set(ctx, "last-scan", lastScan.Format(time.RFC3339))
 }
 

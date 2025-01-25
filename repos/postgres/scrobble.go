@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/nullism/bqb"
 )
 
@@ -56,7 +57,7 @@ func (s scrobbleRepository) GetNowPlayingSongs(ctx context.Context, include repo
 	if err != nil {
 		return nil, fmt.Errorf("select query: %w", err)
 	}
-	err = loadSongLists(ctx, s.db, mapList(songs, func(s *repos.NowPlayingSong) *repos.CompleteSong {
+	err = loadSongLists(ctx, s.db, util.Map(songs, func(s *repos.NowPlayingSong) *repos.CompleteSong {
 		return s.CompleteSong
 	}), include)
 	if err != nil {
@@ -112,7 +113,7 @@ func (s scrobbleRepository) GetTopSongsByDuration(ctx context.Context, user stri
 	if err != nil {
 		return nil, fmt.Errorf("select query: %w", err)
 	}
-	err = loadSongLists(ctx, s.db, mapList(songs, func(s *repos.ScrobbleTopSong) *repos.CompleteSong {
+	err = loadSongLists(ctx, s.db, util.Map(songs, func(s *repos.ScrobbleTopSong) *repos.CompleteSong {
 		return s.CompleteSong
 	}), include)
 	if err != nil {

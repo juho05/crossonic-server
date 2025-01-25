@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/juho05/crossonic-server/handlers/responses"
@@ -25,8 +26,7 @@ func (h *Handler) handleConnectListenbrainz(w http.ResponseWriter, r *http.Reque
 			if errors.Is(err, listenbrainz.ErrUnauthenticated) {
 				responses.EncodeError(w, query.Get("f"), "invalid token", responses.SubsonicErrorGeneric)
 			} else {
-				log.Errorf("connect listenbrainz: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				respondInternalErr(w, query.Get("f"), fmt.Errorf("connect listenbrainz: %w", err))
 			}
 			return
 		}
@@ -35,8 +35,7 @@ func (h *Handler) handleConnectListenbrainz(w http.ResponseWriter, r *http.Reque
 	}
 	err := h.DB.User().UpdateListenBrainzConnection(r.Context(), username, lbUsername, lbToken)
 	if err != nil {
-		log.Errorf("connect listenbrainz: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("connect listenbrainz: %w", err))
 		return
 	}
 
@@ -62,8 +61,7 @@ func (h *Handler) handleGetListenbrainzConfig(w http.ResponseWriter, r *http.Req
 	username := query.Get("u")
 	user, err := h.DB.User().FindByName(r.Context(), username)
 	if err != nil {
-		log.Errorf("get listenbrainz config: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("get listenbrainz config: %w", err))
 		return
 	}
 	res := responses.New()

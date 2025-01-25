@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -21,7 +20,7 @@ func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
 		return
 	}
-	artist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfoFull(user))
+	dbArtist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfoFull(user))
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
@@ -30,70 +29,19 @@ func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	dbAlbums, err := h.DB.Artist().GetAlbums(r.Context(), artist.ID, repos.IncludeAlbumInfoFull(user))
+	dbAlbums, err := h.DB.Artist().GetAlbums(r.Context(), dbArtist.ID, repos.IncludeAlbumInfoFull(user))
 	if err != nil {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("get artist: get albums: %w", err))
 		return
 	}
 
-	var coverArt *string
-	if hasCoverArt(artist.ID) {
-		coverArt = &artist.ID
-	}
+	albums := responses.NewAlbums(dbAlbums)
 
-	albums := mapList(dbAlbums, func(a *repos.CompleteAlbum) *responses.Album {
-		return &responses.Album{
-			ID:            a.ID,
-			Created:       a.Created,
-			CoverArt:      coverArt,
-			Title:         a.Name,
-			Name:          a.Name,
-			SongCount:     int(a.TrackCount),
-			Duration:      int(a.Duration.ToStd().Seconds()),
-			Year:          a.Year,
-			Starred:       a.Starred,
-			UserRating:    a.UserRating,
-			AverageRating: a.AverageRating,
-			MusicBrainzID: a.MusicBrainzID,
-			RecordLabels: mapList(a.RecordLabels, func(label string) *responses.RecordLabel {
-				return &responses.RecordLabel{
-					Name: label,
-				}
-			}),
-			ReleaseTypes:  a.ReleaseTypes,
-			IsCompilation: a.IsCompilation,
-			Genres: mapList(a.Genres, func(g string) *responses.GenreRef {
-				return &responses.GenreRef{
-					Name: g,
-				}
-			}),
-			Artists: mapList(a.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-		}
-	})
-
-	err = h.completeAlbumInfo(albums)
-	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("handle get artist: %w", err))
-		return
-	}
+	artist := responses.NewArtist(dbArtist)
+	artist.Albums = albums
 
 	res := responses.New()
-	res.Artist = &responses.Artist{
-		ID:            artist.ID,
-		Name:          artist.Name,
-		CoverArt:      coverArt,
-		Starred:       artist.Starred,
-		MusicBrainzID: artist.MusicBrainzID,
-		UserRating:    artist.UserRating,
-		AverageRating: artist.AverageRating,
-		Albums:        albums,
-		AlbumCount:    &artist.AlbumCount,
-	}
+	res.Artist = artist
 	res.EncodeOrLog(w, query.Get("f"))
 }
 
@@ -121,98 +69,9 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("get album: get songs: %w", err))
 		return
 	}
-	songs := mapList(dbSongs, func(s *repos.CompleteSong) *responses.Song {
-		return &responses.Song{
-			ID:            s.ID,
-			IsDir:         false,
-			Title:         s.Title,
-			Album:         s.AlbumName,
-			Track:         s.Track,
-			Year:          s.Year,
-			CoverArt:      s.CoverID,
-			Size:          s.Size,
-			ContentType:   s.ContentType,
-			Suffix:        filepath.Ext(s.Path),
-			Duration:      int(s.Duration.ToStd().Seconds()),
-			BitRate:       s.BitRate,
-			SamplingRate:  s.SamplingRate,
-			ChannelCount:  s.ChannelCount,
-			UserRating:    s.UserRating,
-			DiscNumber:    s.Disc,
-			Created:       s.Created,
-			AlbumID:       s.AlbumID,
-			BPM:           s.BPM,
-			MusicBrainzID: s.MusicBrainzID,
-			Starred:       s.Starred,
-			AverageRating: s.AverageRating,
-			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
-				return &responses.GenreRef{
-					Name: g,
-				}
-			}),
-			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-			ReplayGain: &responses.ReplayGain{
-				TrackGain: s.ReplayGain,
-				AlbumGain: s.AlbumReplayGain,
-				TrackPeak: s.ReplayGainPeak,
-				AlbumPeak: s.AlbumReplayGainPeak,
-			},
-		}
-	})
 
-	err = h.completeSongInfo(r.Context(), songs)
-	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("get album: %w", err))
-		return
-	}
-
-	album := &responses.Album{
-		ID:            dbAlbum.ID,
-		Created:       dbAlbum.Created,
-		Title:         dbAlbum.Name,
-		Name:          dbAlbum.Name,
-		SongCount:     int(dbAlbum.TrackCount),
-		Duration:      int(dbAlbum.Duration.ToStd().Seconds()),
-		Year:          dbAlbum.Year,
-		Starred:       dbAlbum.Starred,
-		UserRating:    dbAlbum.UserRating,
-		AverageRating: dbAlbum.AverageRating,
-		MusicBrainzID: dbAlbum.MusicBrainzID,
-		IsCompilation: dbAlbum.IsCompilation,
-		RecordLabels: mapList(dbAlbum.RecordLabels, func(label string) *responses.RecordLabel {
-			return &responses.RecordLabel{
-				Name: label,
-			}
-		}),
-		ReleaseTypes: dbAlbum.ReleaseTypes,
-		Genres: mapList(dbAlbum.Genres, func(g string) *responses.GenreRef {
-			return &responses.GenreRef{
-				Name: g,
-			}
-		}),
-		Artists: mapList(dbAlbum.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
-			return &responses.ArtistRef{
-				ID:   a.ID,
-				Name: a.Name,
-			}
-		}),
-	}
-	err = h.completeAlbumInfo([]*responses.Album{album})
-	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("get album: %w", err))
-		return
-	}
+	songs := responses.NewSongs(dbSongs)
+	album := responses.NewAlbum(dbAlbum)
 
 	res := responses.New()
 	res.Album = &responses.AlbumWithSongs{
@@ -255,10 +114,7 @@ func (h *Handler) handleGetArtists(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	indexMap := make(map[rune]*responses.Index, 27)
-	for i, a := range artists {
-		if artists[i].AlbumCount == 0 {
-			continue
-		}
+	for _, a := range artists {
 		name := a.Name
 		for _, i := range ignoredArticles {
 			before := len(name)
@@ -273,20 +129,9 @@ func (h *Handler) handleGetArtists(w http.ResponseWriter, r *http.Request) {
 		if len(runes) > 0 && unicode.IsLetter(runes[0]) {
 			key = unicode.ToLower(runes[0])
 		}
-		var coverArt *string
-		if hasCoverArt(a.ID) {
-			coverArt = &a.ID
-		}
-		artist := &responses.Artist{
-			ID:            a.ID,
-			Name:          a.Name,
-			CoverArt:      coverArt,
-			AlbumCount:    &a.AlbumCount,
-			Starred:       a.Starred,
-			MusicBrainzID: a.MusicBrainzID,
-			UserRating:    a.UserRating,
-			AverageRating: a.AverageRating,
-		}
+
+		artist := responses.NewArtist(a)
+
 		if i, ok := indexMap[key]; ok {
 			i.Artist = append(i.Artist, artist)
 		} else {

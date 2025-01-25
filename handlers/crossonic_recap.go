@@ -3,12 +3,12 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 )
 
 func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
@@ -107,71 +107,16 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	songs := make([]*responses.Song, 0, len(dbSongs))
-	topSongs := mapList(dbSongs, func(s *repos.ScrobbleTopSong) *responses.TopSongsRecapSong {
-		song := &responses.Song{
-			ID:            s.ID,
-			IsDir:         false,
-			Title:         s.Title,
-			Album:         s.AlbumName,
-			Track:         s.Track,
-			Year:          s.Year,
-			CoverArt:      s.CoverID,
-			Size:          s.Size,
-			ContentType:   s.ContentType,
-			Suffix:        filepath.Ext(s.Path),
-			Duration:      int(s.Duration.ToStd().Seconds()),
-			BitRate:       s.BitRate,
-			SamplingRate:  s.SamplingRate,
-			ChannelCount:  s.ChannelCount,
-			UserRating:    s.UserRating,
-			DiscNumber:    s.Disc,
-			Created:       s.Created,
-			AlbumID:       s.AlbumID,
-			BPM:           s.BPM,
-			MusicBrainzID: s.MusicBrainzID,
-			Starred:       s.Starred,
-			AverageRating: s.AverageRating,
-			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
-				return &responses.GenreRef{
-					Name: g,
-				}
-			}),
-			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-			ReplayGain: &responses.ReplayGain{
-				TrackGain: s.ReplayGain,
-				AlbumGain: s.AlbumReplayGain,
-				TrackPeak: s.ReplayGainPeak,
-				AlbumPeak: s.AlbumReplayGainPeak,
-			},
-		}
-		songs = append(songs, song)
+	songs := util.Map(dbSongs, func(s *repos.ScrobbleTopSong) *responses.TopSongsRecapSong {
 		return &responses.TopSongsRecapSong{
-			Song:            song,
-			TotalDurationMS: s.TotalDuration.ToStd().Milliseconds(),
+			Song:            responses.NewSong(s.CompleteSong),
+			TotalDurationMS: s.TotalDuration.Millis(),
 		}
 	})
 
-	err = h.completeSongInfo(r.Context(), songs)
-	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get top songs recap: %w", err))
-		return
-	}
-
 	res := responses.New()
 	res.TopSongsRecap = &responses.TopSongsRecap{
-		Songs: topSongs,
+		Songs: songs,
 	}
 	res.EncodeOrLog(w, format)
 }

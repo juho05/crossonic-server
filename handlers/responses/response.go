@@ -66,7 +66,7 @@ func New() Response {
 	}
 }
 
-func EncodeError(w io.Writer, format, msg string, code SubsonicError) error {
+func EncodeError(w io.Writer, format, msg string, code SubsonicError) {
 	r := Response{
 		Status:        statusFailed,
 		Version:       apiVersion,
@@ -80,7 +80,7 @@ func EncodeError(w io.Writer, format, msg string, code SubsonicError) error {
 			Message: msg,
 		},
 	}
-	return r.Encode(w, format)
+	r.EncodeOrLog(w, format)
 }
 
 func (r Response) EncodeOrLog(w io.Writer, format string) {

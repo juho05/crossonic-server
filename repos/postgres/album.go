@@ -8,6 +8,7 @@ import (
 
 	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/nullism/bqb"
 )
 
@@ -62,7 +63,7 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 		where.And("(albums.year IS NOT NULL AND albums.year <= ?)", *params.ToYear)
 	}
 	if len(params.Genres) > 0 {
-		genres := mapList(params.Genres, func(g string) string {
+		genres := util.Map(params.Genres, func(g string) string {
 			return strings.ToLower(g)
 		})
 		where.And(`(EXISTS(
@@ -278,7 +279,7 @@ func loadAlbumLists(ctx context.Context, db executer, albums []*repos.CompleteAl
 		return nil
 	}
 
-	albumIDs := mapList(albums, func(s *repos.CompleteAlbum) string {
+	albumIDs := util.Map(albums, func(s *repos.CompleteAlbum) string {
 		return s.ID
 	})
 

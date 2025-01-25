@@ -442,6 +442,12 @@ func (s *Scanner) processMediaFiles(ctx context.Context, c <-chan mediaFile, don
 		return
 	}
 
+	fallbackGain, err := s.db.Song().GetMedianReplayGain(ctx)
+	if err != nil {
+		log.Errorf("failed to calculate median replay gain: %s", err)
+	}
+	repos.SetFallbackGain(fallbackGain)
+
 	err = s.cleanCovers(updatedArtists, albumCovers, songCovers)
 	if err != nil {
 		log.Errorf("process media files: %s", err)

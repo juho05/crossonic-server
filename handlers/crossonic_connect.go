@@ -1,12 +1,11 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gobwas/ws"
 	"github.com/juho05/crossonic-server/handlers/connect"
-	"github.com/juho05/crossonic-server/handlers/responses"
-	"github.com/juho05/log"
 )
 
 func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
@@ -21,8 +20,7 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
-		log.Errorf("upgrade crossonic connect connection: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, query.Get("f"), fmt.Errorf("upgrade crossonic connect connection: %w", err))
 		return
 	}
 	h.ConnectionManager.Connect(query.Get("u"), name, platform, conn)

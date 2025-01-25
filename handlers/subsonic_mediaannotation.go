@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
 )
 
@@ -234,67 +234,13 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	songs := make([]*responses.Song, 0, len(dbSongs))
-	entries := mapList(dbSongs, func(s *repos.NowPlayingSong) *responses.NowPlayingEntry {
-		song := &responses.Song{
-			ID:            s.ID,
-			Title:         s.Title,
-			Track:         s.Track,
-			Year:          s.Year,
-			CoverArt:      s.CoverID,
-			Size:          s.Size,
-			ContentType:   s.ContentType,
-			Suffix:        filepath.Ext(s.Path),
-			BitRate:       int(s.BitRate),
-			SamplingRate:  int(s.SamplingRate),
-			ChannelCount:  int(s.ChannelCount),
-			Duration:      int(s.Duration.ToStd().Seconds()),
-			UserRating:    s.UserRating,
-			DiscNumber:    s.Disc,
-			Created:       s.Created,
-			AlbumID:       s.AlbumID,
-			Album:         s.AlbumName,
-			BPM:           s.BPM,
-			MusicBrainzID: s.MusicBrainzID,
-			AverageRating: s.AverageRating,
-			Starred:       s.Starred,
-			Genres: mapList(s.Genres, func(g string) *responses.GenreRef {
-				return &responses.GenreRef{
-					Name: g,
-				}
-			}),
-			Artists: mapList(s.Artists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-			AlbumArtists: mapList(s.AlbumArtists, func(a repos.ArtistRef) *responses.ArtistRef {
-				return &responses.ArtistRef{
-					ID:   a.ID,
-					Name: a.Name,
-				}
-			}),
-			ReplayGain: &responses.ReplayGain{
-				TrackGain: s.ReplayGain,
-				AlbumGain: s.AlbumReplayGain,
-				TrackPeak: s.ReplayGainPeak,
-				AlbumPeak: s.AlbumReplayGainPeak,
-			},
-		}
-		songs = append(songs, song)
+	entries := util.Map(dbSongs, func(s *repos.NowPlayingSong) *responses.NowPlayingEntry {
 		return &responses.NowPlayingEntry{
-			Song:       song,
+			Song:       responses.NewSong(s.CompleteSong),
 			Username:   s.User,
 			MinutesAgo: int(time.Since(s.Time).Minutes()),
 		}
 	})
-
-	err = h.completeSongInfo(r.Context(), songs)
-	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("get now playing: %w", err))
-		return
-	}
 
 	res := responses.New()
 	res.NowPlaying = &responses.NowPlaying{

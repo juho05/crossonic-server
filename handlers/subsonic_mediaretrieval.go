@@ -20,6 +20,7 @@ import (
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
 )
 
@@ -230,7 +231,7 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 			{
 				Lang:   "und",
 				Synced: false,
-				Line: mapList(lines, func(l string) *responses.Line {
+				Line: util.Map(lines, func(l string) *responses.Line {
 					return &responses.Line{
 						Value: l,
 					}
