@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
@@ -37,9 +36,8 @@ func (h *Handler) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
 
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 
@@ -130,9 +128,8 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
 
-	id := query.Get("playlistId")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 
@@ -212,9 +209,8 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
 
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 
@@ -228,19 +224,17 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if crossonic.IDRegex.MatchString(id) {
-		err = os.Remove(filepath.Join(config.DataDir(), "covers", "playlists", id))
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Errorf("delete playlist: delete cover file: %s", err)
-		}
-		for _, k := range h.CoverCache.Keys() {
-			parts := strings.Split(k, "-")
-			pID := strings.Join(parts[:len(parts)-1], "-")
-			if pID == id {
-				err = h.CoverCache.DeleteObject(k)
-				if err != nil {
-					log.Errorf("delete playlist: delete cover cache: %s", err)
-				}
+	err = os.Remove(filepath.Join(config.DataDir(), "covers", "playlists", id))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Errorf("delete playlist: delete cover file: %s", err)
+	}
+	for _, k := range h.CoverCache.Keys() {
+		parts := strings.Split(k, "-")
+		pID := strings.Join(parts[:len(parts)-1], "-")
+		if pID == id {
+			err = h.CoverCache.DeleteObject(k)
+			if err != nil {
+				log.Errorf("delete playlist: delete cover cache: %s", err)
 			}
 		}
 	}

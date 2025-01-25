@@ -26,9 +26,8 @@ import (
 
 func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 
@@ -161,9 +160,8 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 	info, err := h.DB.Song().GetStreamInfo(r.Context(), id)
@@ -183,9 +181,8 @@ var lyricsTimestampRegex = regexp.MustCompile(`^\[([0-9]+[:.]?)+\]`)
 
 func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoBare())
@@ -244,9 +241,8 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 

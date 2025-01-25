@@ -23,7 +23,7 @@
   - only album artists are returned
 - [x] [getArtist](https://opensubsonic.netlify.app/docs/endpoints/getartist)
 - [x] [getAlbum](https://opensubsonic.netlify.app/docs/endpoints/getalbum)
-- [ ] [getSong](https://opensubsonic.netlify.app/docs/endpoints/getsong)
+- [x] [getSong](https://opensubsonic.netlify.app/docs/endpoints/getsong)
 - [ ] [getVideos](https://opensubsonic.netlify.app/docs/endpoints/getvideos)
 - [ ] [getVideoInfo](https://opensubsonic.netlify.app/docs/endpoints/getvideoinfo)
 - [ ] [getArtistInfo](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo)

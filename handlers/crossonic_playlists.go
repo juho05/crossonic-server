@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/disintegration/imaging"
-	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
@@ -26,13 +25,8 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 		defer r.Body.Close()
 	}
 
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
-		return
-	}
-	if !crossonic.IDRegex.MatchString(id) {
-		responses.EncodeError(w, query.Get("f"), "invalid id parameter", responses.SubsonicErrorGeneric)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 

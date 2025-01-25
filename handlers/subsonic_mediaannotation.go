@@ -254,9 +254,8 @@ func (h *Handler) handleSetRating(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
 
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 	ratingStr := query.Get("rating")

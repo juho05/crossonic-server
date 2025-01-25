@@ -15,9 +15,8 @@ import (
 func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 	dbArtist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfoFull(user))
@@ -48,9 +47,8 @@ func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
-	id := query.Get("id")
-	if id == "" {
-		responses.EncodeError(w, query.Get("f"), "missing id parameter", responses.SubsonicErrorRequiredParameterMissing)
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
 		return
 	}
 	dbAlbum, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfoFull(user))
@@ -79,6 +77,25 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		Songs: songs,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
+}
+
+func (h *Handler) handleGetSong(w http.ResponseWriter, r *http.Request) {
+	f := format(r)
+
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
+		return
+	}
+
+	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoFull(user(r)))
+	if err != nil {
+		respondErr(w, f, fmt.Errorf("get song: find song by id: %w", err))
+		return
+	}
+
+	res := responses.New()
+	res.Song = responses.NewSong(song)
+	res.EncodeOrLog(w, f)
 }
 
 func (h *Handler) handleGetGenres(w http.ResponseWriter, r *http.Request) {

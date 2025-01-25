@@ -1,17 +1,29 @@
 package handlers
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/go-chi/chi/v5"
+	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
 
+func respondErr(w http.ResponseWriter, format string, err error) {
+	if errors.Is(err, repos.ErrNotFound) {
+		responses.EncodeError(w, format, "not found", responses.SubsonicErrorNotFound)
+		return
+	}
+	respondInternalErr(w, format, err)
+}
+
 func respondInternalErr(w http.ResponseWriter, format string, err error) {
 	log.Error(err)
-	responses.EncodeError(w, format, http.StatusText(http.StatusInternalServerError), responses.SubsonicErrorGeneric)
+	responses.EncodeError(w, format, "internal server error", responses.SubsonicErrorGeneric)
 }
 
 func getQuery(r *http.Request) url.Values {
@@ -20,6 +32,37 @@ func getQuery(r *http.Request) url.Values {
 		panic("getQuery must be called after subsonicMiddleware")
 	}
 	return query
+}
+
+func user(r *http.Request) string {
+	return getQuery(r).Get("u")
+}
+
+func format(r *http.Request) string {
+	return getQuery(r).Get("u")
+}
+
+func paramIDReq(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
+	q := getQuery(r)
+	id, ok := paramStrReq(w, r, name)
+	if !ok {
+		return "", false
+	}
+	if !crossonic.IDRegex.MatchString(id) {
+		responses.EncodeError(w, q.Get("f"), fmt.Sprintf("invalid %s parameter", name), responses.SubsonicErrorGeneric)
+		return "", false
+	}
+	return id, true
+}
+
+func paramStrReq(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
+	q := getQuery(r)
+	v := q.Get(name)
+	if v == "" {
+		responses.EncodeError(w, q.Get("f"), fmt.Sprintf("missing %s parameter", name), responses.SubsonicErrorRequiredParameterMissing)
+		return "", false
+	}
+	return v, true
 }
 
 func registerRoute(r chi.Router, pattern string, handlerFunc func(w http.ResponseWriter, r *http.Request)) {
