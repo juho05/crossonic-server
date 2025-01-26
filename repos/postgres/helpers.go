@@ -63,7 +63,7 @@ func selectQuery[T any](ctx context.Context, db executer, query *bqb.Query) ([]T
 		return nil, wrapErr("build query", err)
 	}
 
-	var result []T
+	result := []T{}
 	err = db.SelectContext(ctx, &result, sql, args...)
 	printQueryOnErr(sql, err)
 	return result, wrapErr("execute select query", err)

@@ -66,7 +66,7 @@ func (s songRepository) FindRandom(ctx context.Context, params repos.SongFindRan
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 
-func (s songRepository) FindBySearchQuery(ctx context.Context, params repos.SongFindBySearchParams, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+func (s songRepository) FindBySearch(ctx context.Context, params repos.SongFindBySearchParams, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	params.Query = strings.ToLower(params.Query)
 	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
 
@@ -78,7 +78,18 @@ func (s songRepository) FindBySearchQuery(ctx context.Context, params repos.Song
 
 	q = bqb.New("? ?", q, where)
 	q.Space("ORDER BY position(? in lower(songs.title)), lower(songs.title)", params.Query)
-	q.Space("OFFSET ? LIMIT ?", params.Offset, params.Limit)
+	params.Paginate.Apply(q)
+	return execSongSelectMany(ctx, s.db, q, include)
+}
+
+func (s songRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+	if !include.Annotations || include.AnnotationUser == "" {
+		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
+	}
+	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
+	q.Space("WHERE song_stars.created IS NOT NULL")
+	q.Space("ORDER BY song_stars.created DESC")
+	paginate.Apply(q)
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 

@@ -72,7 +72,8 @@ type ArtistRepository interface {
 	FindByID(ctx context.Context, id string, include IncludeArtistInfo) (*CompleteArtist, error)
 	FindByNames(ctx context.Context, names []string, include IncludeArtistInfo) ([]*CompleteArtist, error)
 	FindAll(ctx context.Context, onlyAlbumArtists bool, include IncludeArtistInfo) ([]*CompleteArtist, error)
-	FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, offset, limit int, include IncludeArtistInfo) ([]*CompleteArtist, error)
+	FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
+	FindStarred(ctx context.Context, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
 
 	GetAlbums(ctx context.Context, id string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 

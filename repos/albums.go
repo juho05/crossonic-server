@@ -108,8 +108,7 @@ type FindAlbumParams struct {
 	FromYear *int
 	ToYear   *int
 	Genres   []string
-	Offset   int
-	Limit    int
+	Paginate Paginate
 }
 
 // return types
@@ -127,7 +126,8 @@ type AlbumRepository interface {
 
 	FindByID(ctx context.Context, id string, include IncludeAlbumInfo) (*CompleteAlbum, error)
 	FindAll(ctx context.Context, params FindAlbumParams, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
-	FindBySearchQuery(ctx context.Context, query string, offset, limit int, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	FindBySearch(ctx context.Context, query string, paginate Paginate, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	FindStarred(ctx context.Context, paginate Paginate, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 
 	GetTracks(ctx context.Context, id string, include IncludeSongInfo) ([]*CompleteSong, error)
 

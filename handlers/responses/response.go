@@ -48,6 +48,7 @@ type Response struct {
 	Playlists              *Playlists              `xml:"playlists,omitempty" json:"playlists,omitempty"`
 	Playlist               *Playlist               `xml:"playlist,omitempty" json:"playlist,omitempty"`
 	Song                   *Song                   `xml:"song,omitempty" json:"song,omitempty"`
+	Starred2               *Starred2               `xml:"starred2,omitempty" json:"starred2,omitempty"`
 
 	// Crossonic
 	ListenBrainzConfig *ListenBrainzConfig `xml:"listenBrainzConfig,omitempty" json:"listenBrainzConfig,omitempty"`

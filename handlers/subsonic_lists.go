@@ -82,7 +82,7 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
-		if err != nil || limit < 0 || limit > 500 {
+		if err != nil || limit <= 0 || limit > 500 {
 			responses.EncodeError(w, query.Get("f"), "invalid size value", responses.SubsonicErrorGeneric)
 			return
 		}
@@ -153,8 +153,10 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 		FromYear: fromYear,
 		ToYear:   toYear,
 		Genres:   genres,
-		Offset:   offset,
-		Limit:    limit,
+		Paginate: repos.Paginate{
+			Offset: offset,
+			Limit:  limit,
+		},
 	}, repos.IncludeAlbumInfoFull(user))
 	if err != nil {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("get album list 2: find all: %w", err))
@@ -167,4 +169,81 @@ func (h *Handler) handleGetAlbumList2(w http.ResponseWriter, r *http.Request) {
 		Albums: albums,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
+}
+
+func (h *Handler) handleGetStarred2(w http.ResponseWriter, r *http.Request) {
+	user := user(r)
+	f := format(r)
+
+	songLimit, songLimitExists, ok := paramLimit(w, r, "songCount", nil, 0)
+	if !ok {
+		return
+	}
+	songOffset, ok := paramOffset(w, r, "songOffset")
+	if !ok {
+		return
+	}
+
+	albumLimit, albumLimitExists, ok := paramLimit(w, r, "albumCount", nil, 0)
+	if !ok {
+		return
+	}
+	albumOffset, ok := paramOffset(w, r, "albumOffset")
+	if !ok {
+		return
+	}
+
+	artistLimit, artistLimitExists, ok := paramLimit(w, r, "artistCount", nil, 0)
+	if !ok {
+		return
+	}
+	artistOffset, ok := paramOffset(w, r, "artistOffset")
+	if !ok {
+		return
+	}
+
+	songs := []*repos.CompleteSong{}
+	var err error
+	if !songLimitExists || songLimit > 0 {
+		songs, err = h.DB.Song().FindStarred(r.Context(), repos.Paginate{
+			Offset: songOffset,
+			Limit:  songLimit,
+		}, repos.IncludeSongInfoFull(user))
+		if err != nil {
+			respondInternalErr(w, f, fmt.Errorf("get starred2: find songs: %w", err))
+			return
+		}
+	}
+
+	albums := []*repos.CompleteAlbum{}
+	if !albumLimitExists || albumLimit > 0 {
+		albums, err = h.DB.Album().FindStarred(r.Context(), repos.Paginate{
+			Offset: albumOffset,
+			Limit:  albumLimit,
+		}, repos.IncludeAlbumInfoFull(user))
+		if err != nil {
+			respondInternalErr(w, f, fmt.Errorf("get starred2: find albums: %w", err))
+			return
+		}
+	}
+
+	artists := []*repos.CompleteArtist{}
+	if !artistLimitExists || artistLimit > 0 {
+		artists, err = h.DB.Artist().FindStarred(r.Context(), repos.Paginate{
+			Offset: artistOffset,
+			Limit:  artistLimit,
+		}, repos.IncludeArtistInfoFull(user))
+		if err != nil {
+			respondInternalErr(w, f, fmt.Errorf("get starred2: find artists: %w", err))
+			return
+		}
+	}
+
+	res := responses.New()
+	res.Starred2 = &responses.Starred2{
+		Songs:   responses.NewSongs(songs),
+		Albums:  responses.NewAlbums(albums),
+		Artists: responses.NewArtists(artists),
+	}
+	res.EncodeOrLog(w, f)
 }

@@ -152,9 +152,8 @@ type SongFindRandomParams struct {
 }
 
 type SongFindBySearchParams struct {
-	Query  string
-	Offset int
-	Limit  int
+	Query    string
+	Paginate Paginate
 }
 
 type SongSetLBFeedbackUpdatedParams struct {
@@ -170,7 +169,8 @@ type SongRepository interface {
 	FindByMusicBrainzID(ctx context.Context, mbid string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByPath(ctx context.Context, path string, include IncludeSongInfo) (*CompleteSong, error)
 	FindRandom(ctx context.Context, params SongFindRandomParams, include IncludeSongInfo) ([]*CompleteSong, error)
-	FindBySearchQuery(ctx context.Context, params SongFindBySearchParams, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindBySearch(ctx context.Context, params SongFindBySearchParams, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindStarred(ctx context.Context, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
 
 	GetStreamInfo(ctx context.Context, id string) (*SongStreamInfo, error)
 

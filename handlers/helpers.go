@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	crossonic "github.com/juho05/crossonic-server"
@@ -39,7 +40,7 @@ func user(r *http.Request) string {
 }
 
 func format(r *http.Request) string {
-	return getQuery(r).Get("u")
+	return getQuery(r).Get("f")
 }
 
 func paramIDReq(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
@@ -53,6 +54,36 @@ func paramIDReq(w http.ResponseWriter, r *http.Request, name string) (string, bo
 		return "", false
 	}
 	return id, true
+}
+
+func paramLimit(w http.ResponseWriter, r *http.Request, name string, max *int, def int) (limit int, paramExists bool, ok bool) {
+	q := getQuery(r)
+	limitStr := q.Get(name)
+	limit = def
+	var err error
+	if limitStr != "" {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil || limit < 0 || (max != nil && limit > *max) {
+			responses.EncodeError(w, q.Get("f"), fmt.Sprintf("invalid %s parameter", name), responses.SubsonicErrorGeneric)
+			return 0, false, false
+		}
+	}
+	return limit, limitStr != "", true
+}
+
+func paramOffset(w http.ResponseWriter, r *http.Request, name string) (int, bool) {
+	q := getQuery(r)
+	offsetStr := q.Get(name)
+	var offset int
+	var err error
+	if offsetStr != "" {
+		offset, err = strconv.Atoi(offsetStr)
+		if err != nil || offset < 0 {
+			responses.EncodeError(w, q.Get("f"), fmt.Sprintf("invalid %s parameter", name), responses.SubsonicErrorGeneric)
+			return 0, false
+		}
+	}
+	return offset, true
 }
 
 func paramStrReq(w http.ResponseWriter, r *http.Request, name string) (string, bool) {

@@ -48,7 +48,7 @@ func (h *Handler) searchArtists(ctx context.Context, w http.ResponseWriter, quer
 	var err error
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
-		if err != nil || limit < 0 {
+		if err != nil || limit <= 0 {
 			responses.EncodeError(w, query.Get("f"), "invalid artistCount value", responses.SubsonicErrorGeneric)
 			return nil, false
 		}
@@ -64,7 +64,7 @@ func (h *Handler) searchArtists(ctx context.Context, w http.ResponseWriter, quer
 		}
 	}
 
-	artists, err := h.DB.Artist().FindBySearch(ctx, query.Get("query"), true, offset, limit, repos.IncludeArtistInfoFull(user))
+	artists, err := h.DB.Artist().FindBySearch(ctx, query.Get("query"), true, repos.Paginate{Offset: offset, Limit: limit}, repos.IncludeArtistInfoFull(user))
 	if err != nil {
 		log.Errorf("search3: artists: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
@@ -80,7 +80,7 @@ func (h *Handler) searchAlbums(ctx context.Context, w http.ResponseWriter, query
 	var err error
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
-		if err != nil || limit < 0 {
+		if err != nil || limit <= 0 {
 			responses.EncodeError(w, query.Get("f"), "invalid albumCount value", responses.SubsonicErrorGeneric)
 			return nil, false
 		}
@@ -96,7 +96,7 @@ func (h *Handler) searchAlbums(ctx context.Context, w http.ResponseWriter, query
 		}
 	}
 
-	dbAlbums, err := h.DB.Album().FindBySearchQuery(ctx, query.Get("query"), offset, limit, repos.IncludeAlbumInfoFull(user))
+	dbAlbums, err := h.DB.Album().FindBySearch(ctx, query.Get("query"), repos.Paginate{Offset: offset, Limit: limit}, repos.IncludeAlbumInfoFull(user))
 	if err != nil {
 		log.Errorf("search3: albums: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
@@ -113,7 +113,7 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 	var err error
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
-		if err != nil || limit < 0 {
+		if err != nil || limit <= 0 {
 			responses.EncodeError(w, query.Get("f"), "invalid songCount value", responses.SubsonicErrorGeneric)
 			return nil, false
 		}
@@ -129,10 +129,12 @@ func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query 
 		}
 	}
 
-	dbSongs, err := h.DB.Song().FindBySearchQuery(ctx, repos.SongFindBySearchParams{
-		Query:  query.Get("query"),
-		Offset: offset,
-		Limit:  limit,
+	dbSongs, err := h.DB.Song().FindBySearch(ctx, repos.SongFindBySearchParams{
+		Query: query.Get("query"),
+		Paginate: repos.Paginate{
+			Offset: offset,
+			Limit:  limit,
+		},
 	}, repos.IncludeSongInfoFull(user))
 	if err != nil {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("search3: songs: %w", err))

@@ -97,16 +97,28 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 		where.And("(albums.year IS NOT NULL)")
 	}
 
-	q = bqb.New("? ? ? OFFSET ? LIMIT ?", q, where, orderBy, params.Offset, params.Limit)
+	q = bqb.New("? ? ?", q, where, orderBy)
+	params.Paginate.Apply(q)
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
 
-func (a albumRepository) FindBySearchQuery(ctx context.Context, query string, offset, limit int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+func (a albumRepository) FindBySearch(ctx context.Context, query string, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	query = strings.ToLower(query)
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 	q.Space("WHERE position(? in lower(albums.name)) > 0", query)
 	q.Space("ORDER BY position(? in lower(albums.name)), lower(albums.name)", query)
-	q.Space("OFFSET ? LIMIT ?", offset, limit)
+	paginate.Apply(q)
+	return execAlbumSelectMany(ctx, a.db, q, include)
+}
+
+func (a albumRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+	if !include.Annotations || include.AnnotationUser == "" {
+		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
+	}
+	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
+	q.Space("WHERE album_stars.created IS NOT NULL")
+	q.Space("ORDER BY album_stars.created DESC")
+	paginate.Apply(q)
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
 

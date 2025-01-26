@@ -52,7 +52,8 @@
 - [ ] [getSongsByGenre](https://opensubsonic.netlify.app/docs/endpoints/getsongsbygenre)
 - [x] [getNowPlaying](https://opensubsonic.netlify.app/docs/endpoints/getnowplaying)
 - [ ] [getStarred](https://opensubsonic.netlify.app/docs/endpoints/getstarred)
-- [ ] [getStarred2](https://opensubsonic.netlify.app/docs/endpoints/getstarred2)
+- [x] [getStarred2](https://opensubsonic.netlify.app/docs/endpoints/getstarred2)
+  - (optional) pagination via `songLimit`, `songOffset`, `albumLimit`, `albumOffset`, `artistLimit`, `artistOffset` (similar to `search3`)
 
 ### Searching
 

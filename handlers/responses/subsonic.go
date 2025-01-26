@@ -90,3 +90,9 @@ type Line struct {
 	Value string `xml:"value" json:"value"`
 	Start *int   `xml:"start,omitempty" json:"start,omitempty"`
 }
+
+type Starred2 struct {
+	Songs   []*Song   `xml:"song" json:"song"`
+	Albums  []*Album  `xml:"album" json:"album"`
+	Artists []*Artist `xml:"artist" json:"artist"`
+}

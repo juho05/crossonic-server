@@ -106,7 +106,7 @@ func (a artistRepository) FindAll(ctx context.Context, onlyAlbumArtists bool, in
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 
-func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, offset, limit int, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
+func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
 	query = strings.ToLower(query)
 	q := bqb.New("SELECT ? FROM artists ?", genArtistSelectList(include), genArtistJoins(include))
 	q.Space("WHERE position(? in lower(artists.name)) > 0", query)
@@ -117,7 +117,18 @@ func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAl
 		q.And("COALESCE(aa.count, 0) > 0")
 	}
 	q.Space("ORDER BY position(? in lower(artists.name)), lower(artists.name)", query)
-	q.Space("OFFSET ? LIMIT ?", offset, limit)
+	paginate.Apply(q)
+	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
+}
+
+func (a artistRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
+	if !include.Annotations || include.AnnotationUser == "" {
+		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
+	}
+	q := bqb.New("SELECT ? FROM artists ?", genArtistSelectList(include), genArtistJoins(include))
+	q.Space("WHERE artist_stars.created IS NOT NULL")
+	q.Space("ORDER BY artist_stars.created DESC")
+	paginate.Apply(q)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 

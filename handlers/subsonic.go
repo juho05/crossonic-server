@@ -33,4 +33,5 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/updatePlaylist", h.handleUpdatePlaylist)
 	registerRoute(r, "/deletePlaylist", h.handleDeletePlaylist)
 	registerRoute(r, "/getSong", h.handleGetSong)
+	registerRoute(r, "/getStarred2", h.handleGetStarred2)
 }

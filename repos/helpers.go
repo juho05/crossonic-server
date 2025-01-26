@@ -7,7 +7,22 @@ import (
 	"fmt"
 
 	"github.com/juho05/crossonic-server/config"
+	"github.com/nullism/bqb"
 )
+
+type Paginate struct {
+	Offset int
+	Limit  int
+}
+
+func (p Paginate) Apply(q *bqb.Query) {
+	if p.Offset > 0 {
+		q.Space("OFFSET ?", p.Offset)
+	}
+	if p.Limit > 0 {
+		q.Space("LIMIT ?", p.Limit)
+	}
+}
 
 type Optional[T any] struct {
 	value    T
