@@ -95,7 +95,8 @@ func (r Response) EncodeOrLog(w io.Writer, format string) {
 
 func (r Response) Encode(w io.Writer, format string) error {
 	type response struct {
-		SubsonicResponse *Response `xml:"subsonic-response" json:"subsonic-response"`
+		XMLName   xml.Name `xml:"subsonic-response" json:"-"`
+		*Response `json:"subsonic-response"`
 	}
 	rw, isRW := w.(http.ResponseWriter)
 	if format == "json" {
@@ -103,7 +104,7 @@ func (r Response) Encode(w io.Writer, format string) error {
 			rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 		}
 		return json.NewEncoder(w).Encode(response{
-			SubsonicResponse: &r,
+			Response: &r,
 		})
 	}
 	if isRW {
@@ -111,7 +112,7 @@ func (r Response) Encode(w io.Writer, format string) error {
 	}
 	encoder := xml.NewEncoder(w)
 	err := encoder.Encode(response{
-		SubsonicResponse: &r,
+		Response: &r,
 	})
 	if err != nil {
 		return err

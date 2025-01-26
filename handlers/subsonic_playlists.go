@@ -128,7 +128,7 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	user := query.Get("u")
 
-	id, ok := paramIDReq(w, r, "id")
+	id, ok := paramIDReq(w, r, "playlistId")
 	if !ok {
 		return
 	}
