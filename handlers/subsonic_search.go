@@ -1,11 +1,8 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/juho05/crossonic-server/handlers/responses"
@@ -13,21 +10,23 @@ import (
 	"github.com/juho05/log"
 )
 
+var maxSearchResultCount = 500
+
 func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	query.Set("query", strings.Trim(query.Get("query"), `"`))
 
-	artists, ok := h.searchArtists(r.Context(), w, query)
+	artists, ok := h.searchArtists(w, r)
 	if !ok {
 		return
 	}
 
-	albums, ok := h.searchAlbums(r.Context(), w, query)
+	albums, ok := h.searchAlbums(w, r)
 	if !ok {
 		return
 	}
 
-	songs, ok := h.searchSongs(r.Context(), w, query)
+	songs, ok := h.searchSongs(w, r)
 	if !ok {
 		return
 	}
@@ -41,103 +40,79 @@ func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
 	res.EncodeOrLog(w, query.Get("f"))
 }
 
-func (h *Handler) searchArtists(ctx context.Context, w http.ResponseWriter, query url.Values) ([]*responses.Artist, bool) {
-	user := query.Get("u")
-	limitStr := query.Get("artistCount")
-	limit := 20
-	var err error
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil || limit <= 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid artistCount value", responses.SubsonicErrorGeneric)
-			return nil, false
-		}
+func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request) ([]*responses.Artist, bool) {
+	user := user(r)
+	format := format(r)
+	query := getQuery(r)
+
+	limit, ok := paramLimitReq(w, r, "artistCount", &maxSearchResultCount, 20)
+	if !ok {
+		return nil, false
 	}
 
-	offsetStr := query.Get("artistOffset")
-	offset := 0
-	if offsetStr != "" {
-		offset, err = strconv.Atoi(offsetStr)
-		if err != nil || offset < 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid artistOffset value", responses.SubsonicErrorGeneric)
-			return nil, false
-		}
+	offset, ok := paramOffset(w, r, "artistOffset")
+	if !ok {
+		return nil, false
 	}
 
-	artists, err := h.DB.Artist().FindBySearch(ctx, query.Get("query"), true, repos.Paginate{Offset: offset, Limit: limit}, repos.IncludeArtistInfoFull(user))
+	artists, err := h.DB.Artist().FindBySearch(r.Context(), query.Get("query"), true, repos.Paginate{Offset: offset, Limit: &limit}, repos.IncludeArtistInfoFull(user))
 	if err != nil {
-		log.Errorf("search3: artists: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, format, fmt.Errorf("search3: artists: %w", err))
 		return nil, false
 	}
 	return responses.NewArtists(artists), true
 }
 
-func (h *Handler) searchAlbums(ctx context.Context, w http.ResponseWriter, query url.Values) ([]*responses.Album, bool) {
-	user := query.Get("u")
-	limitStr := query.Get("albumCount")
-	limit := 20
-	var err error
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil || limit <= 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid albumCount value", responses.SubsonicErrorGeneric)
-			return nil, false
-		}
+func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request) ([]*responses.Album, bool) {
+	user := user(r)
+	format := format(r)
+	query := getQuery(r)
+
+	limit, ok := paramLimitReq(w, r, "albumCount", &maxSearchResultCount, 20)
+	if !ok {
+		return nil, false
 	}
 
-	offsetStr := query.Get("albumOffset")
-	offset := 0
-	if offsetStr != "" {
-		offset, err = strconv.Atoi(offsetStr)
-		if err != nil || offset < 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid albumOffset value", responses.SubsonicErrorGeneric)
-			return nil, false
-		}
+	offset, ok := paramOffset(w, r, "albumOffset")
+	if !ok {
+		return nil, false
 	}
 
-	dbAlbums, err := h.DB.Album().FindBySearch(ctx, query.Get("query"), repos.Paginate{Offset: offset, Limit: limit}, repos.IncludeAlbumInfoFull(user))
+	dbAlbums, err := h.DB.Album().FindBySearch(r.Context(), query.Get("query"), repos.Paginate{Offset: offset, Limit: &limit}, repos.IncludeAlbumInfoFull(user))
 	if err != nil {
 		log.Errorf("search3: albums: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, format, fmt.Errorf("search3: albums: %w", err))
 		return nil, false
 	}
 	albums := responses.NewAlbums(dbAlbums)
 	return albums, true
 }
 
-func (h *Handler) searchSongs(ctx context.Context, w http.ResponseWriter, query url.Values) ([]*responses.Song, bool) {
-	user := query.Get("u")
-	limitStr := query.Get("songCount")
-	limit := 20
-	var err error
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil || limit <= 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid songCount value", responses.SubsonicErrorGeneric)
-			return nil, false
-		}
+func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request) ([]*responses.Song, bool) {
+	user := user(r)
+	format := format(r)
+	query := getQuery(r)
+
+	limit, ok := paramLimitReq(w, r, "songCount", &maxSearchResultCount, 20)
+	if !ok {
+		return nil, false
 	}
 
-	offsetStr := query.Get("songOffset")
-	offset := 0
-	if offsetStr != "" {
-		offset, err = strconv.Atoi(offsetStr)
-		if err != nil || offset < 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid songOffset value", responses.SubsonicErrorGeneric)
-			return nil, false
-		}
+	offset, ok := paramOffset(w, r, "songOffset")
+	if !ok {
+		return nil, false
 	}
 
-	dbSongs, err := h.DB.Song().FindBySearch(ctx, repos.SongFindBySearchParams{
+	dbSongs, err := h.DB.Song().FindBySearch(r.Context(), repos.SongFindBySearchParams{
 		Query: query.Get("query"),
 		Paginate: repos.Paginate{
 			Offset: offset,
-			Limit:  limit,
+			Limit:  &limit,
 		},
 	}, repos.IncludeSongInfoFull(user))
 	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("search3: songs: %w", err))
+		respondInternalErr(w, format, fmt.Errorf("search3: songs: %w", err))
 		return nil, false
 	}
 	songs := responses.NewSongs(dbSongs)

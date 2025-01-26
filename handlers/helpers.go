@@ -56,19 +56,34 @@ func paramIDReq(w http.ResponseWriter, r *http.Request, name string) (string, bo
 	return id, true
 }
 
-func paramLimit(w http.ResponseWriter, r *http.Request, name string, max *int, def int, zeroAllowed bool) (limit int, paramExists bool, ok bool) {
+func paramLimitReq(w http.ResponseWriter, r *http.Request, name string, max *int, def int) (int, bool) {
 	q := getQuery(r)
 	limitStr := q.Get(name)
-	limit = def
+	limit := def
 	var err error
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
-		if err != nil || limit < 0 || (!zeroAllowed && limit == 0) || (max != nil && limit > *max) {
+		if err != nil || limit < 0 || (max != nil && limit > *max) {
 			responses.EncodeError(w, q.Get("f"), fmt.Sprintf("invalid %s parameter", name), responses.SubsonicErrorGeneric)
-			return 0, false, false
+			return 0, false
 		}
 	}
-	return limit, limitStr != "", true
+	return limit, true
+}
+
+func paramLimitOpt(w http.ResponseWriter, r *http.Request, name string, max *int) (*int, bool) {
+	q := getQuery(r)
+	limitStr := q.Get(name)
+	var limit *int
+	if limitStr != "" {
+		l, err := strconv.Atoi(limitStr)
+		if err != nil || l < 0 || (max != nil && l > *max) {
+			responses.EncodeError(w, q.Get("f"), fmt.Sprintf("invalid %s parameter", name), responses.SubsonicErrorGeneric)
+			return nil, false
+		}
+		limit = &l
+	}
+	return limit, true
 }
 
 func paramOffset(w http.ResponseWriter, r *http.Request, name string) (int, bool) {

@@ -4,6 +4,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+var maxListSize = 500
+
 func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	r.Use(h.subsonicMiddleware)
 	registerRoute(r, "/ping", h.handlePing)
