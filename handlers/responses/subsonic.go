@@ -96,3 +96,7 @@ type Starred2 struct {
 	Albums  []*Album  `xml:"album" json:"album"`
 	Artists []*Artist `xml:"artist" json:"artist"`
 }
+
+type SongsByGenre struct {
+	Songs []*Song `xml:"song" json:"song"`
+}

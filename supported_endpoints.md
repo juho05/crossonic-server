@@ -49,7 +49,7 @@
   - [x] byYear
   - [x] byGenre
 - [x] [getRandomSongs](https://opensubsonic.netlify.app/docs/endpoints/getrandomsongs)
-- [ ] [getSongsByGenre](https://opensubsonic.netlify.app/docs/endpoints/getsongsbygenre)
+- [x] [getSongsByGenre](https://opensubsonic.netlify.app/docs/endpoints/getsongsbygenre)
 - [x] [getNowPlaying](https://opensubsonic.netlify.app/docs/endpoints/getnowplaying)
 - [ ] [getStarred](https://opensubsonic.netlify.app/docs/endpoints/getstarred)
 - [x] [getStarred2](https://opensubsonic.netlify.app/docs/endpoints/getstarred2)

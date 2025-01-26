@@ -171,6 +171,7 @@ type SongRepository interface {
 	FindRandom(ctx context.Context, params SongFindRandomParams, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindBySearch(ctx context.Context, params SongFindBySearchParams, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindStarred(ctx context.Context, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindByGenre(ctx context.Context, genre string, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
 
 	GetStreamInfo(ctx context.Context, id string) (*SongStreamInfo, error)
 

@@ -175,7 +175,7 @@ func (h *Handler) handleGetStarred2(w http.ResponseWriter, r *http.Request) {
 	user := user(r)
 	f := format(r)
 
-	songLimit, songLimitExists, ok := paramLimit(w, r, "songCount", nil, 0)
+	songLimit, songLimitExists, ok := paramLimit(w, r, "songCount", nil, 0, true)
 	if !ok {
 		return
 	}
@@ -184,7 +184,7 @@ func (h *Handler) handleGetStarred2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	albumLimit, albumLimitExists, ok := paramLimit(w, r, "albumCount", nil, 0)
+	albumLimit, albumLimitExists, ok := paramLimit(w, r, "albumCount", nil, 0, true)
 	if !ok {
 		return
 	}
@@ -193,7 +193,7 @@ func (h *Handler) handleGetStarred2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artistLimit, artistLimitExists, ok := paramLimit(w, r, "artistCount", nil, 0)
+	artistLimit, artistLimitExists, ok := paramLimit(w, r, "artistCount", nil, 0, true)
 	if !ok {
 		return
 	}
@@ -246,4 +246,35 @@ func (h *Handler) handleGetStarred2(w http.ResponseWriter, r *http.Request) {
 		Artists: responses.NewArtists(artists),
 	}
 	res.EncodeOrLog(w, f)
+}
+
+func (h *Handler) handleGetSongsByGenre(w http.ResponseWriter, r *http.Request) {
+	genre, ok := paramStrReq(w, r, "genre")
+	if !ok {
+		return
+	}
+	maxSongCount := 500
+	limit, _, ok := paramLimit(w, r, "count", &maxSongCount, 10, false)
+	if !ok {
+		return
+	}
+	offset, ok := paramOffset(w, r, "offset")
+	if !ok {
+		return
+	}
+
+	songs, err := h.DB.Song().FindByGenre(r.Context(), genre, repos.Paginate{
+		Offset: offset,
+		Limit:  limit,
+	}, repos.IncludeSongInfoFull(user(r)))
+	if err != nil {
+		respondInternalErr(w, format(r), fmt.Errorf("get songs by genre: find songs: %w", err))
+		return
+	}
+
+	res := responses.New()
+	res.SongsByGenre = &responses.SongsByGenre{
+		Songs: responses.NewSongs(songs),
+	}
+	res.EncodeOrLog(w, format(r))
 }

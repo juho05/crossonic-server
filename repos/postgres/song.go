@@ -93,6 +93,15 @@ func (s songRepository) FindStarred(ctx context.Context, paginate repos.Paginate
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 
+func (s songRepository) FindByGenre(ctx context.Context, genre string, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
+	q.Space("JOIN song_genre ON song_genre.song_id = songs.id")
+	q.Space("WHERE lower(song_genre.genre_name) = ?", strings.ToLower(genre))
+	q.Space("ORDER BY lower(songs.title)")
+	paginate.Apply(q)
+	return execSongSelectMany(ctx, s.db, q, include)
+}
+
 func (s songRepository) GetStreamInfo(ctx context.Context, id string) (*repos.SongStreamInfo, error) {
 	q := bqb.New("SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms, songs.channel_count FROM songs WHERE songs.id = ?", id)
 	return getQuery[*repos.SongStreamInfo](ctx, s.db, q)
