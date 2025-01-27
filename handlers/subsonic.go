@@ -19,7 +19,8 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/getCoverArt", h.handleGetCoverArt)
 	registerRoute(r, "/getGenres", h.handleGetGenres)
 	registerRoute(r, "/getArtists", h.handleGetArtists)
-	registerRoute(r, "/getAlbumList2", h.handleGetAlbumList2)
+	registerRoute(r, "/getAlbumList", h.handleGetAlbumList(1))
+	registerRoute(r, "/getAlbumList2", h.handleGetAlbumList(2))
 	registerRoute(r, "/getRandomSongs", h.handleGetRandomSongs)
 	registerRoute(r, "/getAlbum", h.handleGetAlbum)
 	registerRoute(r, "/getArtist", h.handleGetArtist)
@@ -35,6 +36,7 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/updatePlaylist", h.handleUpdatePlaylist)
 	registerRoute(r, "/deletePlaylist", h.handleDeletePlaylist)
 	registerRoute(r, "/getSong", h.handleGetSong)
-	registerRoute(r, "/getStarred2", h.handleGetStarred2)
+	registerRoute(r, "/getStarred", h.handleGetStarred(1))
+	registerRoute(r, "/getStarred2", h.handleGetStarred(2))
 	registerRoute(r, "/getSongsByGenre", h.handleGetSongsByGenre)
 }

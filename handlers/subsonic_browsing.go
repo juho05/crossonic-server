@@ -106,9 +106,9 @@ func (h *Handler) handleGetGenres(w http.ResponseWriter, r *http.Request) {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("get genres: %w", err))
 		return
 	}
-	genres := make(responses.Genres, 0, len(dbGenres))
+	genres := make([]*responses.Genre, 0, len(dbGenres))
 	for _, g := range dbGenres {
-		genres = append(genres, responses.Genre{
+		genres = append(genres, &responses.Genre{
 			SongCount:  int(g.SongCount),
 			AlbumCount: int(g.AlbumCount),
 			Value:      g.Name,
@@ -116,7 +116,9 @@ func (h *Handler) handleGetGenres(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := responses.New()
-	res.Genres = &genres
+	res.Genres = &responses.Genres{
+		Genres: genres,
+	}
 	res.EncodeOrLog(w, query.Get("f"))
 }
 

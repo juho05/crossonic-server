@@ -31,6 +31,10 @@ type Index struct {
 	Artist []*Artist `xml:"artist" json:"artist"`
 }
 
+type AlbumList struct {
+	Albums []*Album `xml:"album" json:"album"`
+}
+
 type AlbumList2 struct {
 	Albums []*Album `xml:"album" json:"album"`
 }
@@ -89,6 +93,12 @@ type StructuredLyrics struct {
 type Line struct {
 	Value string `xml:"value" json:"value"`
 	Start *int   `xml:"start,omitempty" json:"start,omitempty"`
+}
+
+type Starred struct {
+	Songs   []*Song   `xml:"song" json:"song"`
+	Albums  []*Album  `xml:"album" json:"album"`
+	Artists []*Artist `xml:"artist" json:"artist"`
 }
 
 type Starred2 struct {

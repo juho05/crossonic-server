@@ -38,6 +38,7 @@ type Response struct {
 	ScanStatus             *ScanStatus             `xml:"scanStatus,omitempty" json:"scanStatus,omitempty"`
 	Genres                 *Genres                 `xml:"genres,omitempty" json:"genres,omitempty"`
 	Artists                *Artists                `xml:"artists,omitempty" json:"artists,omitempty"`
+	AlbumList              *AlbumList              `xml:"albumList,omitempty" json:"albumList,omitempty"`
 	AlbumList2             *AlbumList2             `xml:"albumList2,omitempty" json:"albumList2,omitempty"`
 	RandomSongs            *RandomSongs            `xml:"randomSongs,omitempty" json:"randomSongs,omitempty"`
 	Album                  *AlbumWithSongs         `xml:"album,omitempty" json:"album,omitempty"`
@@ -48,6 +49,7 @@ type Response struct {
 	Playlists              *Playlists              `xml:"playlists,omitempty" json:"playlists,omitempty"`
 	Playlist               *Playlist               `xml:"playlist,omitempty" json:"playlist,omitempty"`
 	Song                   *Song                   `xml:"song,omitempty" json:"song,omitempty"`
+	Starred                *Starred                `xml:"starred,omitempty" json:"starred,omitempty"`
 	Starred2               *Starred2               `xml:"starred2,omitempty" json:"starred2,omitempty"`
 	SongsByGenre           *SongsByGenre           `xml:"songsByGenre,omitempty" json:"songsByGenre,omitempty"`
 

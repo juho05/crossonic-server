@@ -2,7 +2,9 @@ package responses
 
 import "github.com/juho05/crossonic-server/util"
 
-type Genres []Genre
+type Genres struct {
+	Genres []*Genre `xml:"genre" json:"genre"`
+}
 
 type Genre struct {
 	SongCount  int    `xml:"songCount,attr" json:"songCount"`

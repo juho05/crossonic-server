@@ -36,7 +36,8 @@
 
 ### Album/Song Lists
 
-- [ ] [getAlbumList](https://opensubsonic.netlify.app/docs/endpoints/getalbumlist)
+- [x] [getAlbumList](https://opensubsonic.netlify.app/docs/endpoints/getalbumlist)
+  - identical to _getAlbumList2_
 - [x] [getAlbumList2](https://opensubsonic.netlify.app/docs/endpoints/getalbumlist2)
   - [x] random
   - [x] newest
@@ -51,14 +52,17 @@
 - [x] [getRandomSongs](https://opensubsonic.netlify.app/docs/endpoints/getrandomsongs)
 - [x] [getSongsByGenre](https://opensubsonic.netlify.app/docs/endpoints/getsongsbygenre)
 - [x] [getNowPlaying](https://opensubsonic.netlify.app/docs/endpoints/getnowplaying)
-- [ ] [getStarred](https://opensubsonic.netlify.app/docs/endpoints/getstarred)
+- [x] [getStarred](https://opensubsonic.netlify.app/docs/endpoints/getstarred)
+  - identical to _getStarred2_
 - [x] [getStarred2](https://opensubsonic.netlify.app/docs/endpoints/getstarred2)
   - (optional) pagination via `songLimit`, `songOffset`, `albumLimit`, `albumOffset`, `artistLimit`, `artistOffset` (similar to `search3`)
 
 ### Searching
 
 - [ ] [search](https://opensubsonic.netlify.app/docs/endpoints/search)
-- [ ] [search2](https://opensubsonic.netlify.app/docs/endpoints/search2)
+  - deprecated endpoint: *won't be implemented*
+- [x] [search2](https://opensubsonic.netlify.app/docs/endpoints/search2)
+  - identical to _search3_
 - [x] [search3](https://opensubsonic.netlify.app/docs/endpoints/search3)
   - only album artists are returned
 
