@@ -9,7 +9,7 @@ type Genres struct {
 type Genre struct {
 	SongCount  int    `xml:"songCount,attr" json:"songCount"`
 	AlbumCount int    `xml:"albumCount,attr" json:"albumCount"`
-	Value      string `xml:"value,attr" json:"value"`
+	Value      string `xml:",chardata" json:"value"`
 }
 
 type GenreRef struct {
