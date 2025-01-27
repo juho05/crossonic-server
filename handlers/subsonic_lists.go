@@ -42,6 +42,10 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 		toYear = &y
 	}
 
+	if fromYear != nil && toYear != nil && *fromYear > *toYear {
+		*fromYear, *toYear = *toYear, *fromYear
+	}
+
 	genres := util.Map(query["genre"], func(g string) string {
 		return strings.ToLower(g)
 	})
@@ -108,6 +112,10 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 		} else if listType == "byYear" {
 			responses.EncodeError(w, query.Get("f"), "missing toYear parameter", responses.SubsonicErrorRequiredParameterMissing)
 			return
+		}
+
+		if fromYear != nil && toYear != nil && *fromYear > *toYear {
+			*fromYear, *toYear = *toYear, *fromYear
 		}
 
 		genres := query["genre"]

@@ -2,6 +2,8 @@
 
 ## OpenSubsonic (1.16.1)
 
+**Response formats:** `xml`, `json`
+
 ### System
 
 - [x] [ping](https://opensubsonic.netlify.app/docs/endpoints/ping)
@@ -24,8 +26,6 @@
 - [x] [getArtist](https://opensubsonic.netlify.app/docs/endpoints/getartist)
 - [x] [getAlbum](https://opensubsonic.netlify.app/docs/endpoints/getalbum)
 - [x] [getSong](https://opensubsonic.netlify.app/docs/endpoints/getsong)
-- [ ] [getVideos](https://opensubsonic.netlify.app/docs/endpoints/getvideos)
-- [ ] [getVideoInfo](https://opensubsonic.netlify.app/docs/endpoints/getvideoinfo)
 - [ ] [getArtistInfo](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo)
 - [ ] [getArtistInfo2](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo2)
 - [ ] [getAlbumInfo](https://opensubsonic.netlify.app/docs/endpoints/getalbuminfo)
@@ -59,8 +59,6 @@
 
 ### Searching
 
-- [ ] [search](https://opensubsonic.netlify.app/docs/endpoints/search)
-  - deprecated endpoint: *won't be implemented*
 - [x] [search2](https://opensubsonic.netlify.app/docs/endpoints/search2)
   - identical to _search3_
 - [x] [search3](https://opensubsonic.netlify.app/docs/endpoints/search3)
@@ -85,7 +83,6 @@
   - [x] estimateContentLength (results in a too large Content-Length value, because it cannot take compression into account)
 - [x] [download](https://opensubsonic.netlify.app/docs/endpoints/download)
 - [ ] [hls](https://opensubsonic.netlify.app/docs/endpoints/hls)
-- [ ] [getCaptions](https://opensubsonic.netlify.app/docs/endpoints/getcaptions)
 - [x] [getCoverArt](https://opensubsonic.netlify.app/docs/endpoints/getcoverart)
 - [ ] [getLyrics](https://opensubsonic.netlify.app/docs/endpoints/getlyrics)
 - [x] [getLyricsBySongId](https://opensubsonic.netlify.app/docs/endpoints/getlyricsbysongid)
@@ -126,11 +123,6 @@
 - [ ] [updateInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/updateinternetradiostation)
 - [ ] [deleteInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/deleteinternetradiostation)
 
-### Chat
-
-- [ ] [getChatMessages](https://opensubsonic.netlify.app/docs/endpoints/getchatmessages)
-- [ ] [addChatMessage](https://opensubsonic.netlify.app/docs/endpoints/addchatmessage)
-
 ### User Management
 
 - [ ] [getUser](https://opensubsonic.netlify.app/docs/endpoints/getuser)
@@ -152,6 +144,15 @@
 
 - [x] [getScanStatus](https://opensubsonic.netlify.app/docs/endpoints/getscanstatus)
 - [x] [startScan](https://opensubsonic.netlify.app/docs/endpoints/startscan)
+
+### Out of scope
+- [search](https://opensubsonic.netlify.app/docs/endpoints/search)
+  - *deprecated*, use `search2` or `search3` instead
+- [getChatMessages](https://opensubsonic.netlify.app/docs/endpoints/getchatmessages)
+- [addChatMessage](https://opensubsonic.netlify.app/docs/endpoints/addchatmessage)
+- [getVideos](https://opensubsonic.netlify.app/docs/endpoints/getvideos)
+- [getVideoInfo](https://opensubsonic.netlify.app/docs/endpoints/getvideoinfo)
+- [getCaptions](https://opensubsonic.netlify.app/docs/endpoints/getcaptions)
 
 ## Crossonic
 
