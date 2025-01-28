@@ -7,19 +7,19 @@ OpenSubsonic compatible music server with additional extensions for [Crossonic](
 This project is in development. Expect bugs and missing features.
 
 Not all OpenSubsonic endpoints have been implemented yet ([status](./supported_endpoints.md)).
-This server implements all endpoints needed for the [Crossonic](https://github.com/juho05/crossonic) app but may not work with
+This server implements all endpoints needed for the [Crossonic](https://github.com/juho05/crossonic) app but may not yet work without issues with
 other Subsonic media players.
 
 ## Features
 
-- [x] Full scan of media library (*kind of slow currently*)
+- [x] Full scan of media library (*unoptimized*)
 - [ ] Incremental library scan
 - [x] [ListenBrainz](https://listenbrainz.org) scrobbling
 - [x] Multiple users
 - [x] transcoding and caching
   - [x] configurable with `format=` and `maxBitRate=` parameters
   - `raw`, `mp3`, `opus`, `vorbis`, `aac`
-- [x] Fetch artist images from [last.fm](https://last.fm)
+- [x] Fetch artist images and artist/album info from [last.fm](https://last.fm)
 - [x] Multiple artists, album artists, genres
 - [x] **Stores a unique ID in the metadata of all media files** to preserve IDs when moving/renaming files on disk
 - [x] Scrobbling including playback duration
@@ -32,7 +32,7 @@ other Subsonic media players.
 - [x] playlists
   - including user-changable playlist covers (not natively supported by *OpenSubsonic*)
 - [x] [SONOS](https://www.sonos.com) casting (*very buggy*, *not documented*)
-- [x] Serve [Crossonic](https://github.com/juho05/crossonic#web)
+- [x] Serve [Crossonic Web](https://github.com/juho05/crossonic#web)
 - [x] Admin CLI
 - [ ] Admin web interface
 - [x] End-of-year recap
