@@ -5,10 +5,10 @@ type ListenBrainzConfig struct {
 }
 
 type Recap struct {
-	TotalDurationMS int64 `xml:"totalDurationMs" json:"totalDurationMs"`
-	SongCount       int   `xml:"songCount" json:"songCount"`
-	AlbumCount      int   `xml:"albumCount" json:"albumCount"`
-	ArtistCount     int   `xml:"artistCount" json:"artistCount"`
+	TotalDurationMS int64 `xml:"totalDurationMs,attr" json:"totalDurationMs"`
+	SongCount       int   `xml:"songCount,attr" json:"songCount"`
+	AlbumCount      int   `xml:"albumCount,attr" json:"albumCount"`
+	ArtistCount     int   `xml:"artistCount,attr" json:"artistCount"`
 }
 
 type TopSongsRecap struct {
@@ -17,5 +17,5 @@ type TopSongsRecap struct {
 
 type TopSongsRecapSong struct {
 	*Song
-	TotalDurationMS int64 `xml:"totalDurationMs" json:"totalDurationMs"`
+	TotalDurationMS int64 `xml:"totalDurationMs,attr" json:"totalDurationMs"`
 }

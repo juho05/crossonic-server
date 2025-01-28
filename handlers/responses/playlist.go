@@ -41,7 +41,7 @@ func NewPlaylist(p *repos.CompletePlaylist) *Playlist {
 		playlist.Duration = p.Duration.Seconds()
 	}
 
-	if hasCoverArt(p.ID) {
+	if HasCoverArt(p.ID) {
 		playlist.CoverArt = &p.ID
 	}
 

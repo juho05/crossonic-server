@@ -31,6 +31,15 @@ type CompleteArtist struct {
 	*ArtistAlbumInfo
 }
 
+type ArtistInfo struct {
+	ArtistID      string     `db:"id"`
+	Updated       *time.Time `db:"info_updated"`
+	Biography     *string    `db:"biography"`
+	LastFMURL     *string    `db:"lastfm_url"`
+	LastFMMBID    *string    `db:"lastfm_mbid"`
+	MusicBrainzID *string    `db:"music_brainz_id"`
+}
+
 // params
 
 type IncludeArtistInfo struct {
@@ -61,6 +70,12 @@ type UpdateArtistParams struct {
 	MusicBrainzID Optional[*string]
 }
 
+type SetArtistInfo struct {
+	Biography  *string
+	LastFMURL  *string
+	LastFMMBID *string
+}
+
 type ArtistRepository interface {
 	Create(ctx context.Context, params CreateArtistParams) (*Artist, error)
 	CreateIfNotExistsByName(ctx context.Context, params []CreateArtistParams) error
@@ -82,4 +97,7 @@ type ArtistRepository interface {
 
 	SetRating(ctx context.Context, user, artistID string, rating int) error
 	RemoveRating(ctx context.Context, user, artistID string) error
+
+	GetInfo(ctx context.Context, artistID string, after time.Time) (*ArtistInfo, error)
+	SetInfo(ctx context.Context, artistID string, params SetArtistInfo) error
 }

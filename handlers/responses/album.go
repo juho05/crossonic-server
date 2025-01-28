@@ -80,7 +80,7 @@ func NewAlbum(a *repos.CompleteAlbum) *Album {
 		})
 	}
 
-	if hasCoverArt(a.ID) {
+	if HasCoverArt(a.ID) {
 		album.CoverArt = &a.ID
 	}
 

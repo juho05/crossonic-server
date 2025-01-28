@@ -162,6 +162,16 @@ func (a artistRepository) RemoveRating(ctx context.Context, user, artistID strin
 	return executeQuery(ctx, a.db, q)
 }
 
+func (a artistRepository) GetInfo(ctx context.Context, artistID string, after time.Time) (*repos.ArtistInfo, error) {
+	q := bqb.New("SELECT artists.id, artists.info_updated, artists.biography, artists.lastfm_url, artists.lastfm_mbid, artists.music_brainz_id FROM artists WHERE artists.id = ? AND (artists.info_updated IS NULL OR artists.info_updated > ?)", artistID, after)
+	return getQuery[*repos.ArtistInfo](ctx, a.db, q)
+}
+
+func (a artistRepository) SetInfo(ctx context.Context, artistID string, params repos.SetArtistInfo) error {
+	q := bqb.New("UPDATE artists SET info_updated=NOW(), biography=?, lastfm_url=?, lastfm_mbid=? WHERE id = ?", params.Biography, params.LastFMURL, params.LastFMMBID, artistID)
+	return executeQueryExpectAffectedRows(ctx, a.db, q)
+}
+
 // helpers
 
 func genArtistSelectList(include repos.IncludeArtistInfo) *bqb.Query {

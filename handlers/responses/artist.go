@@ -45,7 +45,7 @@ func NewArtist(a *repos.CompleteArtist) *Artist {
 		artist.AverageRating = a.AverageRating
 	}
 
-	if hasCoverArt(a.ID) {
+	if HasCoverArt(a.ID) {
 		artist.CoverArt = &a.ID
 	}
 	return artist

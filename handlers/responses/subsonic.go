@@ -82,17 +82,17 @@ type LyricsList struct {
 }
 
 type StructuredLyrics struct {
-	Lang          string  `xml:"lang" json:"lang"`
-	Synced        bool    `xml:"synced" json:"synced"`
-	DisplayArtist string  `xml:"displayArtist,omitempty" json:"displayArtist,omitempty"`
-	DisplayTitle  string  `xml:"displayTitle,omitempty" json:"displayTitle,omitempty"`
-	Offset        int     `xml:"offset,omitempty" json:"offset,omitempty"`
+	Lang          string  `xml:"lang,attr" json:"lang"`
+	Synced        bool    `xml:"synced,attr" json:"synced"`
+	DisplayArtist string  `xml:"displayArtist,attr,omitempty" json:"displayArtist,omitempty"`
+	DisplayTitle  string  `xml:"displayTitle,attr,omitempty" json:"displayTitle,omitempty"`
+	Offset        int     `xml:"offset,attr,omitempty" json:"offset,omitempty"`
 	Line          []*Line `xml:"line" json:"line"`
 }
 
 type Line struct {
-	Value string `xml:"value" json:"value"`
-	Start *int   `xml:"start,omitempty" json:"start,omitempty"`
+	Value string `xml:",chardata" json:"value"`
+	Start *int   `xml:"start,attr,omitempty" json:"start,omitempty"`
 }
 
 type Starred struct {
@@ -109,4 +109,22 @@ type Starred2 struct {
 
 type SongsByGenre struct {
 	Songs []*Song `xml:"song" json:"song"`
+}
+
+type AlbumInfo struct {
+	Notes          *string `xml:"notes,omitempty" json:"notes,omitempty"`
+	MusicBrainzID  *string `xml:"musicBrainzId,omitempty" json:"musicBrainzId,omitempty"`
+	LastFMUrl      *string `xml:"lastFmUrl,omitempty" json:"lastFmUrl,omitempty"`
+	SmallImageURL  *string `xml:"smallImageUrl,omitempty" json:"smallImageUrl,omitempty"`
+	MediumImageURL *string `xml:"mediumImageUrl,omitempty" json:"mediumImageUrl,omitempty"`
+	LargeImageURL  *string `xml:"largeImageUrl,omitempty" json:"largeImageUrl,omitempty"`
+}
+
+type ArtistInfo struct {
+	Biography      *string `xml:"biography,omitempty" json:"biography,omitempty"`
+	MusicBrainzID  *string `xml:"musicBrainzId,omitempty" json:"musicBrainzId,omitempty"`
+	LastFMUrl      *string `xml:"lastFmUrl,omitempty" json:"lastFmUrl,omitempty"`
+	SmallImageURL  *string `xml:"smallImageUrl,omitempty" json:"smallImageUrl,omitempty"`
+	MediumImageURL *string `xml:"mediumImageUrl,omitempty" json:"mediumImageUrl,omitempty"`
+	LargeImageURL  *string `xml:"largeImageUrl,omitempty" json:"largeImageUrl,omitempty"`
 }

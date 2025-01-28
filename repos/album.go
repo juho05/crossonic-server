@@ -45,6 +45,15 @@ type CompleteAlbum struct {
 	*AlbumLists
 }
 
+type AlbumInfo struct {
+	AlbumID       string     `db:"id"`
+	Updated       *time.Time `db:"info_updated"`
+	Description   *string    `db:"description"`
+	LastFMURL     *string    `db:"lastfm_url"`
+	LastFMMBID    *string    `db:"lastfm_mbid"`
+	MusicBrainzID *string    `db:"music_brainz_id"`
+}
+
 // params
 
 type IncludeAlbumInfo struct {
@@ -111,6 +120,12 @@ type FindAlbumParams struct {
 	Paginate Paginate
 }
 
+type SetAlbumInfo struct {
+	Description *string
+	LastFMURL   *string
+	LastFMMBID  *string
+}
+
 // return types
 
 type FindAlbumsByNameWithArtistMatchCountResult struct {
@@ -144,6 +159,9 @@ type AlbumRepository interface {
 
 	SetRating(ctx context.Context, user, albumID string, rating int) error
 	RemoveRating(ctx context.Context, user, albumID string) error
+
+	GetInfo(ctx context.Context, albumID string, after time.Time) (*AlbumInfo, error)
+	SetInfo(ctx context.Context, albumID string, params SetAlbumInfo) error
 
 	FindAlbumsByNameWithArtistMatchCount(ctx context.Context, albumName string, artistNames []string) ([]*FindAlbumsByNameWithArtistMatchCountResult, error)
 }

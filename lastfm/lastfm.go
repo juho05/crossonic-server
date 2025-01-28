@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/andybalholm/cascadia"
@@ -37,26 +38,77 @@ func New(apiKey string) *LastFm {
 }
 
 type ArtistInfo struct {
-	Name string `json:"name"`
-	MBID string `json:"mbid"`
-	URL  string `json:"url"`
-	Bio  *struct {
-		Published string `json:"published"`
-		Content   string `json:"content"`
+	Name string  `json:"name"`
+	MBID *string `json:"mbid"`
+	URL  string  `json:"url"`
+	Bio  struct {
+		Summary *string `json:"summary"`
+		Content *string `json:"content"`
 	} `json:"bio"`
 }
 
 func (l *LastFm) GetArtistInfo(ctx context.Context, name string, mbid *string) (ArtistInfo, error) {
 	params := make(map[string][]string, 3)
-	params["artist"] = []string{name}
 	if mbid != nil {
 		params["mbid"] = []string{*mbid}
+	} else {
+		params["artist"] = []string{name}
 	}
 	params["autocorrect"] = []string{"1"}
+
 	log.Tracef("fetching artist info for %s from last.fm...", name)
 	res, err := lastFMRequest[ArtistInfo](l, ctx, "artist.getinfo", "artist", params)
+	if mbid != nil && errors.Is(err, ErrNotFound) {
+		log.Tracef("artist %s not found on last.fm with mbid, trying by name...", name)
+		delete(params, "mbid")
+		params["artist"] = []string{name}
+		res, err = lastFMRequest[ArtistInfo](l, ctx, "artist.getinfo", "artist", params)
+	}
 	if err != nil {
 		return ArtistInfo{}, fmt.Errorf("get artist info: %w", err)
+	}
+	if res.Bio.Content != nil {
+		c := cleanUpLastFmDescription(*res.Bio.Content)
+		res.Bio.Content = &c
+	}
+	return res, nil
+}
+
+type AlbumInfo struct {
+	Name string  `json:"name"`
+	MBID *string `json:"mbid"`
+	URL  string  `json:"url"`
+	Wiki struct {
+		Summary *string `json:"summary"`
+		Content *string `json:"content"`
+	} `json:"wiki"`
+}
+
+func (l *LastFm) GetAlbumInfo(ctx context.Context, name, artistName string, mbid *string) (AlbumInfo, error) {
+	params := make(map[string][]string, 3)
+	if mbid != nil {
+		params["mbid"] = []string{*mbid}
+	} else {
+		params["artist"] = []string{artistName}
+		params["album"] = []string{name}
+	}
+	params["autocorrect"] = []string{"1"}
+
+	log.Tracef("fetching album info for %s from last.fm...", name)
+	res, err := lastFMRequest[AlbumInfo](l, ctx, "album.getinfo", "album", params)
+	if errors.Is(err, ErrNotFound) {
+		log.Tracef("album %s not found on last.fm with mbid, trying by name...", name)
+		delete(params, "mbid")
+		params["artist"] = []string{artistName}
+		params["album"] = []string{name}
+		res, err = lastFMRequest[AlbumInfo](l, ctx, "album.getinfo", "album", params)
+	}
+	if err != nil {
+		return AlbumInfo{}, fmt.Errorf("get album info: %w", err)
+	}
+	if res.Wiki.Content != nil {
+		c := cleanUpLastFmDescription(*res.Wiki.Content)
+		res.Wiki.Content = &c
 	}
 	return res, nil
 }
@@ -128,10 +180,10 @@ func lastFMRequest[T any](l *LastFm, ctx context.Context, method, responseKey st
 				log.Errorf("invalid value of X-RateLimit-Reset-In/Retry-After in 429 last.fm response: %s", secondsStr)
 				seconds = 1
 			} else {
-				seconds = int(math.Round(time.Until(t).Seconds()) + 0.5)
+				seconds = int(math.Ceil(time.Until(t).Seconds()))
 			}
 		}
-		time.Sleep(time.Duration(seconds)*time.Second + 500*time.Millisecond)
+		time.Sleep(time.Duration(seconds) * time.Second)
 		return lastFMRequest[T](l, ctx, method, responseKey, params)
 	}
 	defer res.Body.Close()
@@ -176,4 +228,35 @@ func lastFMRequest[T any](l *LastFm, ctx context.Context, method, responseKey st
 	} else {
 		return obj, fmt.Errorf("last.fm request: response key %s does not exist in response: %w", responseKey, ErrUnexpectedResponseBody)
 	}
+}
+
+func cleanUpLastFmDescription(description string) string {
+	runes := []rune(description)
+	var builder strings.Builder
+	for i := 0; i < len(runes); i++ {
+		// replace newlines with space
+		if runes[i] == '\n' {
+			runes[i] = ' '
+		}
+
+		// skip double space
+		if runes[i] == ' ' && i > 0 && runes[i-1] == ' ' {
+			continue
+		}
+
+		if i < len(description)-1 {
+			// remove <a> tags
+			if runes[i] == '<' && (runes[i+1] == 'a' || (runes[i+1] == '/' && i < len(runes)-2 && runes[i+2] == 'a')) {
+				for i < len(runes) && runes[i] != '>' {
+					i++
+				}
+				continue
+			}
+		}
+
+		builder.WriteRune(runes[i])
+	}
+	str := builder.String()
+	str = strings.TrimSuffix(str, "Read more on Last.fm. User-contributed text is available under the Creative Commons By-SA License; additional terms may apply.")
+	return strings.TrimSpace(str)
 }

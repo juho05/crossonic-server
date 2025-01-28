@@ -221,6 +221,18 @@ func (a albumRepository) FindAlbumsByNameWithArtistMatchCount(ctx context.Contex
 	return selectQuery[*repos.FindAlbumsByNameWithArtistMatchCountResult](ctx, a.db, q)
 }
 
+func (a albumRepository) GetInfo(ctx context.Context, albumID string, after time.Time) (*repos.AlbumInfo, error) {
+	q := bqb.New("SELECT albums.id, albums.info_updated, albums.description, albums.lastfm_url, albums.lastfm_mbid, albums.music_brainz_id FROM albums WHERE albums.id = ? AND (albums.info_updated IS NULL OR albums.info_updated > ?)", albumID, after)
+	return getQuery[*repos.AlbumInfo](ctx, a.db, q)
+}
+
+func (a albumRepository) SetInfo(ctx context.Context, albumID string, params repos.SetAlbumInfo) error {
+	q := bqb.New("UPDATE albums SET info_updated=NOW(), description=?, lastfm_url=?, lastfm_mbid=? WHERE id = ?", params.Description, params.LastFMURL, params.LastFMMBID, albumID)
+	return executeQueryExpectAffectedRows(ctx, a.db, q)
+}
+
+// helpers
+
 func genAlbumSelectList(include repos.IncludeAlbumInfo) *bqb.Query {
 	q := bqb.New(`albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_mbid,
 		albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak`)

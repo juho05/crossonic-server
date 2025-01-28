@@ -26,10 +26,14 @@
 - [x] [getArtist](https://opensubsonic.netlify.app/docs/endpoints/getartist)
 - [x] [getAlbum](https://opensubsonic.netlify.app/docs/endpoints/getalbum)
 - [x] [getSong](https://opensubsonic.netlify.app/docs/endpoints/getsong)
-- [ ] [getArtistInfo](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo)
-- [ ] [getArtistInfo2](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo2)
-- [ ] [getAlbumInfo](https://opensubsonic.netlify.app/docs/endpoints/getalbuminfo)
-- [ ] [getAlbumInfo2](https://opensubsonic.netlify.app/docs/endpoints/getalbuminfo2)
+- [x] [getArtistInfo](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo)
+  - identical to _getArtistInfo2_
+- [x] [getArtistInfo2](https://opensubsonic.netlify.app/docs/endpoints/getartistinfo2)
+  - [ ] similar artists
+- [x] [getAlbumInfo](https://opensubsonic.netlify.app/docs/endpoints/getalbuminfo)
+  - identical to _getAlbumInfo2_
+- [x] [getAlbumInfo2](https://opensubsonic.netlify.app/docs/endpoints/getalbuminfo2)
+  - [ ] similar albums
 - [ ] [getSimilarSongs](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs)
 - [ ] [getSimilarSongs2](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs2)
 - [ ] [getTopSongs](https://opensubsonic.netlify.app/docs/endpoints/gettopsongs)

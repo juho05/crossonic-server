@@ -4,13 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 	"unicode"
 
+	"github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
+
+const keepLastFMInfoFor = 30 * 24 * time.Hour
 
 func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
@@ -174,4 +180,213 @@ func (h *Handler) handleGetArtists(w http.ResponseWriter, r *http.Request) {
 		Index:           indexList,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
+}
+
+func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
+		return
+	}
+
+	if typ, _ := crossonic.GetIDType(id); typ == crossonic.IDTypeSong {
+		song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoBare())
+		if err != nil {
+			respondErr(w, format(r), fmt.Errorf("get album info: find song: %w", err))
+			return
+		}
+		if song.AlbumID == nil {
+			responses.EncodeError(w, format(r), "song has no album", responses.SubsonicErrorNotFound)
+			return
+		}
+		id = *song.AlbumID
+	}
+
+	info, err := h.DB.Album().GetInfo(r.Context(), id, time.Now().Add(-keepLastFMInfoFor))
+	if err != nil {
+		respondErr(w, format(r), fmt.Errorf("get album info: get info: %w", err))
+		return
+	}
+
+	if info.Updated == nil && h.LastFM != nil {
+		album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
+			Lists: true,
+		})
+		if err != nil {
+			respondErr(w, format(r), fmt.Errorf("get album info: find album: %w", err))
+			return
+		}
+		if len(album.Artists) > 0 {
+			lInfo, err := h.LastFM.GetAlbumInfo(r.Context(), album.Name, album.Artists[0].Name, album.MusicBrainzID)
+			if err != nil {
+				respondErr(w, format(r), fmt.Errorf("get album info: fetch last.fm data: %w", err))
+				return
+			}
+			info.Description = lInfo.Wiki.Content
+			info.LastFMMBID = lInfo.MBID
+			info.LastFMURL = &lInfo.URL
+
+			err = h.DB.Album().SetInfo(r.Context(), id, repos.SetAlbumInfo{
+				Description: info.Description,
+				LastFMURL:   info.LastFMURL,
+				LastFMMBID:  info.LastFMMBID,
+			})
+			if err != nil {
+				respondErr(w, format(r), fmt.Errorf("get album info: save new last.fm data in DB: %w", err))
+				return
+			}
+		}
+	}
+
+	mbid := info.MusicBrainzID
+	if mbid == nil {
+		mbid = info.LastFMMBID
+	}
+
+	var smallImageUrl *string
+	var mediumImageUrl *string
+	var largeImageUrl *string
+	if responses.HasCoverArt(id) {
+		u := constructCoverURL(id, getQuery(r))
+		sm := fmt.Sprintf("%s&size=64", u)
+		md := fmt.Sprintf("%s&size=256", u)
+		lg := fmt.Sprintf("%s&size=512", u)
+		smallImageUrl = &sm
+		mediumImageUrl = &md
+		largeImageUrl = &lg
+	}
+
+	res := responses.New()
+	res.AlbumInfo = &responses.AlbumInfo{
+		Notes:          info.Description,
+		MusicBrainzID:  mbid,
+		LastFMUrl:      info.LastFMURL,
+		SmallImageURL:  smallImageUrl,
+		MediumImageURL: mediumImageUrl,
+		LargeImageURL:  largeImageUrl,
+	}
+	res.EncodeOrLog(w, format(r))
+}
+
+func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, ok := paramIDReq(w, r, "id")
+		if !ok {
+			return
+		}
+
+		if typ, _ := crossonic.GetIDType(id); typ == crossonic.IDTypeSong {
+			song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfo{
+				Lists: true,
+			})
+			if err != nil {
+				respondErr(w, format(r), fmt.Errorf("get artist info: find song: %w", err))
+				return
+			}
+			if len(song.AlbumArtists) > 0 {
+				id = song.AlbumArtists[0].ID
+			} else if len(song.Artists) > 0 {
+				id = song.Artists[0].ID
+			} else {
+				responses.EncodeError(w, format(r), "song has no artists", responses.SubsonicErrorNotFound)
+				return
+			}
+		} else if typ == crossonic.IDTypeAlbum {
+			album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
+				Lists: true,
+			})
+			if err != nil {
+				respondErr(w, format(r), fmt.Errorf("get artist info: find album: %w", err))
+				return
+			}
+			if len(album.Artists) > 0 {
+				id = album.Artists[0].ID
+			} else {
+				responses.EncodeError(w, format(r), "album has no artists", responses.SubsonicErrorNotFound)
+				return
+			}
+		}
+
+		info, err := h.DB.Artist().GetInfo(r.Context(), id, time.Now().Add(-keepLastFMInfoFor))
+		if err != nil {
+			respondErr(w, format(r), fmt.Errorf("get artist info: get info: %w", err))
+			return
+		}
+
+		if info.Updated == nil && h.LastFM != nil {
+			artist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfoBare())
+			if err != nil {
+				respondErr(w, format(r), fmt.Errorf("get album info: find album: %w", err))
+				return
+			}
+			lInfo, err := h.LastFM.GetArtistInfo(r.Context(), artist.Name, artist.MusicBrainzID)
+			if err != nil {
+				respondErr(w, format(r), fmt.Errorf("get album info: fetch last.fm data: %w", err))
+				return
+			}
+			info.Biography = lInfo.Bio.Content
+			info.LastFMMBID = lInfo.MBID
+			info.LastFMURL = &lInfo.URL
+
+			err = h.DB.Artist().SetInfo(r.Context(), id, repos.SetArtistInfo{
+				Biography:  info.Biography,
+				LastFMURL:  info.LastFMURL,
+				LastFMMBID: info.LastFMMBID,
+			})
+			if err != nil {
+				respondErr(w, format(r), fmt.Errorf("get album info: save new last.fm data in DB: %w", err))
+				return
+			}
+		}
+
+		mbid := info.MusicBrainzID
+		if mbid == nil {
+			mbid = info.LastFMMBID
+		}
+
+		var smallImageUrl *string
+		var mediumImageUrl *string
+		var largeImageUrl *string
+		if responses.HasCoverArt(id) {
+			u := constructCoverURL(id, getQuery(r))
+			sm := fmt.Sprintf("%s&size=64", u)
+			md := fmt.Sprintf("%s&size=256", u)
+			lg := fmt.Sprintf("%s&size=512", u)
+			smallImageUrl = &sm
+			mediumImageUrl = &md
+			largeImageUrl = &lg
+		}
+
+		res := responses.New()
+		artistInfo := &responses.ArtistInfo{
+			Biography:      info.Biography,
+			MusicBrainzID:  mbid,
+			LastFMUrl:      info.LastFMURL,
+			SmallImageURL:  smallImageUrl,
+			MediumImageURL: mediumImageUrl,
+			LargeImageURL:  largeImageUrl,
+		}
+		if version == 2 {
+			res.ArtistInfo2 = artistInfo
+		} else {
+			res.ArtistInfo = artistInfo
+		}
+		res.EncodeOrLog(w, format(r))
+	}
+}
+
+func constructCoverURL(id string, query url.Values) string {
+	u := fmt.Sprintf("%s/rest/getCoverArt?id=%s&c=%s&u=%s&v=%s", config.BaseURL(), id, query.Get("c"), query.Get("u"), query.Get("v"))
+	if query.Has("p") {
+		u += "&p=" + query.Get("p")
+	}
+	if query.Has("t") {
+		u += "&t=" + query.Get("t")
+	}
+	if query.Has("s") {
+		u += "&s=" + query.Get("s")
+	}
+	if query.Has("apiKey") {
+		u += "&apiKey=" + query.Get("apiKey")
+	}
+	return u
 }

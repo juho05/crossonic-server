@@ -8,7 +8,7 @@ import (
 	"github.com/juho05/crossonic-server/config"
 )
 
-func hasCoverArt(id string) bool {
+func HasCoverArt(id string) bool {
 	idType, ok := crossonic.GetIDType(id)
 	if !ok {
 		return false

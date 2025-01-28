@@ -52,6 +52,9 @@ type Response struct {
 	Starred                *Starred                `xml:"starred,omitempty" json:"starred,omitempty"`
 	Starred2               *Starred2               `xml:"starred2,omitempty" json:"starred2,omitempty"`
 	SongsByGenre           *SongsByGenre           `xml:"songsByGenre,omitempty" json:"songsByGenre,omitempty"`
+	AlbumInfo              *AlbumInfo              `xml:"albumInfo,omitempty" json:"albumInfo,omitempty"`
+	ArtistInfo             *ArtistInfo             `xml:"artistInfo,omitempty" json:"artistInfo,omitempty"`
+	ArtistInfo2            *ArtistInfo             `xml:"artistInfo2,omitempty" json:"artistInfo2,omitempty"`
 
 	// Crossonic
 	ListenBrainzConfig *ListenBrainzConfig `xml:"listenBrainzConfig,omitempty" json:"listenBrainzConfig,omitempty"`
