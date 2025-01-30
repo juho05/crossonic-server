@@ -80,21 +80,31 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 	case repos.FindAlbumSortByCreated:
 		orderBy.Space("albums.created DESC, lower(albums.name)")
 	case repos.FindAlbumSortByRating:
-		orderBy.Space("COALESCE(album_ratings.rating)")
+		orderBy.Space("COALESCE(album_ratings.rating, 0), lower(albums.name)")
 		if !include.Annotations || include.User == "" {
-			return nil, repos.NewError("find all albums ordered by rating requires include.Annotations and include.AnnotationUser to be set", repos.ErrInvalidParams, nil)
+			return nil, repos.NewError("find all albums ordered by rating requires include.Annotations and include.User to be set", repos.ErrInvalidParams, nil)
 		}
 	case repos.FindAlbumSortByStarred:
 		orderBy.Space("album_stars.created DESC, lower(albums.name)")
 		where.And("(album_stars.created IS NOT NULL)")
 		if !include.Annotations || include.User == "" {
-			return nil, repos.NewError("find all albums ordered by starred requires include.Annotations and include.AnnotationUser to be set", repos.ErrInvalidParams, nil)
+			return nil, repos.NewError("find all albums ordered by starred requires include.Annotations and include.User to be set", repos.ErrInvalidParams, nil)
 		}
 	case repos.FindAlbumSortRandom:
 		orderBy.Space("random()")
 	case repos.FindAlbumSortByYear:
 		orderBy.Space("albums.year, lower(albums.name)")
 		where.And("(albums.year IS NOT NULL)")
+	case repos.FindAlbumSortByFrequent:
+		if !include.PlayInfo || include.User == "" {
+			return nil, repos.NewError("find all albums ordered by frequency requires include.PlayInfo and include.User to be set", repos.ErrInvalidParams, nil)
+		}
+		orderBy.Space("COALESCE(plays.count, 0) DESC, lower(albums.name)")
+	case repos.FindAlbumSortByRecent:
+		if !include.PlayInfo || include.User == "" {
+			return nil, repos.NewError("find all albums ordered by last played requires include.PlayInfo and include.User to be set", repos.ErrInvalidParams, nil)
+		}
+		orderBy.Space("plays.last_played DESC NULLS LAST, lower(albums.name)")
 	}
 
 	q = bqb.New("? ? ?", q, where, orderBy)
@@ -113,7 +123,7 @@ func (a albumRepository) FindBySearch(ctx context.Context, query string, paginat
 
 func (a albumRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	if !include.Annotations || include.User == "" {
-		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
+		return nil, repos.NewError("include.Annotations and include.User required", repos.ErrInvalidParams, nil)
 	}
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 	q.Space("WHERE album_stars.created IS NOT NULL")

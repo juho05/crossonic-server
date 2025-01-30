@@ -46,10 +46,10 @@
   - [x] random
   - [x] newest
   - [x] highest
-  - [ ] frequent
-  - [ ] recent
+  - [x] frequent
+  - [x] recent
   - [x] alphabeticalByName
-  - [ ] alphabeticalByArtist
+  - [ ] alphabeticalByArtist -> *impossible because of multiple artists*
   - [x] starred
   - [x] byYear
   - [x] byGenre

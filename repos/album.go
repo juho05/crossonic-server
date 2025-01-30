@@ -119,6 +119,8 @@ const (
 	FindAlbumSortByStarred
 	FindAlbumSortRandom
 	FindAlbumSortByYear
+	FindAlbumSortByFrequent
+	FindAlbumSortByRecent
 )
 
 type FindAlbumParams struct {

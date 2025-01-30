@@ -84,7 +84,7 @@ func (s songRepository) FindBySearch(ctx context.Context, params repos.SongFindB
 
 func (s songRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	if !include.Annotations || include.User == "" {
-		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
+		return nil, repos.NewError("include.Annotations and include.User required", repos.ErrInvalidParams, nil)
 	}
 	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
 	q.Space("WHERE song_stars.created IS NOT NULL")
