@@ -386,7 +386,7 @@ func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) 
 	if err != nil {
 		return fmt.Errorf("load artist cover from last fm by id: %w", err)
 	}
-	imageURL, err := h.LastFM.GetArtistImageURL(ctx, info.URL)
+	imageURL, err := h.LastFM.GetArtistImageURL(ctx, *info.URL)
 	if err != nil {
 		return fmt.Errorf("load artist cover from last fm by id: %w", err)
 	}

@@ -40,7 +40,7 @@ func New(apiKey string) *LastFm {
 type ArtistInfo struct {
 	Name string  `json:"name"`
 	MBID *string `json:"mbid"`
-	URL  string  `json:"url"`
+	URL  *string `json:"url"`
 	Bio  struct {
 		Summary *string `json:"summary"`
 		Content *string `json:"content"`
@@ -77,7 +77,7 @@ func (l *LastFm) GetArtistInfo(ctx context.Context, name string, mbid *string) (
 type AlbumInfo struct {
 	Name string  `json:"name"`
 	MBID *string `json:"mbid"`
-	URL  string  `json:"url"`
+	URL  *string `json:"url"`
 	Wiki struct {
 		Summary *string `json:"summary"`
 		Content *string `json:"content"`

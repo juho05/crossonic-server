@@ -12,6 +12,7 @@ import (
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
+	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
@@ -217,22 +218,24 @@ func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(album.Artists) > 0 {
 			lInfo, err := h.LastFM.GetAlbumInfo(r.Context(), album.Name, album.Artists[0].Name, album.MusicBrainzID)
-			if err != nil {
+			if err != nil && !errors.Is(err, lastfm.ErrNotFound) {
 				respondErr(w, format(r), fmt.Errorf("get album info: fetch last.fm data: %w", err))
 				return
 			}
 			info.Description = lInfo.Wiki.Content
 			info.LastFMMBID = lInfo.MBID
-			info.LastFMURL = &lInfo.URL
+			info.LastFMURL = lInfo.URL
 
-			err = h.DB.Album().SetInfo(r.Context(), id, repos.SetAlbumInfo{
-				Description: info.Description,
-				LastFMURL:   info.LastFMURL,
-				LastFMMBID:  info.LastFMMBID,
-			})
-			if err != nil {
-				respondErr(w, format(r), fmt.Errorf("get album info: save new last.fm data in DB: %w", err))
-				return
+			if err == nil {
+				err = h.DB.Album().SetInfo(r.Context(), id, repos.SetAlbumInfo{
+					Description: info.Description,
+					LastFMURL:   info.LastFMURL,
+					LastFMMBID:  info.LastFMMBID,
+				})
+				if err != nil {
+					respondErr(w, format(r), fmt.Errorf("get album info: save new last.fm data in DB: %w", err))
+					return
+				}
 			}
 		}
 	}
@@ -319,22 +322,24 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 				return
 			}
 			lInfo, err := h.LastFM.GetArtistInfo(r.Context(), artist.Name, artist.MusicBrainzID)
-			if err != nil {
+			if err != nil && !errors.Is(err, lastfm.ErrNotFound) {
 				respondErr(w, format(r), fmt.Errorf("get album info: fetch last.fm data: %w", err))
 				return
 			}
 			info.Biography = lInfo.Bio.Content
 			info.LastFMMBID = lInfo.MBID
-			info.LastFMURL = &lInfo.URL
+			info.LastFMURL = lInfo.URL
 
-			err = h.DB.Artist().SetInfo(r.Context(), id, repos.SetArtistInfo{
-				Biography:  info.Biography,
-				LastFMURL:  info.LastFMURL,
-				LastFMMBID: info.LastFMMBID,
-			})
-			if err != nil {
-				respondErr(w, format(r), fmt.Errorf("get album info: save new last.fm data in DB: %w", err))
-				return
+			if err == nil {
+				err = h.DB.Artist().SetInfo(r.Context(), id, repos.SetArtistInfo{
+					Biography:  info.Biography,
+					LastFMURL:  info.LastFMURL,
+					LastFMMBID: info.LastFMMBID,
+				})
+				if err != nil {
+					respondErr(w, format(r), fmt.Errorf("get album info: save new last.fm data in DB: %w", err))
+					return
+				}
 			}
 		}
 
