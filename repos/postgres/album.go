@@ -81,13 +81,13 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 		orderBy.Space("albums.created DESC, lower(albums.name)")
 	case repos.FindAlbumSortByRating:
 		orderBy.Space("COALESCE(album_ratings.rating)")
-		if !include.Annotations || include.AnnotationUser == "" {
+		if !include.Annotations || include.User == "" {
 			return nil, repos.NewError("find all albums ordered by rating requires include.Annotations and include.AnnotationUser to be set", repos.ErrInvalidParams, nil)
 		}
 	case repos.FindAlbumSortByStarred:
 		orderBy.Space("album_stars.created DESC, lower(albums.name)")
 		where.And("(album_stars.created IS NOT NULL)")
-		if !include.Annotations || include.AnnotationUser == "" {
+		if !include.Annotations || include.User == "" {
 			return nil, repos.NewError("find all albums ordered by starred requires include.Annotations and include.AnnotationUser to be set", repos.ErrInvalidParams, nil)
 		}
 	case repos.FindAlbumSortRandom:
@@ -112,7 +112,7 @@ func (a albumRepository) FindBySearch(ctx context.Context, query string, paginat
 }
 
 func (a albumRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
-	if !include.Annotations || include.AnnotationUser == "" {
+	if !include.Annotations || include.User == "" {
 		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
 	}
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
@@ -243,10 +243,15 @@ func genAlbumSelectList(include repos.IncludeAlbumInfo) *bqb.Query {
 
 	if include.Annotations {
 		q.Comma("avgr.rating AS avg_rating")
-		if include.AnnotationUser != "" {
+		if include.User != "" {
 			q.Comma("album_stars.created as starred, album_ratings.rating AS user_rating")
 		}
 	}
+
+	if include.PlayInfo && include.User != "" {
+		q.Comma("COALESCE(plays.count, 0) as play_count, plays.last_played")
+	}
+
 	return q
 }
 
@@ -260,13 +265,19 @@ func genAlbumJoins(include repos.IncludeAlbumInfo) *bqb.Query {
 	}
 
 	if include.Annotations {
-		if include.AnnotationUser != "" {
-			q.Space("LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = ?", include.AnnotationUser)
-			q.Space("LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = ?", include.AnnotationUser)
+		if include.User != "" {
+			q.Space("LEFT JOIN album_stars ON album_stars.album_id = albums.id AND album_stars.user_name = ?", include.User)
+			q.Space("LEFT JOIN album_ratings ON album_ratings.album_id = albums.id AND album_ratings.user_name = ?", include.User)
 		}
 		q.Space(`LEFT JOIN (
 				SELECT album_id, AVG(album_ratings.rating) AS rating FROM album_ratings GROUP BY album_id
 			) avgr ON avgr.album_id = albums.id`)
+	}
+
+	if include.PlayInfo && include.User != "" {
+		q.Space(`LEFT JOIN (
+			SELECT album_id, COUNT(*) as count, MAX(time) as last_played FROM scrobbles WHERE user_name = ? AND album_id IS NOT NULL GROUP BY (user_name, album_id)
+		) plays ON plays.album_id = albums.id`, include.User)
 	}
 
 	return q

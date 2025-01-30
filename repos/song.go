@@ -45,6 +45,11 @@ type SongAnnotations struct {
 	AverageRating *float64   `db:"avg_rating"`
 }
 
+type SongPlayInfo struct {
+	PlayCount  int        `db:"play_count"`
+	LastPlayed *time.Time `db:"last_played"`
+}
+
 type SongLists struct {
 	Genres       []string    `db:"-"`
 	Artists      []ArtistRef `db:"-"`
@@ -61,6 +66,7 @@ type CompleteSong struct {
 	Song
 	*SongAlbumInfo
 	*SongAnnotations
+	*SongPlayInfo
 	*SongLists
 }
 
@@ -77,8 +83,9 @@ type SongStreamInfo struct {
 type IncludeSongInfo struct {
 	Album bool
 
-	Annotations    bool
-	AnnotationUser string
+	User        string
+	Annotations bool
+	PlayInfo    bool
 
 	Lists bool
 }
@@ -95,10 +102,11 @@ func IncludeSongInfoAlbum() IncludeSongInfo {
 
 func IncludeSongInfoFull(user string) IncludeSongInfo {
 	return IncludeSongInfo{
-		Album:          true,
-		Annotations:    true,
-		AnnotationUser: user,
-		Lists:          true,
+		Album:       true,
+		User:        user,
+		Annotations: true,
+		PlayInfo:    true,
+		Lists:       true,
 	}
 }
 

@@ -83,7 +83,7 @@ func (s songRepository) FindBySearch(ctx context.Context, params repos.SongFindB
 }
 
 func (s songRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	if !include.Annotations || include.AnnotationUser == "" {
+	if !include.Annotations || include.User == "" {
 		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
 	}
 	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
@@ -309,9 +309,13 @@ func genSongSelectList(include repos.IncludeSongInfo) *bqb.Query {
 
 	if include.Annotations {
 		q.Comma("avgr.rating AS avg_rating")
-		if include.AnnotationUser != "" {
+		if include.User != "" {
 			q.Comma("song_stars.created as starred, song_ratings.rating AS user_rating")
 		}
+	}
+
+	if include.PlayInfo && include.User != "" {
+		q.Comma("COALESCE(plays.count, 0) as play_count, plays.last_played")
 	}
 	return q
 }
@@ -324,13 +328,19 @@ func genSongJoins(include repos.IncludeSongInfo) *bqb.Query {
 	}
 
 	if include.Annotations {
-		if include.AnnotationUser != "" {
-			q.Space("LEFT JOIN song_stars ON song_stars.song_id = songs.id AND song_stars.user_name = ?", include.AnnotationUser)
-			q.Space("LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_name = ?", include.AnnotationUser)
+		if include.User != "" {
+			q.Space("LEFT JOIN song_stars ON song_stars.song_id = songs.id AND song_stars.user_name = ?", include.User)
+			q.Space("LEFT JOIN song_ratings ON song_ratings.song_id = songs.id AND song_ratings.user_name = ?", include.User)
 		}
 		q.Space(`LEFT JOIN (
 				SELECT song_id, AVG(song_ratings.rating) AS rating FROM song_ratings GROUP BY song_id
 			) avgr ON avgr.song_id = songs.id`)
+	}
+
+	if include.PlayInfo && include.User != "" {
+		q.Space(`LEFT JOIN (
+			SELECT song_id, COUNT(*) as count, MAX(time) as last_played FROM scrobbles WHERE user_name = ? GROUP BY (user_name, song_id)
+		) plays ON plays.song_id = songs.id`, include.User)
 	}
 
 	return q

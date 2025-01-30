@@ -87,6 +87,11 @@ func NewSong(s *repos.CompleteSong) *Song {
 		song.AverageRating = s.AverageRating
 	}
 
+	if s.SongPlayInfo != nil {
+		song.PlayCount = &s.PlayCount
+		song.Played = s.LastPlayed
+	}
+
 	if s.SongLists != nil {
 		song.Genres = newGenreRefs(s.Genres)
 		song.Genre = util.FirstOrNil(s.Genres)

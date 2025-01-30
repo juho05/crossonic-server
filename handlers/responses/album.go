@@ -18,6 +18,7 @@ type Album struct {
 	Name          string         `xml:"name,attr"              json:"name"`
 	SongCount     int            `xml:"songCount,attr"         json:"songCount"`
 	Duration      int            `xml:"duration,attr"          json:"duration"`
+	PlayCount     *int           `xml:"playCount,attr,omitempty" json:"playCount,omitempty"`
 	Genre         *string        `xml:"genre,attr,omitempty"   json:"genre,omitempty"`
 	Genres        []*GenreRef    `xml:"genres,omitempty"       json:"genres,omitempty"`
 	Year          *int           `xml:"year,attr,omitempty"    json:"year,omitempty"`
@@ -27,6 +28,7 @@ type Album struct {
 	IsDir         bool           `xml:"isDir,attr" json:"isDir"`
 	Type          string         `xml:"type,attr" json:"type"`
 	MediaType     string         `xml:"mediaType,attr" json:"mediaType"`
+	Played        *time.Time     `xml:"played,attr,omitempty" json:"played,omitempty"`
 	MusicBrainzID *string        `xml:"musicBrainzId,attr,omitempty" json:"musicBrainzId,omitempty"`
 	RecordLabels  []*RecordLabel `xml:"recordLabels,omitempty" json:"recordLabels,omitempty"`
 	ReleaseTypes  []string       `xml:"releaseTypes,omitempty" json:"releaseTypes,omitempty"`
@@ -65,6 +67,11 @@ func NewAlbum(a *repos.CompleteAlbum) *Album {
 		album.Starred = a.Starred
 		album.UserRating = a.UserRating
 		album.AverageRating = a.AverageRating
+	}
+
+	if a.AlbumPlayInfo != nil {
+		album.PlayCount = &a.PlayCount
+		album.Played = a.LastPlayed
 	}
 
 	if a.AlbumLists != nil {
