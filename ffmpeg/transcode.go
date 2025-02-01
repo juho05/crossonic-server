@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -139,22 +140,23 @@ func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitR
 }
 
 func (t *Transcoder) SeekRaw(path string, timeOffset time.Duration, w io.Writer, onDone func()) error {
-	cmd := exec.Command(ffmpegPath, "-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-")
+	ext := strings.TrimPrefix(filepath.Ext(path), ".")
+	cmd := exec.Command(ffmpegPath, "-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-c", "copy", "-f", ext, "-")
 
 	stderr := new(bytes.Buffer)
-	err := cmd.Start()
 	cmd.Stdout = w
 	cmd.Stderr = stderr
+	err := cmd.Start()
 	if err != nil {
-		return fmt.Errorf("ffmpeg: seek raw: %w", err)
+		return fmt.Errorf("ffmpeg: seek raw: start: %w", err)
 	}
 	go func() {
 		err = cmd.Wait()
 		if err != nil {
 			if stderr != nil {
-				log.Errorf("ffmpeg: seek raw: %s\n%s", err, stderr.String())
+				log.Errorf("ffmpeg: seek raw: wait: %s\n%s", err, stderr.String())
 			} else {
-				log.Errorf("ffmpeg: seek raw: %s", err)
+				log.Errorf("ffmpeg: seek raw: wait: %s", err)
 			}
 			return
 		}
