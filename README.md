@@ -16,6 +16,7 @@ other Subsonic media players.
 - [ ] Incremental library scan
 - [x] [ListenBrainz](https://listenbrainz.org) scrobbling
 - [x] Multiple users
+  - [x] per-user internet radio stations
 - [x] Transcoding and caching
   - [x] configurable with `format=` and `maxBitRate=` parameters
   - `raw`, `mp3`, `opus`, `vorbis`, `aac`

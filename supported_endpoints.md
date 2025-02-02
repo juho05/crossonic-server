@@ -123,10 +123,12 @@
 
 ### Internet Radio
 
-- [ ] [getInternetRadioStations](https://opensubsonic.netlify.app/docs/endpoints/getinternetradiostations)
-- [ ] [createInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/createinternetradiostation)
-- [ ] [updateInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/updateinternetradiostation)
-- [ ] [deleteInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/deleteinternetradiostation)
+**NOTE:** internet radio stations are stored on a *per-user* basis
+
+- [x] [getInternetRadioStations](https://opensubsonic.netlify.app/docs/endpoints/getinternetradiostations)
+- [x] [createInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/createinternetradiostation)
+- [x] [updateInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/updateinternetradiostation)
+- [x] [deleteInternetRadioStation](https://opensubsonic.netlify.app/docs/endpoints/deleteinternetradiostation)
 
 ### User Management
 

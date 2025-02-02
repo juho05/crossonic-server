@@ -58,6 +58,7 @@ type Response struct {
 	AlbumInfo              *AlbumInfo              `xml:"albumInfo,omitempty" json:"albumInfo,omitempty"`
 	ArtistInfo             *ArtistInfo             `xml:"artistInfo,omitempty" json:"artistInfo,omitempty"`
 	ArtistInfo2            *ArtistInfo             `xml:"artistInfo2,omitempty" json:"artistInfo2,omitempty"`
+	InternetRadioStations  *InternetRadioStations  `xml:"internetRadioStations,omitempty" json:"internetRadioStations,omitempty"`
 
 	// Crossonic
 	ListenBrainzConfig *ListenBrainzConfig `xml:"listenBrainzConfig,omitempty" json:"listenBrainzConfig,omitempty"`

@@ -148,3 +148,14 @@ type Directory struct {
 	PlayCount     *int       `xml:"playCount,attr,omitempty" json:"playCount,omitempty"`
 	Child         []any      `xml:"child" json:"child"`
 }
+
+type InternetRadioStations struct {
+	Stations []InternetRadioStation `xml:"internetRadioStation" json:"internetRadioStation"`
+}
+
+type InternetRadioStation struct {
+	ID          string  `xml:"id,attr" json:"id"`
+	Name        string  `xml:"name,attr" json:"name"`
+	StreamURL   string  `xml:"streamUrl,attr" json:"streamUrl"`
+	HomepageURL *string `xml:"homepageUrl,attr,omitempty" json:"homepageUrl,omitempty"`
+}

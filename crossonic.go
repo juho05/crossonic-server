@@ -23,7 +23,7 @@ var MigrationsFS fs.FS
 
 var GenID func() string
 var IDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-~"
-var IDRegex = regexp.MustCompile(fmt.Sprintf("^(tr)|(al)|(ar)|(pl)_[%s]{12}$", strings.ReplaceAll(IDAlphabet, "-", "\\-")))
+var IDRegex = regexp.MustCompile(fmt.Sprintf("^(tr)|(al)|(ar)|(pl)|(irs)_[%s]{12}$", strings.ReplaceAll(IDAlphabet, "-", "\\-")))
 
 func init() {
 	var err error
@@ -40,10 +40,11 @@ func init() {
 type IDType string
 
 const (
-	IDTypeSong     IDType = "tr"
-	IDTypeAlbum    IDType = "al"
-	IDTypeArtist   IDType = "ar"
-	IDTypePlaylist IDType = "pl"
+	IDTypeSong                 IDType = "tr"
+	IDTypeAlbum                IDType = "al"
+	IDTypeArtist               IDType = "ar"
+	IDTypePlaylist             IDType = "pl"
+	IDTypeInternetRadioStation IDType = "irs"
 )
 
 func GenIDSong() string {
@@ -62,13 +63,17 @@ func GenIDPlaylist() string {
 	return string(IDTypePlaylist) + "_" + GenID()
 }
 
+func GenIDInternetRadioStation() string {
+	return string(IDTypeInternetRadioStation) + "_" + GenID()
+}
+
 func GetIDType(id string) (IDType, bool) {
 	parts := strings.Split(id, "_")
 	if len(parts) != 2 {
 		return "", false
 	}
 	types := []IDType{
-		IDTypeSong, IDTypeAlbum, IDTypeArtist, IDTypePlaylist,
+		IDTypeSong, IDTypeAlbum, IDTypeArtist, IDTypePlaylist, IDTypeInternetRadioStation,
 	}
 	if !slices.Contains(types, IDType(parts[0])) {
 		return "", false

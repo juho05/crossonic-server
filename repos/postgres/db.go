@@ -171,6 +171,16 @@ func (d *DB) Playlist() repos.PlaylistRepository {
 	}
 }
 
+func (d *DB) InternetRadioStation() repos.InternetRadioStationRepository {
+	exec := executer(d.db)
+	if d.tx != nil {
+		exec = d.tx
+	}
+	return internetRadioStationRepository{
+		db: exec,
+	}
+}
+
 func (d *DB) Transaction(ctx context.Context, fn func(tx repos.Tx) error) error {
 	if d.db == nil {
 		return repos.NewError("create transaction", repos.ErrNestedTransaction, nil)
