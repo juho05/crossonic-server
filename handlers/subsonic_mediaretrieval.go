@@ -179,15 +179,74 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 
 var lyricsTimestampRegex = regexp.MustCompile(`^\[([0-9]+[:.]?)+\]`)
 
-func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
+
+	title := query.Get("title")
+	artist := query.Get("artist")
+
+	if title == "" {
+		responses.EncodeError(w, format(r), "song not found", responses.SubsonicErrorNotFound)
+		return
+	}
+
+	songs, err := h.DB.Song().FindByTitle(r.Context(), title, repos.IncludeSongInfo{
+		Lists: true,
+	})
+	if err != nil {
+		respondErr(w, format(r), fmt.Errorf("get lyrics: find songs by title: %w", err))
+		return
+	}
+
+	var song *repos.CompleteSong
+
+	if artist != "" {
+	songLoop:
+		for _, s := range songs {
+			for _, a := range s.Artists {
+				if a.Name == artist {
+					song = s
+					break songLoop
+				}
+			}
+		}
+	} else if len(songs) > 0 {
+		song = songs[0]
+	}
+
+	if song == nil {
+		responses.EncodeError(w, format(r), "song not found", responses.SubsonicErrorNotFound)
+		return
+	}
+
+	if song.Lyrics == nil {
+		responses.EncodeError(w, format(r), "no lyrics available", responses.SubsonicErrorNotFound)
+		return
+	}
+
+	lines := getLyricsLines(*song.Lyrics)
+
+	if artist == "" && len(song.Artists) > 0 {
+		artist = song.Artists[0].Name
+	}
+
+	res := responses.New()
+	res.Lyrics = &responses.Lyrics{
+		Title:  song.Title,
+		Artist: &artist,
+		Value:  strings.Join(lines, "\n"),
+	}
+	res.EncodeOrLog(w, format(r))
+}
+
+func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request) {
 	id, ok := paramIDReq(w, r, "id")
 	if !ok {
 		return
 	}
 	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoBare())
 	if err != nil {
-		responses.EncodeError(w, query.Get("f"), "song not found", responses.SubsonicErrorNotFound)
+		responses.EncodeError(w, format(r), "song not found", responses.SubsonicErrorNotFound)
 		return
 	}
 
@@ -197,32 +256,12 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 		res.LyricsList = &responses.LyricsList{
 			StructuredLyrics: make([]*responses.StructuredLyrics, 0),
 		}
-		res.EncodeOrLog(w, query.Get("f"))
+		res.EncodeOrLog(w, format(r))
 		return
 	}
 
-	lines := strings.Split(*song.Lyrics, "\n")
-	for i, l := range lines {
-		l = strings.TrimSpace(l)
-		loc := lyricsTimestampRegex.FindStringIndex(l)
-		if loc != nil {
-			l = strings.TrimSpace(l[loc[1]:])
-		}
-		lines[i] = l
-	}
-	first := 0
-	for ; first < len(lines); first++ {
-		if len(lines[first]) > 0 {
-			break
-		}
-	}
-	last := len(lines) - 1
-	for ; last >= 0; last-- {
-		if len(lines[last]) > 0 {
-			break
-		}
-	}
-	lines = lines[first : last+1]
+	lines := getLyricsLines(*song.Lyrics)
+
 	res.LyricsList = &responses.LyricsList{
 		StructuredLyrics: []*responses.StructuredLyrics{
 			{
@@ -236,7 +275,7 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 			},
 		},
 	}
-	res.EncodeOrLog(w, query.Get("f"))
+	res.EncodeOrLog(w, format(r))
 }
 
 func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
@@ -416,4 +455,30 @@ func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) 
 		return fmt.Errorf("load artist cover from last fm by id: encode image: %w", err)
 	}
 	return nil
+}
+
+func getLyricsLines(lyrics string) []string {
+	lines := strings.Split(lyrics, "\n")
+	for i, l := range lines {
+		l = strings.TrimSpace(l)
+		loc := lyricsTimestampRegex.FindStringIndex(l)
+		if loc != nil {
+			l = strings.TrimSpace(l[loc[1]:])
+		}
+		lines[i] = l
+	}
+	first := 0
+	for ; first < len(lines); first++ {
+		if len(lines[first]) > 0 {
+			break
+		}
+	}
+	last := len(lines) - 1
+	for ; last >= 0; last-- {
+		if len(lines[last]) > 0 {
+			break
+		}
+	}
+	lines = lines[first : last+1]
+	return lines
 }

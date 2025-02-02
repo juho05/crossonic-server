@@ -102,6 +102,11 @@ func (s songRepository) FindByGenre(ctx context.Context, genre string, paginate 
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 
+func (s songRepository) FindByTitle(ctx context.Context, title string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+	q := bqb.New("SELECT ? FROM songs ? WHERE songs.title = ?", genSongSelectList(include), genSongJoins(include), title)
+	return execSongSelectMany(ctx, s.db, q, include)
+}
+
 func (s songRepository) GetStreamInfo(ctx context.Context, id string) (*repos.SongStreamInfo, error) {
 	q := bqb.New("SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms, songs.channel_count FROM songs WHERE songs.id = ?", id)
 	return getQuery[*repos.SongStreamInfo](ctx, s.db, q)

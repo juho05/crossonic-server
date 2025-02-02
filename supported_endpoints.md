@@ -89,7 +89,7 @@
 - [x] [download](https://opensubsonic.netlify.app/docs/endpoints/download)
 - [ ] [hls](https://opensubsonic.netlify.app/docs/endpoints/hls)
 - [x] [getCoverArt](https://opensubsonic.netlify.app/docs/endpoints/getcoverart)
-- [ ] [getLyrics](https://opensubsonic.netlify.app/docs/endpoints/getlyrics)
+- [x] [getLyrics](https://opensubsonic.netlify.app/docs/endpoints/getlyrics)
 - [x] [getLyricsBySongId](https://opensubsonic.netlify.app/docs/endpoints/getlyricsbysongid)
 - [ ] [getAvatar](https://opensubsonic.netlify.app/docs/endpoints/getavatar)
 

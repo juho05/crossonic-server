@@ -180,6 +180,7 @@ type SongRepository interface {
 	FindBySearch(ctx context.Context, params SongFindBySearchParams, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindStarred(ctx context.Context, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByGenre(ctx context.Context, genre string, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindByTitle(ctx context.Context, title string, include IncludeSongInfo) ([]*CompleteSong, error)
 
 	GetStreamInfo(ctx context.Context, id string) (*SongStreamInfo, error)
 

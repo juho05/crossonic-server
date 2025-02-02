@@ -80,6 +80,12 @@ type SearchResult3 struct {
 	Songs   []*Song   `xml:"song" json:"song"`
 }
 
+type Lyrics struct {
+	Title  string  `xml:"title,attr" json:"title"`
+	Artist *string `xml:"artist,attr,omitempty" json:"artist,omitempty"`
+	Value  string  `xml:",chardata" json:"value"`
+}
+
 type LyricsList struct {
 	StructuredLyrics []*StructuredLyrics `xml:"structuredLyrics" json:"structuredLyrics"`
 }
