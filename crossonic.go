@@ -75,3 +75,8 @@ func GetIDType(id string) (IDType, bool) {
 	}
 	return IDType(parts[0]), true
 }
+
+func IsIDType(id string, idType IDType) bool {
+	typ, ok := GetIDType(id)
+	return ok && idType == typ
+}

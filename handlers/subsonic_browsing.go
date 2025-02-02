@@ -14,6 +14,7 @@ import (
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
 )
 
@@ -131,56 +132,82 @@ func (h *Handler) handleGetGenres(w http.ResponseWriter, r *http.Request) {
 
 var ignoredArticles = []string{"The", "An", "A", "Der", "Die", "Das", "Ein", "Eine", "Les", "Le", "La", "L'"}
 
-func (h *Handler) handleGetArtists(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
+func (h *Handler) handleGetArtistsIndex(byID3 bool) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := getQuery(r)
 
-	artists, err := h.DB.Artist().FindAll(r.Context(), true, repos.IncludeArtistInfoFull(query.Get("u")))
-	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("get artists: %w", err))
-		return
-	}
-	indexMap := make(map[rune]*responses.Index, 27)
-	for _, a := range artists {
-		name := a.Name
-		for _, i := range ignoredArticles {
-			before := len(name)
-			name = strings.TrimPrefix(name, i+" ")
-			if len(name) < before {
-				break
+		var ifModifiedSince time.Time
+		if !byID3 {
+			t, ok := paramTimeUnixMillis(w, r, "ifModifiedSince", time.Time{})
+			if !ok {
+				return
+			}
+			ifModifiedSince = t
+		}
+
+		artists, err := h.DB.Artist().FindAll(r.Context(), repos.FindArtistsParams{
+			OnlyAlbumArtists: true,
+			UpdatedAfter:     ifModifiedSince,
+		}, repos.IncludeArtistInfoFull(query.Get("u")))
+		if err != nil {
+			respondInternalErr(w, query.Get("f"), fmt.Errorf("get artists: %w", err))
+			return
+		}
+		indexMap := make(map[rune]*responses.Index, 27)
+		for _, a := range artists {
+			name := a.Name
+			for _, i := range ignoredArticles {
+				before := len(name)
+				name = strings.TrimPrefix(name, i+" ")
+				if len(name) < before {
+					break
+				}
+			}
+			name = strings.TrimSpace(name)
+			runes := []rune(name)
+			key := '#'
+			if len(runes) > 0 && unicode.IsLetter(runes[0]) {
+				key = unicode.ToLower(runes[0])
+			}
+
+			artist := responses.NewArtist(a)
+
+			if i, ok := indexMap[key]; ok {
+				i.Artist = append(i.Artist, artist)
+			} else {
+				indexMap[key] = &responses.Index{
+					Name:   string(key),
+					Artist: []*responses.Artist{artist},
+				}
 			}
 		}
-		name = strings.TrimSpace(name)
-		runes := []rune(name)
-		key := '#'
-		if len(runes) > 0 && unicode.IsLetter(runes[0]) {
-			key = unicode.ToLower(runes[0])
+
+		indexList := make([]*responses.Index, 0, len(indexMap))
+		for _, r := range "#abcdefghijklmnopqrstuvwxyz" {
+			if k, ok := indexMap[r]; ok {
+				indexList = append(indexList, k)
+			}
 		}
 
-		artist := responses.NewArtist(a)
+		lastModified, err := h.DB.System().LastScan(r.Context())
+		if err != nil {
+			respondInternalErr(w, query.Get("f"), fmt.Errorf("get artists index: last scan: %w", err))
+			return
+		}
 
-		if i, ok := indexMap[key]; ok {
-			i.Artist = append(i.Artist, artist)
+		res := responses.New()
+		index := &responses.ArtistIndexes{
+			IgnoredArticles: strings.Join(ignoredArticles, " "),
+			LastModified:    lastModified.UnixMilli(),
+			Index:           indexList,
+		}
+		if byID3 {
+			res.Artists = index
 		} else {
-			indexMap[key] = &responses.Index{
-				Name:   string(key),
-				Artist: []*responses.Artist{artist},
-			}
+			res.Indexes = index
 		}
+		res.EncodeOrLog(w, query.Get("f"))
 	}
-
-	indexList := make([]*responses.Index, 0, len(indexMap))
-	for _, r := range "#abcdefghijklmnopqrstuvwxyz" {
-		if k, ok := indexMap[r]; ok {
-			indexList = append(indexList, k)
-		}
-	}
-
-	res := responses.New()
-	res.Artists = &responses.Artists{
-		IgnoredArticles: strings.Join(ignoredArticles, " "),
-		Index:           indexList,
-	}
-	res.EncodeOrLog(w, query.Get("f"))
 }
 
 func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
@@ -376,6 +403,82 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 			res.ArtistInfo = artistInfo
 		}
 		res.EncodeOrLog(w, format(r))
+	}
+}
+
+func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request) {
+	id, ok := paramIDReq(w, r, "id")
+	if !ok {
+		return
+	}
+
+	if crossonic.IsIDType(id, crossonic.IDTypeAlbum) {
+		album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
+			User:        user(r),
+			Annotations: true,
+			PlayInfo:    true,
+			Lists:       true,
+		})
+		if err != nil {
+			respondErr(w, format(r), fmt.Errorf("get music directory: get album tracks: %w", err))
+			return
+		}
+		songs, err := h.DB.Album().GetTracks(r.Context(), id, repos.IncludeSongInfoFull(user(r)))
+		if err != nil {
+			respondErr(w, format(r), fmt.Errorf("get music directory: get album tracks: %w", err))
+			return
+		}
+
+		var parent *string
+		if len(album.Artists) > 0 {
+			parent = &album.Artists[0].ID
+		}
+
+		res := responses.New()
+		res.Directory = &responses.Directory{
+			ID:            album.ID,
+			Name:          album.Name,
+			Parent:        parent,
+			Starred:       album.Starred,
+			UserRating:    album.UserRating,
+			AverageRating: album.AverageRating,
+			PlayCount:     &album.PlayCount,
+			Child: util.Map(songs, func(s *repos.CompleteSong) any {
+				return responses.NewSong(s)
+			}),
+		}
+		res.EncodeOrLog(w, format(r))
+		return
+	} else if crossonic.IsIDType(id, crossonic.IDTypeArtist) {
+		artist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfo{
+			User:        user(r),
+			Annotations: true,
+		})
+		if err != nil {
+			respondErr(w, format(r), fmt.Errorf("get music directory: get artist albums: %w", err))
+			return
+		}
+		albums, err := h.DB.Artist().GetAlbums(r.Context(), id, repos.IncludeAlbumInfoFull(user(r)))
+		if err != nil {
+			respondErr(w, format(r), fmt.Errorf("get music directory: get artist albums: %w", err))
+			return
+		}
+
+		res := responses.New()
+		res.Directory = &responses.Directory{
+			ID:            artist.ID,
+			Name:          artist.Name,
+			Starred:       artist.Starred,
+			UserRating:    artist.UserRating,
+			AverageRating: artist.AverageRating,
+			Child: util.Map(albums, func(a *repos.CompleteAlbum) any {
+				return responses.NewAlbum(a)
+			}),
+		}
+		res.EncodeOrLog(w, format(r))
+		return
+	} else {
+		responses.EncodeError(w, format(r), "invalid id type", responses.SubsonicErrorNotFound)
 	}
 }
 

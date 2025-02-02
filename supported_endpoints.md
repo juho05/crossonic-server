@@ -18,8 +18,9 @@
 ### Browsing
 
 - [ ] [getMusicFolders](https://opensubsonic.netlify.app/docs/endpoints/getmusicfolders)
-- [ ] [getIndexes](https://opensubsonic.netlify.app/docs/endpoints/getindexes)
-- [ ] [getMusicDirectory](https://opensubsonic.netlify.app/docs/endpoints/getmusicdirectory)
+- [x] [getIndexes](https://opensubsonic.netlify.app/docs/endpoints/getindexes)
+- [x] [getMusicDirectory](https://opensubsonic.netlify.app/docs/endpoints/getmusicdirectory)
+  - supports artist and album IDs
 - [x] [getGenres](https://opensubsonic.netlify.app/docs/endpoints/getgenres)
 - [x] [getArtists](https://opensubsonic.netlify.app/docs/endpoints/getartists)
   - only album artists are returned

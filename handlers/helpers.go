@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	crossonic "github.com/juho05/crossonic-server"
@@ -99,6 +100,20 @@ func paramOffset(w http.ResponseWriter, r *http.Request, name string) (int, bool
 		}
 	}
 	return offset, true
+}
+
+func paramTimeUnixMillis(w http.ResponseWriter, r *http.Request, name string, def time.Time) (time.Time, bool) {
+	q := getQuery(r)
+	timeStr := q.Get(name)
+	if timeStr == "" {
+		return def, true
+	}
+	millis, err := strconv.ParseInt(timeStr, 10, 64)
+	if err != nil {
+		responses.EncodeError(w, q.Get("f"), fmt.Sprintf("invalid %s parameter", name), responses.SubsonicErrorGeneric)
+		return time.Time{}, false
+	}
+	return time.UnixMilli(millis), true
 }
 
 func paramStrReq(w http.ResponseWriter, r *http.Request, name string) (string, bool) {

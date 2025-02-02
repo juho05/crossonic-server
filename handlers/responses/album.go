@@ -25,6 +25,7 @@ type Album struct {
 	Starred       *time.Time     `xml:"starred,attr,omitempty"         json:"starred,omitempty"`
 	UserRating    *int           `xml:"userRating,attr,omitempty"      json:"userRating,omitempty"`
 	AverageRating *float64       `xml:"averageRating,attr,omitempty"   json:"averageRating,omitempty"`
+	Parent        *string        `xml:"parent,attr" json:"parent"`
 	IsDir         bool           `xml:"isDir,attr" json:"isDir"`
 	Type          string         `xml:"type,attr" json:"type"`
 	MediaType     string         `xml:"mediaType,attr" json:"mediaType"`
@@ -85,6 +86,7 @@ func NewAlbum(a *repos.CompleteAlbum) *Album {
 		album.ArtistID = util.FirstOrNilMap(a.Artists, func(a repos.ArtistRef) string {
 			return a.ID
 		})
+		album.Parent = album.ArtistID
 	}
 
 	if HasCoverArt(a.ID) {

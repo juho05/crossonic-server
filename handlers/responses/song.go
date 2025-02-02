@@ -11,6 +11,7 @@ import (
 type Song struct {
 	ID            string       `xml:"id,attr" json:"id"`
 	IsDir         bool         `xml:"isDir,attr" json:"isDir"`
+	Parent        *string      `xml:"parent,attr" json:"parent"`
 	Title         string       `xml:"title,attr" json:"title"`
 	Album         *string      `xml:"album,attr,omitempty" json:"album,omitempty"`
 	Artist        *string      `xml:"artist,attr,omitempty" json:"artist,omitempty"`
@@ -77,6 +78,7 @@ func NewSong(s *repos.CompleteSong) *Song {
 	if s.SongAlbumInfo != nil {
 		song.Album = s.AlbumName
 		song.AlbumID = s.AlbumID
+		song.Parent = song.AlbumID
 		song.ReplayGain.AlbumGain = s.AlbumReplayGain
 		song.ReplayGain.AlbumPeak = s.AlbumReplayGainPeak
 	}

@@ -94,15 +94,19 @@ func (a artistRepository) FindByNames(ctx context.Context, names []string, inclu
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 
-func (a artistRepository) FindAll(ctx context.Context, onlyAlbumArtists bool, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
+func (a artistRepository) FindAll(ctx context.Context, params repos.FindArtistsParams, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
 	q := bqb.New("SELECT ? FROM artists ?", genArtistSelectList(include), genArtistJoins(include))
-	if onlyAlbumArtists {
+	where := bqb.Optional("WHERE")
+	if params.OnlyAlbumArtists {
 		if !include.AlbumInfo {
 			return nil, repos.NewError("onlyAlbumArtists only allowed if include.AlbumInfo is true", repos.ErrInvalidParams, nil)
 		}
-		q.Space("WHERE COALESCE(aa.count, 0) > 0")
+		where.And("COALESCE(aa.count, 0) > 0")
 	}
-	q.Space("ORDER BY lower(artists.name)")
+	if (params.UpdatedAfter != time.Time{}) {
+		where.And("artists.updated >= ?", params.UpdatedAfter)
+	}
+	q = bqb.New("? ? ORDER BY lower(artists.name)", q, where)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 
@@ -122,7 +126,7 @@ func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAl
 }
 
 func (a artistRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
-	if !include.Annotations || include.AnnotationUser == "" {
+	if !include.Annotations || include.User == "" {
 		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
 	}
 	q := bqb.New("SELECT ? FROM artists ?", genArtistSelectList(include), genArtistJoins(include))
@@ -183,7 +187,7 @@ func genArtistSelectList(include repos.IncludeArtistInfo) *bqb.Query {
 
 	if include.Annotations {
 		q.Comma("avgr.rating AS avg_rating")
-		if include.AnnotationUser != "" {
+		if include.User != "" {
 			q.Comma("artist_stars.created as starred, artist_ratings.rating AS user_rating")
 		}
 	}
@@ -200,9 +204,9 @@ func genArtistJoins(include repos.IncludeArtistInfo) *bqb.Query {
 	}
 
 	if include.Annotations {
-		if include.AnnotationUser != "" {
-			q.Space("LEFT JOIN artist_stars ON artist_stars.artist_id = artists.id AND artist_stars.user_name = ?", include.AnnotationUser)
-			q.Space("LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = ?", include.AnnotationUser)
+		if include.User != "" {
+			q.Space("LEFT JOIN artist_stars ON artist_stars.artist_id = artists.id AND artist_stars.user_name = ?", include.User)
+			q.Space("LEFT JOIN artist_ratings ON artist_ratings.artist_id = artists.id AND artist_ratings.user_name = ?", include.User)
 		}
 		q.Space(`LEFT JOIN (
 				SELECT artist_id, AVG(artist_ratings.rating) AS rating FROM artist_ratings GROUP BY artist_id

@@ -16,7 +16,7 @@ other Subsonic media players.
 - [ ] Incremental library scan
 - [x] [ListenBrainz](https://listenbrainz.org) scrobbling
 - [x] Multiple users
-- [x] transcoding and caching
+- [x] Transcoding and caching
   - [x] configurable with `format=` and `maxBitRate=` parameters
   - `raw`, `mp3`, `opus`, `vorbis`, `aac`
 - [x] Fetch artist images and artist/album info from [last.fm](https://last.fm)
@@ -24,12 +24,13 @@ other Subsonic media players.
 - [x] **Stores a unique ID in the metadata of all media files** to preserve IDs when moving/renaming files on disk
 - [x] Scrobbling including playback duration
 - [x] Browse by tags
-  - browsing by folders not supported
+  - browsing by folders not supported (`getIndexes`, `getMusicDirectory` etc. simulate behavior based on tags)
 - [x] Favorites/rating
 - [x] Lyrics
   - [x] unsynced
   - [ ] synced
-- [x] playlists
+- [ ] Multiple music directories
+- [x] Playlists
   - including user-changable playlist covers (not natively supported by *OpenSubsonic*)
 - [x] [SONOS](https://www.sonos.com) casting (*very buggy*, *not documented*)
 - [x] Serve [Crossonic Web](https://github.com/juho05/crossonic#web)

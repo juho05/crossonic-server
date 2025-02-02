@@ -43,9 +43,9 @@ type ArtistInfo struct {
 // params
 
 type IncludeArtistInfo struct {
-	AlbumInfo      bool
-	Annotations    bool
-	AnnotationUser string
+	AlbumInfo   bool
+	Annotations bool
+	User        string
 }
 
 func IncludeArtistInfoBare() IncludeArtistInfo {
@@ -54,9 +54,9 @@ func IncludeArtistInfoBare() IncludeArtistInfo {
 
 func IncludeArtistInfoFull(user string) IncludeArtistInfo {
 	return IncludeArtistInfo{
-		AlbumInfo:      true,
-		Annotations:    true,
-		AnnotationUser: user,
+		AlbumInfo:   true,
+		Annotations: true,
+		User:        user,
 	}
 }
 
@@ -76,6 +76,11 @@ type SetArtistInfo struct {
 	LastFMMBID *string
 }
 
+type FindArtistsParams struct {
+	OnlyAlbumArtists bool
+	UpdatedAfter     time.Time
+}
+
 type ArtistRepository interface {
 	Create(ctx context.Context, params CreateArtistParams) (*Artist, error)
 	CreateIfNotExistsByName(ctx context.Context, params []CreateArtistParams) error
@@ -86,7 +91,7 @@ type ArtistRepository interface {
 
 	FindByID(ctx context.Context, id string, include IncludeArtistInfo) (*CompleteArtist, error)
 	FindByNames(ctx context.Context, names []string, include IncludeArtistInfo) ([]*CompleteArtist, error)
-	FindAll(ctx context.Context, onlyAlbumArtists bool, include IncludeArtistInfo) ([]*CompleteArtist, error)
+	FindAll(ctx context.Context, params FindArtistsParams, include IncludeArtistInfo) ([]*CompleteArtist, error)
 	FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
 	FindStarred(ctx context.Context, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
 
