@@ -285,12 +285,6 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idType, ok := crossonic.GetIDType(id)
-	if !ok {
-		responses.EncodeError(w, query.Get("f"), "unknown id type", responses.SubsonicErrorNotFound)
-		return
-	}
-
 	if !crossonic.IDRegex.MatchString(id) {
 		responses.EncodeError(w, query.Get("f"), "invalid id", responses.SubsonicErrorNotFound)
 		return
@@ -336,17 +330,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dir string
-	switch idType {
-	case crossonic.IDTypeSong:
-		dir = filepath.Join(config.DataDir(), "covers", "songs")
-	case crossonic.IDTypeAlbum:
-		dir = filepath.Join(config.DataDir(), "covers", "albums")
-	case crossonic.IDTypeArtist:
-		dir = filepath.Join(config.DataDir(), "covers", "artists")
-	case crossonic.IDTypePlaylist:
-		dir = filepath.Join(config.DataDir(), "covers", "playlists")
-	}
+	dir := filepath.Join(config.DataDir(), "covers")
 	fileFS := os.DirFS(dir)
 	file, err := fileFS.Open(id)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -445,7 +429,7 @@ func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) 
 		size := min(img.Bounds().Dx(), img.Bounds().Dy())
 		img = imaging.CropCenter(img, size, size)
 	}
-	file, err := os.Create(filepath.Join(config.DataDir(), "covers", "artists", id))
+	file, err := os.Create(filepath.Join(config.DataDir(), "covers", id))
 	if err != nil {
 		return fmt.Errorf("load artist cover from last fm by id: create file: %w", err)
 	}

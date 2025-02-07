@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
@@ -17,36 +19,49 @@ var (
 )
 
 type Scanner struct {
-	lock      sync.Mutex
-	waitGroup sync.WaitGroup
-	mediaDir  string
+	lock     sync.Mutex
+	mediaDir string
 
-	db repos.DB
 	tx repos.Transaction
 
-	coverDir  string
-	firstScan bool
+	coverDir string
 
 	coverCache     *cache.Cache
 	transcodeCache *cache.Cache
 
-	Scanning bool
-	Count    int
+	scanning  bool
+	counter   atomic.Uint32
+	scanStart time.Time
 
 	instanceID string
+	firstScan  bool
+	lastScan   time.Time
+
+	artists *artistMap
+	albums  *albumMap
+
+	songQueue     chan *mediaFile
+	setAlbumCover chan albumCover
 }
 
 func New(mediaDir string, db repos.DB, coverCache *cache.Cache, transcodeCache *cache.Cache) (*Scanner, error) {
 	instanceID, err := db.System().InstanceID(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("new scanner: %w", err)
+		return nil, fmt.Errorf("get instance id: %w", err)
 	}
 	return &Scanner{
 		mediaDir:       mediaDir,
-		db:             db,
 		coverDir:       filepath.Join(config.DataDir(), "covers"),
 		coverCache:     coverCache,
 		transcodeCache: transcodeCache,
 		instanceID:     instanceID,
 	}, nil
+}
+
+func (s *Scanner) Scanning() bool {
+	return s.scanning
+}
+
+func (s *Scanner) Count() int {
+	return int(s.counter.Load())
 }

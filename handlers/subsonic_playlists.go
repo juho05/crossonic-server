@@ -224,7 +224,7 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = os.Remove(filepath.Join(config.DataDir(), "covers", "playlists", id))
+	err = os.Remove(filepath.Join(config.DataDir(), "covers", id))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		log.Errorf("delete playlist: delete cover file: %s", err)
 	}

@@ -17,13 +17,14 @@ type albumRepository struct {
 	tx func(ctx context.Context, fn func(a albumRepository) error) error
 }
 
-func (a albumRepository) Create(ctx context.Context, params repos.CreateAlbumParams) (*repos.Album, error) {
+func (a albumRepository) Create(ctx context.Context, params repos.CreateAlbumParams) (string, error) {
+	id := crossonic.GenIDAlbum()
 	q := bqb.New(`INSERT INTO albums (id, name, created, updated, year, record_labels, music_brainz_id, release_mbid,
 		release_types, is_compilation, replay_gain, replay_gain_peak) VALUES (?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING albums.*`,
-		crossonic.GenIDAlbum(), params.Name, params.Year, params.RecordLabels, params.MusicBrainzID, params.ReleaseMBID, params.ReleaseTypes,
+		id, params.Name, params.Year, params.RecordLabels, params.MusicBrainzID, params.ReleaseMBID, params.ReleaseTypes,
 		params.IsCompilation, params.ReplayGain, params.ReplayGainPeak)
-	return getQuery[*repos.Album](ctx, a.db, q)
+	return id, executeQuery(ctx, a.db, q)
 }
 
 func (a albumRepository) Update(ctx context.Context, id string, params repos.UpdateAlbumParams) error {
@@ -42,8 +43,8 @@ func (a albumRepository) Update(ctx context.Context, id string, params repos.Upd
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
 }
 
-func (a albumRepository) DeleteLastUpdatedBefore(ctx context.Context, before time.Time) error {
-	q := bqb.New("DELETE FROM albums WHERE updated < ?", before)
+func (a albumRepository) DeleteIfNoTracks(ctx context.Context) error {
+	q := bqb.New("DELETE FROM albums USING albums AS albs LEFT JOIN songs ON albs.id = songs.album_id WHERE albums.id = albs.id AND songs.id IS NULL")
 	return executeQuery(ctx, a.db, q)
 }
 
@@ -67,9 +68,9 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 			return strings.ToLower(g)
 		})
 		where.And(`(EXISTS(
-			  SELECT album_genre.album_id, genres.name FROM album_genre
-				JOIN genres ON album_genre.genre_name = genres.name
-				WHERE album_genre.album_id = albums.id AND lower(album_genre.genre_name) IN (?)
+				SELECT songs.id FROM songs
+				JOIN song_genre ON songs.id = song_genre.song_id
+				WHERE songs.album_id = albums.id AND lower(song_genre.genre_name) IN (?)
 			))`, genres)
 	}
 
@@ -137,68 +138,6 @@ func (s albumRepository) GetTracks(ctx context.Context, albumID string, include 
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 
-func (a albumRepository) RemoveArtists(ctx context.Context, albumID string) error {
-	q := bqb.New("DELETE FROM album_artist WHERE album_id = ?", albumID)
-	return executeQuery(ctx, a.db, q)
-}
-
-func (a albumRepository) AddArtists(ctx context.Context, albumID string, artistIDs []string) error {
-	if len(artistIDs) == 0 {
-		return nil
-	}
-	q := bqb.New("INSERT INTO album_artist (album_id,artist_id) VALUES")
-	valueList := bqb.Optional("")
-	for _, a := range artistIDs {
-		valueList.Comma("(?, ?)", albumID, a)
-	}
-	return executeQuery(ctx, a.db, bqb.New("? ?", q, valueList))
-}
-
-func (a albumRepository) SetArtists(ctx context.Context, albumID string, artistIDs []string) error {
-	return wrapErr("", a.tx(ctx, func(a albumRepository) error {
-		err := a.RemoveArtists(ctx, albumID)
-		if err != nil {
-			return fmt.Errorf("remove artists: %w", err)
-		}
-		err = a.AddArtists(ctx, albumID, artistIDs)
-		if err != nil {
-			return fmt.Errorf("add artists: %w", err)
-		}
-		return nil
-	}))
-}
-
-func (a albumRepository) RemoveGenres(ctx context.Context, albumID string) error {
-	q := bqb.New("DELETE FROM album_genre WHERE album_id = ?", albumID)
-	return executeQuery(ctx, a.db, q)
-}
-
-func (a albumRepository) AddGenres(ctx context.Context, albumID string, genres []string) error {
-	if len(genres) == 0 {
-		return nil
-	}
-	q := bqb.New("INSERT INTO album_genre (album_id,genre_name) VALUES")
-	valueList := bqb.Optional("")
-	for _, g := range genres {
-		valueList.Comma("(?, ?)", albumID, g)
-	}
-	return executeQuery(ctx, a.db, bqb.New("? ?", q, valueList))
-}
-
-func (a albumRepository) SetGenres(ctx context.Context, albumID string, genres []string) error {
-	return wrapErr("", a.tx(ctx, func(a albumRepository) error {
-		err := a.RemoveGenres(ctx, albumID)
-		if err != nil {
-			return fmt.Errorf("remove genres: %w", err)
-		}
-		err = a.AddGenres(ctx, albumID, genres)
-		if err != nil {
-			return fmt.Errorf("add genres: %w", err)
-		}
-		return nil
-	}))
-}
-
 func (a albumRepository) Star(ctx context.Context, user, albumID string) error {
 	q := bqb.New("INSERT INTO album_stars (album_id, user_name, created) VALUES (?, ?, NOW()) ON CONFLICT(album_id,user_name) DO NOTHING", albumID, user)
 	return executeQuery(ctx, a.db, q)
@@ -219,18 +158,6 @@ func (a albumRepository) RemoveRating(ctx context.Context, user, albumID string)
 	return executeQuery(ctx, a.db, q)
 }
 
-func (a albumRepository) FindAlbumsByNameWithArtistMatchCount(ctx context.Context, albumName string, artistNames []string) ([]*repos.FindAlbumsByNameWithArtistMatchCountResult, error) {
-	if len(artistNames) == 0 {
-		return []*repos.FindAlbumsByNameWithArtistMatchCountResult{}, nil
-	}
-	q := bqb.New(`SELECT albums.id, albums.music_brainz_id, COALESCE(COUNT(artists.id), 0) AS artist_matches FROM albums
-		LEFT JOIN album_artist ON albums.id = album_artist.album_id
-		LEFT JOIN artists ON album_artist.artist_id = artists.id AND artists.name IN (?)
-		WHERE albums.name = ?
-		GROUP BY albums.id, albums.music_brainz_id`, artistNames, albumName)
-	return selectQuery[*repos.FindAlbumsByNameWithArtistMatchCountResult](ctx, a.db, q)
-}
-
 func (a albumRepository) GetInfo(ctx context.Context, albumID string, after time.Time) (*repos.AlbumInfo, error) {
 	q := bqb.New("SELECT albums.id, albums.info_updated, albums.description, albums.lastfm_url, albums.lastfm_mbid, albums.music_brainz_id FROM albums WHERE albums.id = ? AND (albums.info_updated IS NULL OR albums.info_updated > ?)", albumID, after)
 	return getQuery[*repos.AlbumInfo](ctx, a.db, q)
@@ -239,6 +166,28 @@ func (a albumRepository) GetInfo(ctx context.Context, albumID string, after time
 func (a albumRepository) SetInfo(ctx context.Context, albumID string, params repos.SetAlbumInfo) error {
 	q := bqb.New("UPDATE albums SET info_updated=NOW(), description=?, lastfm_url=?, lastfm_mbid=? WHERE id = ?", params.Description, params.LastFMURL, params.LastFMMBID, albumID)
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
+}
+
+func (a albumRepository) GetAllArtistConnections(ctx context.Context) ([]repos.AlbumArtistConnection, error) {
+	q := bqb.New("SELECT album_artist.album_id, album_artist.artist_id FROM album_artist")
+	return selectQuery[repos.AlbumArtistConnection](ctx, a.db, q)
+}
+
+func (a albumRepository) RemoveAllArtistConnections(ctx context.Context) error {
+	q := bqb.New("DELETE FROM album_artist")
+	return executeQuery(ctx, a.db, q)
+}
+
+func (a albumRepository) CreateArtistConnections(ctx context.Context, connections []repos.AlbumArtistConnection) error {
+	if len(connections) == 0 {
+		return nil
+	}
+	valueList := bqb.Optional("")
+	for _, c := range connections {
+		valueList.Comma("(?,?)", c.AlbumID, c.ArtistID)
+	}
+	q := bqb.New("INSERT INTO album_artist (album_id,artist_id) VALUES ? ON CONFLICT (album_id,artist_id) DO NOTHING", valueList)
+	return executeQuery(ctx, a.db, q)
 }
 
 // helpers
@@ -320,7 +269,7 @@ func execAlbumSelectMany(ctx context.Context, db executer, query *bqb.Query, inc
 }
 
 func loadAlbumLists(ctx context.Context, db executer, albums []*repos.CompleteAlbum, include repos.IncludeAlbumInfo) error {
-	if len(albums) == 0 || !include.Lists {
+	if len(albums) == 0 {
 		return nil
 	}
 
@@ -328,14 +277,21 @@ func loadAlbumLists(ctx context.Context, db executer, albums []*repos.CompleteAl
 		return s.ID
 	})
 
-	genres, err := getAlbumGenres(ctx, db, albumIDs)
-	if err != nil {
-		return fmt.Errorf("get genres: %w", err)
+	var genres map[string][]string
+	var err error
+	if include.Genres {
+		genres, err = getAlbumGenres(ctx, db, albumIDs)
+		if err != nil {
+			return fmt.Errorf("get genres: %w", err)
+		}
 	}
 
-	artists, err := getAlbumArtistRefs(ctx, db, albumIDs)
-	if err != nil {
-		return fmt.Errorf("get artist refs: %w", err)
+	var artists map[string][]repos.ArtistRef
+	if include.Artists {
+		artists, err = getAlbumArtistRefs(ctx, db, albumIDs)
+		if err != nil {
+			return fmt.Errorf("get artist refs: %w", err)
+		}
 	}
 
 	for _, a := range albums {
@@ -349,13 +305,14 @@ func loadAlbumLists(ctx context.Context, db executer, albums []*repos.CompleteAl
 }
 
 func getAlbumGenres(ctx context.Context, db executer, albumIDs []string) (map[string][]string, error) {
-	q := bqb.New(`SELECT album_genre.album_id, genres.name FROM album_genre
-		JOIN genres ON album_genre.genre_name = genres.name
-		WHERE album_genre.album_id IN (?)`, albumIDs)
+	q := bqb.New(`SELECT songs.album_id, song_genre.genre_name FROM songs
+		JOIN song_genre ON song_genre.song_id = songs.id
+		WHERE songs.album_id IN (?)
+		GROUP BY songs.album_id, song_genre.genre_name`, albumIDs)
 
 	type genre struct {
 		AlbumID string `db:"album_id"`
-		Name    string `db:"name"`
+		Name    string `db:"genre_name"`
 	}
 
 	genres, err := selectQuery[genre](ctx, db, q)

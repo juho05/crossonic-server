@@ -15,7 +15,7 @@ func (h *Handler) handleStartScan(w http.ResponseWriter, r *http.Request) {
 	res := responses.New()
 
 	go func() {
-		err := h.Scanner.ScanMediaFull()
+		err := h.Scanner.Scan(h.DB)
 		if err != nil && !errors.Is(err, scanner.ErrAlreadyScanning) {
 			log.Errorf("scan media full: %s", err)
 		}
@@ -31,9 +31,10 @@ func (h *Handler) handleStartScan(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetScanStatus(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
 	res := responses.New()
+	count := h.Scanner.Count()
 	res.ScanStatus = &responses.ScanStatus{
-		Scanning: h.Scanner.Scanning,
-		Count:    &h.Scanner.Count,
+		Scanning: h.Scanner.Scanning(),
+		Count:    &count,
 	}
 	res.EncodeOrLog(w, query.Get("f"))
 }

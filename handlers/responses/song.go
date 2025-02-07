@@ -49,13 +49,17 @@ func NewSong(s *repos.CompleteSong) *Song {
 	if s == nil {
 		return nil
 	}
+	var coverArt *string
+	if s.AlbumID != nil && HasCoverArt(*s.AlbumID) {
+		coverArt = s.AlbumID
+	}
 	song := &Song{
 		ID:            s.ID,
 		IsDir:         false,
 		Title:         s.Title,
 		Track:         s.Track,
 		Year:          s.Year,
-		CoverArt:      s.CoverID,
+		CoverArt:      coverArt,
 		Size:          s.Size,
 		ContentType:   s.ContentType,
 		Suffix:        filepath.Ext(s.Path),

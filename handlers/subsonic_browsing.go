@@ -237,7 +237,7 @@ func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
 
 	if info.Updated == nil && h.LastFM != nil {
 		album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
-			Lists: true,
+			Artists: true,
 		})
 		if err != nil {
 			respondErr(w, format(r), fmt.Errorf("get album info: find album: %w", err))
@@ -322,7 +322,7 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 			}
 		} else if typ == crossonic.IDTypeAlbum {
 			album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
-				Lists: true,
+				Artists: true,
 			})
 			if err != nil {
 				respondErr(w, format(r), fmt.Errorf("get artist info: find album: %w", err))
@@ -417,7 +417,7 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 			User:        user(r),
 			Annotations: true,
 			PlayInfo:    true,
-			Lists:       true,
+			Artists:     true,
 		})
 		if err != nil {
 			respondErr(w, format(r), fmt.Errorf("get music directory: get album tracks: %w", err))

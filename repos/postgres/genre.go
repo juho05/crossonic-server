@@ -23,8 +23,8 @@ func (g genreRepository) CreateIfNotExists(ctx context.Context, names []string) 
 	return executeQuery(ctx, g.db, q)
 }
 
-func (g genreRepository) DeleteAll(ctx context.Context) error {
-	q := bqb.New("DELETE FROM genres")
+func (g genreRepository) DeleteIfNoSongs(ctx context.Context) error {
+	q := bqb.New("DELETE FROM genres USING genres AS gens LEFT JOIN song_genre ON gens.name = song_genre.genre_name WHERE genres.name = gens.name AND song_genre.genre_name IS NULL")
 	return executeQuery(ctx, g.db, q)
 }
 

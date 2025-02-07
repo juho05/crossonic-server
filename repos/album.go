@@ -60,6 +60,11 @@ type AlbumInfo struct {
 	MusicBrainzID *string    `db:"music_brainz_id"`
 }
 
+type AlbumArtistConnection struct {
+	AlbumID  string `db:"album_id"`
+	ArtistID string `db:"artist_id"`
+}
+
 // params
 
 type IncludeAlbumInfo struct {
@@ -69,7 +74,8 @@ type IncludeAlbumInfo struct {
 	Annotations bool
 	PlayInfo    bool
 
-	Lists bool
+	Genres  bool
+	Artists bool
 }
 
 func IncludeAlbumInfoBare() IncludeAlbumInfo {
@@ -82,7 +88,8 @@ func IncludeAlbumInfoFull(user string) IncludeAlbumInfo {
 		User:        user,
 		Annotations: true,
 		PlayInfo:    true,
-		Lists:       true,
+		Artists:     true,
+		Genres:      true,
 	}
 }
 
@@ -146,9 +153,9 @@ type FindAlbumsByNameWithArtistMatchCountResult struct {
 }
 
 type AlbumRepository interface {
-	Create(ctx context.Context, params CreateAlbumParams) (*Album, error)
+	Create(ctx context.Context, params CreateAlbumParams) (string, error)
 	Update(ctx context.Context, id string, params UpdateAlbumParams) error
-	DeleteLastUpdatedBefore(ctx context.Context, before time.Time) error
+	DeleteIfNoTracks(ctx context.Context) error
 
 	FindByID(ctx context.Context, id string, include IncludeAlbumInfo) (*CompleteAlbum, error)
 	FindAll(ctx context.Context, params FindAlbumParams, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
@@ -156,14 +163,6 @@ type AlbumRepository interface {
 	FindStarred(ctx context.Context, paginate Paginate, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 
 	GetTracks(ctx context.Context, id string, include IncludeSongInfo) ([]*CompleteSong, error)
-
-	RemoveArtists(ctx context.Context, albumID string) error
-	AddArtists(ctx context.Context, albumID string, artistIDs []string) error
-	SetArtists(ctx context.Context, albumID string, artistIDs []string) error
-
-	RemoveGenres(ctx context.Context, albumID string) error
-	AddGenres(ctx context.Context, albumID string, genres []string) error
-	SetGenres(ctx context.Context, albumID string, genres []string) error
 
 	Star(ctx context.Context, user, albumID string) error
 	UnStar(ctx context.Context, user, albumID string) error
@@ -174,5 +173,7 @@ type AlbumRepository interface {
 	GetInfo(ctx context.Context, albumID string, after time.Time) (*AlbumInfo, error)
 	SetInfo(ctx context.Context, albumID string, params SetAlbumInfo) error
 
-	FindAlbumsByNameWithArtistMatchCount(ctx context.Context, albumName string, artistNames []string) ([]*FindAlbumsByNameWithArtistMatchCountResult, error)
+	GetAllArtistConnections(ctx context.Context) ([]AlbumArtistConnection, error)
+	RemoveAllArtistConnections(ctx context.Context) error
+	CreateArtistConnections(ctx context.Context, connections []AlbumArtistConnection) error
 }

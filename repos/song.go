@@ -28,7 +28,6 @@ type Song struct {
 	ReplayGain     *float64   `db:"replay_gain"`
 	ReplayGainPeak *float64   `db:"replay_gain_peak"`
 	Lyrics         *string    `db:"lyrics"`
-	CoverID        *string    `db:"cover_id"`
 }
 
 type SongAlbumInfo struct {
@@ -78,6 +77,16 @@ type SongStreamInfo struct {
 	ChannelCount int        `db:"channel_count"`
 }
 
+type SongArtistConnection struct {
+	SongID   string `db:"song_id"`
+	ArtistID string `db:"artist_id"`
+}
+
+type SongGenreConnection struct {
+	SongID string `db:"song_id"`
+	Genre  string `db:"genre_name"`
+}
+
 // params
 
 type IncludeSongInfo struct {
@@ -111,6 +120,7 @@ func IncludeSongInfoFull(user string) IncludeSongInfo {
 }
 
 type CreateSongParams struct {
+	ID             *string
 	Path           string
 	AlbumID        *string
 	Title          string
@@ -128,7 +138,6 @@ type CreateSongParams struct {
 	ReplayGain     *float64
 	ReplayGainPeak *float64
 	Lyrics         *string
-	CoverID        *string
 }
 
 type UpdateSongParams struct {
@@ -149,7 +158,27 @@ type UpdateSongParams struct {
 	ReplayGain     Optional[*float64]
 	ReplayGainPeak Optional[*float64]
 	Lyrics         Optional[*string]
-	CoverID        Optional[*string]
+}
+
+type UpdateSongAllParams struct {
+	ID             string
+	Path           string
+	AlbumID        *string
+	Title          string
+	Track          *int
+	Year           *int
+	Size           int64
+	ContentType    string
+	Duration       DurationMS
+	BitRate        int
+	SamplingRate   int
+	ChannelCount   int
+	Disc           *int
+	BPM            *int
+	MusicBrainzID  *string
+	ReplayGain     *float64
+	ReplayGainPeak *float64
+	Lyrics         *string
 }
 
 type SongFindRandomParams struct {
@@ -181,21 +210,23 @@ type SongRepository interface {
 	FindStarred(ctx context.Context, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByGenre(ctx context.Context, genre string, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByTitle(ctx context.Context, title string, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindAllByPathOrMBID(ctx context.Context, paths []string, mbids []string, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindNonExistentIDs(ctx context.Context, ids []string) ([]string, error)
 
 	GetStreamInfo(ctx context.Context, id string) (*SongStreamInfo, error)
 
 	Create(ctx context.Context, params CreateSongParams) (*Song, error)
 	Update(ctx context.Context, id string, params UpdateSongParams) error
+	CreateAll(ctx context.Context, params []CreateSongParams) error
+	TryUpdateAll(ctx context.Context, params []UpdateSongAllParams) (int, error)
 
 	DeleteLastUpdatedBefore(ctx context.Context, before time.Time) error
 
-	SetArtists(ctx context.Context, songID string, artistIDs []string) error
-	AddArtists(ctx context.Context, songID string, artistIDs []string) error
-	RemoveArtists(ctx context.Context, songID string) error
+	DeleteArtistConnections(ctx context.Context, songIDs []string) error
+	CreateArtistConnections(ctx context.Context, connections []SongArtistConnection) error
 
-	SetGenres(ctx context.Context, songID string, genres []string) error
-	AddGenres(ctx context.Context, songID string, genres []string) error
-	RemoveGenres(ctx context.Context, songID string) error
+	DeleteGenreConnections(ctx context.Context, songIDs []string) error
+	CreateGenreConnections(ctx context.Context, connections []SongGenreConnection) error
 
 	Star(ctx context.Context, user, songID string) error
 	StarMultiple(ctx context.Context, user string, songID []string) (int, error)

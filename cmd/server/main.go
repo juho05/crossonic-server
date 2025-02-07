@@ -26,13 +26,13 @@ import (
 )
 
 func init() {
-	mime.AddExtensionType(".aac", "audio/aac")
-	mime.AddExtensionType(".mp3", "audio/mpeg")
-	mime.AddExtensionType(".oga", "audio/ogg")
-	mime.AddExtensionType(".ogg", "audio/ogg")
-	mime.AddExtensionType(".opus", "audio/opus")
-	mime.AddExtensionType(".wav", "audio/wav")
-	mime.AddExtensionType(".flac", "audio/flac")
+	_ = mime.AddExtensionType(".aac", "audio/aac")
+	_ = mime.AddExtensionType(".mp3", "audio/mpeg")
+	_ = mime.AddExtensionType(".oga", "audio/ogg")
+	_ = mime.AddExtensionType(".ogg", "audio/ogg")
+	_ = mime.AddExtensionType(".opus", "audio/opus")
+	_ = mime.AddExtensionType(".wav", "audio/wav")
+	_ = mime.AddExtensionType(".flac", "audio/flac")
 }
 
 func run() error {
@@ -69,7 +69,7 @@ func run() error {
 
 	if !config.DisableStartupScan() {
 		go func() {
-			err = scanner.ScanMediaFull()
+			err = scanner.Scan(db)
 			if err != nil {
 				log.Errorf("scan media: %s", err)
 			}
@@ -109,7 +109,10 @@ func run() error {
 		timeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
 		log.Info("Shutting down...")
 		lBrainz.Close()
-		server.Shutdown(timeout)
+		err = server.Shutdown(timeout)
+		if err != nil {
+			log.Errorf("shutdown: %s", err)
+		}
 		cancelTimeout()
 		close(closed)
 	}()
@@ -126,7 +129,7 @@ func run() error {
 }
 
 func main() {
-	godotenv.Load()
+	_ = godotenv.Load()
 	config.LoadAll()
 
 	log.SetSeverity(config.LogLevel())

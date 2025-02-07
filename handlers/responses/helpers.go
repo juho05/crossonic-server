@@ -13,20 +13,8 @@ func HasCoverArt(id string) bool {
 	if !ok {
 		return false
 	}
-	var path string
-	switch idType {
-	case crossonic.IDTypeSong:
-		path = filepath.Join(config.DataDir(), "covers", "songs")
-	case crossonic.IDTypeAlbum:
-		path = filepath.Join(config.DataDir(), "covers", "albums")
-	case crossonic.IDTypeArtist:
-		path = filepath.Join(config.DataDir(), "covers", "artists")
-	case crossonic.IDTypePlaylist:
-		path = filepath.Join(config.DataDir(), "covers", "playlists")
-	default:
-		return false
-	}
-	info, err := os.Stat(filepath.Join(path, id))
+	coverDir := filepath.Join(config.DataDir(), "covers")
+	info, err := os.Stat(filepath.Join(coverDir, id))
 	if err != nil {
 		return idType == crossonic.IDTypeArtist
 	}

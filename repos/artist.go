@@ -82,10 +82,10 @@ type FindArtistsParams struct {
 }
 
 type ArtistRepository interface {
-	Create(ctx context.Context, params CreateArtistParams) (*Artist, error)
+	Create(ctx context.Context, params CreateArtistParams) (string, error)
 	CreateIfNotExistsByName(ctx context.Context, params []CreateArtistParams) error
 	Update(ctx context.Context, id string, params UpdateArtistParams) error
-	DeleteLastUpdatedBefore(ctx context.Context, before time.Time) error
+	DeleteIfNoAlbumsAndNoSongs(ctx context.Context) error
 
 	FindOrCreateIDsByNames(ctx context.Context, names []string) ([]string, error)
 

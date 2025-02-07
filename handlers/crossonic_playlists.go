@@ -41,7 +41,7 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	path := filepath.Join(config.DataDir(), "covers", "playlists", id)
+	path := filepath.Join(config.DataDir(), "covers", id)
 	if r.Body == nil || r.ContentLength <= 0 {
 		err = os.Remove(path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -85,7 +85,7 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 	targetSize := min(2048, min(img.Bounds().Dx(), img.Bounds().Dy()))
 	img = imaging.Thumbnail(img, targetSize, targetSize, imaging.Linear)
 
-	file, err := os.Create(filepath.Join(config.DataDir(), "covers", "playlists", id))
+	file, err := os.Create(filepath.Join(config.DataDir(), "covers", id))
 	if err != nil {
 		log.Errorf("set playlist cover: save image: create file: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/juho05/crossonic-server/repos"
@@ -26,7 +27,10 @@ func executeQueryCountAffectedRows(ctx context.Context, db executer, query *bqb.
 	}
 	res, err := db.ExecContext(ctx, sql, args...)
 	printQueryOnErr(sql, err)
-	count, _ := res.RowsAffected()
+	var count int64
+	if err == nil {
+		count, _ = res.RowsAffected()
+	}
 	return int(count), wrapErr("execute exec query", err)
 }
 
@@ -73,8 +77,8 @@ func printQueryOnErr(query string, err error) {
 	if err == nil {
 		return
 	}
-	if sqlErrToErrType(err) == repos.ErrGeneral {
-		log.Errorf("error on query: %s", query)
+	if sqlErrToErrType(err) == repos.ErrGeneral && !errors.Is(err, context.Canceled) {
+		log.Errorf("error on query: %s: %s", query, err)
 	}
 }
 

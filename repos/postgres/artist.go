@@ -16,10 +16,11 @@ type artistRepository struct {
 	tx func(ctx context.Context, fn func(a artistRepository) error) error
 }
 
-func (a artistRepository) Create(ctx context.Context, params repos.CreateArtistParams) (*repos.Artist, error) {
+func (a artistRepository) Create(ctx context.Context, params repos.CreateArtistParams) (string, error) {
+	id := crossonic.GenIDArtist()
 	q := bqb.New(`INSERT INTO artists (id, name, created, updated, music_brainz_id)
-		VALUES (?, ?, NOW(), NOW(), ?) RETURNING artists.*`, crossonic.GenIDArtist(), params.Name, params.MusicBrainzID)
-	return getQuery[*repos.Artist](ctx, a.db, q)
+		VALUES (?, ?, NOW(), NOW(), ?)`, id, params.Name, params.MusicBrainzID)
+	return id, executeQuery(ctx, a.db, q)
 }
 
 func (a artistRepository) CreateIfNotExistsByName(ctx context.Context, params []repos.CreateArtistParams) error {
@@ -40,8 +41,11 @@ func (a artistRepository) Update(ctx context.Context, id string, params repos.Up
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
 }
 
-func (a artistRepository) DeleteLastUpdatedBefore(ctx context.Context, before time.Time) error {
-	q := bqb.New("DELETE FROM artists WHERE updated < ?", before)
+func (a artistRepository) DeleteIfNoAlbumsAndNoSongs(ctx context.Context) error {
+	q := bqb.New(`DELETE FROM artists USING artists as arts
+			LEFT JOIN song_artist ON song_artist.artist_id = arts.id
+			LEFT JOIN album_artist ON album_artist.artist_id = arts.id
+		WHERE artists.id = arts.id AND song_artist.artist_id IS NULL AND album_artist.artist_id IS NULL`)
 	return executeQuery(ctx, a.db, q)
 }
 

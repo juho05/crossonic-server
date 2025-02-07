@@ -18,6 +18,6 @@ type GenreWithCounts struct {
 
 type GenreRepository interface {
 	CreateIfNotExists(ctx context.Context, names []string) error
-	DeleteAll(ctx context.Context) error
+	DeleteIfNoSongs(ctx context.Context) error
 	FindAllWithCounts(ctx context.Context) ([]*GenreWithCounts, error)
 }
