@@ -31,7 +31,9 @@ func (g genreRepository) DeleteIfNoSongs(ctx context.Context) error {
 func (g genreRepository) FindAllWithCounts(ctx context.Context) ([]*repos.GenreWithCounts, error) {
 	q := bqb.New(`SELECT genres.name, COALESCE(al.count, 0) AS album_count, COALESCE(so.count, 0) AS song_count FROM genres
 		LEFT JOIN (
-			SELECT genre_name, COUNT(*) AS count FROM album_genre GROUP BY genre_name
+			SELECT genre_name, COUNT(*) AS count FROM (
+				SELECT song_genre.genre_name, songs.album_id FROM song_genre JOIN songs ON songs.id = song_genre.song_id WHERE songs.album_id IS NOT NULL GROUP BY song_genre.genre_name,songs.album_id
+			) GROUP BY genre_name
 		) al ON al.genre_name = genres.name
 		LEFT JOIN (
 			SELECT genre_name, COUNT(*) AS count FROM song_genre GROUP BY genre_name
