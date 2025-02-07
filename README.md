@@ -12,9 +12,14 @@ other Subsonic media players.
 
 ## Features
 
-- [x] Full scan of media library (*unoptimized*)
-- [ ] Incremental library scan
-- [x] [ListenBrainz](https://listenbrainz.org) scrobbling
+- [x] media library scan
+  - [x] on startup
+  - [x] `startScan` endpoint
+  - [ ] incremental scan
+  - [ ] file watching
+- [x] [ListenBrainz](https://listenbrainz.org) integration
+  - [x] scrobbling
+  - [x] sync favorites
 - [x] Multiple users
   - [x] per-user internet radio stations
 - [x] Transcoding and caching
