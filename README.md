@@ -38,7 +38,9 @@ other Subsonic media players.
 - [ ] Multiple music directories
 - [x] Playlists
   - including user-changable playlist covers (not natively supported by *OpenSubsonic*)
-- [x] [SONOS](https://www.sonos.com) casting (*very buggy*, *not documented*)
+- [ ] Jukebox
+  - [ ] device selection
+  - [ ] SONOS casting
 - [x] Serve [Crossonic Web](https://github.com/juho05/crossonic#web)
 - [x] Admin CLI
 - [ ] Admin web interface

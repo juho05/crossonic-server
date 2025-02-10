@@ -9,7 +9,6 @@ import (
 	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/ffmpeg"
-	"github.com/juho05/crossonic-server/handlers/connect"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/crossonic-server/repos"
@@ -18,13 +17,12 @@ import (
 )
 
 type Handler struct {
-	router            chi.Router
-	DB                repos.DB
-	Scanner           *scanner.Scanner
-	ListenBrainz      *listenbrainz.ListenBrainz
-	LastFM            *lastfm.LastFm
-	Transcoder        *ffmpeg.Transcoder
-	ConnectionManager *connect.ConnectionManager
+	router       chi.Router
+	DB           repos.DB
+	Scanner      *scanner.Scanner
+	ListenBrainz *listenbrainz.ListenBrainz
+	LastFM       *lastfm.LastFm
+	Transcoder   *ffmpeg.Transcoder
 
 	CoverCache     *cache.Cache
 	TranscodeCache *cache.Cache
@@ -32,14 +30,13 @@ type Handler struct {
 
 func New(db repos.DB, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
 	h := &Handler{
-		DB:                db,
-		Scanner:           scanner,
-		ListenBrainz:      listenBrainz,
-		LastFM:            lastFM,
-		Transcoder:        transcoder,
-		ConnectionManager: connect.NewConnectionManager(db),
-		TranscodeCache:    transcodeCache,
-		CoverCache:        coverCache,
+		DB:             db,
+		Scanner:        scanner,
+		ListenBrainz:   listenBrainz,
+		LastFM:         lastFM,
+		Transcoder:     transcoder,
+		TranscodeCache: transcodeCache,
+		CoverCache:     coverCache,
 	}
 	h.registerRoutes()
 	return h
@@ -54,8 +51,8 @@ func (h *Handler) registerRoutes() {
 		MaxAge:           300,
 	}))
 
-	r.With(ignoreExtension).Route("/rest/crossonic", h.registerCrossonicRoutes)
-	r.With(ignoreExtension).Route("/rest", h.registerSubsonicRoutes)
+	r.Route("/rest/crossonic", h.registerCrossonicRoutes)
+	r.Route("/rest", h.registerSubsonicRoutes)
 	if config.FrontendDir() != "" {
 		r.Mount("/", http.FileServer(http.Dir(config.FrontendDir())))
 		log.Infof("Serving frontend files in %s", config.FrontendDir())

@@ -165,7 +165,6 @@
 
 - [x] connectListenBrainz
 - [x] getListenBrainzConfig
-- [x] connect
 - [x] setPlaylistCover
 - [x] getRecap
 - [x] getTopSongsRecap
