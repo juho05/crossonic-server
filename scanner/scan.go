@@ -63,7 +63,7 @@ func (s *Scanner) Scan(db repos.DB) error {
 	defer func() {
 		err := s.tx.Rollback()
 		if err != nil && !errors.Is(err, sql.ErrTxDone) {
-			log.Error("rollback full scan tx: %w", err)
+			log.Errorf("rollback full scan tx: %s", err)
 		}
 		s.tx = nil
 	}()

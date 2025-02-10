@@ -27,6 +27,7 @@ func (h *Handler) registerSubsonicRoutes(r chi.Router) {
 	registerRoute(r, "/getAlbum", h.handleGetAlbum)
 	registerRoute(r, "/getArtist", h.handleGetArtist)
 	registerRoute(r, "/stream", h.handleStream)
+	registerRoute(r, "/stream.mp3", h.handleStream) // for SONOS
 	registerRoute(r, "/download", h.handleDownload)
 	registerRoute(r, "/scrobble", h.handleScrobble)
 	registerRoute(r, "/getNowPlaying", h.handleGetNowPlaying)

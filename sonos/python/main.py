@@ -33,7 +33,7 @@ def ping():
 
 @app.post("/getDevices")
 def devices():
-  devices = soco.discovery.scan_network(scan_timeout=1)
+  devices = soco.discover()
   result = []
   for d in devices:
     result.append({
@@ -133,6 +133,7 @@ def set_volume(ip_addr):
 def events(ip_addr):
   global current_queue_index
   speaker = soco.SoCo(ip_addr)
+  sub = None
   try:
     sub = speaker.avTransport.subscribe(auto_renew=True)
   except Exception as e:
@@ -145,7 +146,7 @@ def events(ip_addr):
     current_state = ""
     while True:
         try:
-          event = sub.events.get(timeout=1.0)
+          event = sub.events.get(timeout=3.0)
           state = event.variables["transport_state"]
           queue_index = int(event.variables["current_track"])-1
           if queue_index > current_queue_index:
@@ -156,7 +157,7 @@ def events(ip_addr):
             current_queue_index = queue_index
           if current_state != state:
             current_state = state
-            print(state)
+            print("received state:", state)
             ws.send(json.dumps({
               "state": state,
             }))
