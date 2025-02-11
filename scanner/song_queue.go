@@ -236,7 +236,6 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 	if err != nil {
 		return fmt.Errorf("update songs: %w", err)
 	}
-	create = append(create, failed...)
 
 	err = s.createSongs(ctx, slices.Concat(create, failed))
 	if err != nil {
@@ -244,6 +243,11 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 	}
 
 	for _, s := range create {
+		if s.newID {
+			updateSongFiles <- s
+		}
+	}
+	for _, s := range failed {
 		if s.newID {
 			updateSongFiles <- s
 		}
@@ -315,8 +319,6 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			return fmt.Errorf("create genre connections: %w", err)
 		}
 	}
-
-	s.counter.Add(uint32(len(mediaFiles)))
 
 	return nil
 }

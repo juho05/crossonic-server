@@ -134,6 +134,20 @@ func (s songRepository) FindNonExistentIDs(ctx context.Context, ids []string) ([
 	return selectQuery[string](ctx, s.db, q)
 }
 
+func (s songRepository) FindPaths(ctx context.Context, updatedBefore time.Time, paginate repos.Paginate) ([]string, error) {
+	q := bqb.New("SELECT songs.path FROM songs WHERE songs.updated <= ? ORDER BY songs.id", updatedBefore)
+	paginate.Apply(q)
+	return selectQuery[string](ctx, s.db, q)
+}
+
+func (s songRepository) DeleteByPaths(ctx context.Context, paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	q := bqb.New("DELETE FROM songs WHERE songs.path IN (?)", paths)
+	return executeQuery(ctx, s.db, q)
+}
+
 func (s songRepository) GetStreamInfo(ctx context.Context, id string) (*repos.SongStreamInfo, error) {
 	q := bqb.New("SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms, songs.channel_count FROM songs WHERE songs.id = ?", id)
 	return getQuery[*repos.SongStreamInfo](ctx, s.db, q)

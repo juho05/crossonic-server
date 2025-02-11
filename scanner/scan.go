@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/djherbis/times"
 	"github.com/juho05/crossonic-server/audiotags"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
@@ -23,14 +24,17 @@ const maxParallelDirs = 10
 const updateSongFilesWorkerCount = 10
 const setAlbumCoversWorkerCount = 10
 const songQueueBatchSize = 100
+const deleteOrphanedSongsByPathWorkerCount = 10
+const deleteOrphanedSongsByPathBatchSize = 300
 
 var coverImageNames = []string{"front", "folder", "cover"}
 
-func (s *Scanner) Scan(db repos.DB) error {
+func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	if !s.lock.TryLock() {
 		return ErrAlreadyScanning
 	}
 	s.scanning = true
+	s.fullScan = fullScan
 	defer func() {
 		if s.songQueue != nil {
 			close(s.songQueue)
@@ -47,15 +51,19 @@ func (s *Scanner) Scan(db repos.DB) error {
 	defer s.lock.Unlock()
 
 	s.scanStart = time.Now()
-
+	previousCount := s.counter.Load()
+	defer func() {
+		if err != nil {
+			s.counter.Store(previousCount)
+		}
+	}()
 	s.counter.Store(0)
 
-	log.Infof("Scanning %s...", s.mediaDir)
+	log.Infof("Scanning %s (full scan: %t)...", s.mediaDir, s.fullScan)
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	defer cancelCtx()
 
-	var err error
 	s.tx, err = db.NewTransaction(ctx)
 	if err != nil {
 		return fmt.Errorf("new transaction: %w", err)
@@ -72,14 +80,19 @@ func (s *Scanner) Scan(db repos.DB) error {
 	if err != nil && !errors.Is(err, repos.ErrNotFound) {
 		return fmt.Errorf("get last scan: %w", err)
 	}
-
-	songCount, err := s.tx.Song().Count(ctx)
-	if err != nil {
-		return fmt.Errorf("get song count: %w", err)
-	}
-	s.firstScan = songCount == 0
-	if s.firstScan {
-		log.Tracef("detected first scan")
+	if errors.Is(err, repos.ErrNotFound) {
+		s.fullScan = true
+		s.firstScan = true
+		log.Infof("No last scan time found: enabling full scan and marking as first scan")
+	} else {
+		songCount, err := s.tx.Song().Count(ctx)
+		if err != nil {
+			return fmt.Errorf("get song count: %w", err)
+		}
+		s.firstScan = songCount == 0
+		if s.firstScan {
+			log.Tracef("detected first scan")
+		}
 	}
 
 	log.Tracef("loading artist map from db...")
@@ -157,6 +170,11 @@ func (s *Scanner) Scan(db repos.DB) error {
 	default:
 	}
 
+	err = s.tx.System().SetLastScan(ctx, time.Now())
+	if err != nil {
+		return fmt.Errorf("update last scan: %w", err)
+	}
+
 	log.Tracef("committing changes...")
 	err = s.tx.Commit()
 	if err != nil {
@@ -168,7 +186,11 @@ func (s *Scanner) Scan(db repos.DB) error {
 }
 
 func (s *Scanner) scanMediaDir(ctx context.Context) error {
-	dirs := make(chan string, maxParallelDirs)
+	type dir struct {
+		changed bool
+		path    string
+	}
+	dirs := make(chan dir, maxParallelDirs)
 
 	var waitGroup sync.WaitGroup
 	var scanDirError error
@@ -177,7 +199,7 @@ func (s *Scanner) scanMediaDir(ctx context.Context) error {
 		go func() {
 			defer waitGroup.Done()
 			for dir := range dirs {
-				err := s.scanMediaFilesInDir(ctx, dir)
+				err := s.scanMediaFilesInDir(ctx, dir.path, dir.changed)
 				if err != nil {
 					log.Errorf("scan media dir: %s", err)
 					if scanDirError == nil {
@@ -189,7 +211,11 @@ func (s *Scanner) scanMediaDir(ctx context.Context) error {
 		}()
 	}
 
-	err := filepath.WalkDir(s.mediaDir, func(path string, d fs.DirEntry, err error) error {
+	info, err := os.Lstat(s.mediaDir)
+	if err != nil {
+		return fmt.Errorf("stat media dir: %w", err)
+	}
+	err = s.walkDir(s.mediaDir, fs.FileInfoToDirEntry(info), s.checkIfChanged(s.mediaDir, info), func(path string, d fs.DirEntry, parentChanged bool, err error) error {
 		if err != nil {
 			return err
 		}
@@ -204,9 +230,18 @@ func (s *Scanner) scanMediaDir(ctx context.Context) error {
 		if scanDirError != nil {
 			return filepath.SkipAll
 		}
-		dirs <- path
+		dirs <- dir{
+			changed: parentChanged || s.checkIfChangedByPath(path),
+			path:    path,
+		}
 		return nil
 	})
+	if err != nil {
+		if err != filepath.SkipDir && err != filepath.SkipAll {
+			return fmt.Errorf("walk media dir: %w", err)
+		}
+	}
+
 	close(dirs)
 	waitGroup.Wait()
 	if err != nil {
@@ -220,7 +255,49 @@ func (s *Scanner) scanMediaDir(ctx context.Context) error {
 	return nil
 }
 
-func (s *Scanner) scanMediaFilesInDir(ctx context.Context, dir string) error {
+// modified version of filepath.WalkDir
+func (s *Scanner) walkDir(path string, d fs.DirEntry, parentChanged bool, walkDirFn func(path string, d fs.DirEntry, parentChanged bool, err error) error) error {
+	changed := parentChanged
+	if !changed {
+		stat, err := times.Stat(path)
+		if err != nil {
+			return err
+		}
+		changed = stat.ModTime().After(s.lastScan) || !stat.HasChangeTime() || stat.ChangeTime().After(s.lastScan)
+	}
+	if err := walkDirFn(path, d, changed, nil); err != nil || !d.IsDir() {
+		if err == filepath.SkipDir && d.IsDir() {
+			// Successfully skipped directory.
+			err = nil
+		}
+		return err
+	}
+
+	dirs, err := os.ReadDir(path)
+	if err != nil {
+		// Second call, to report ReadDir error.
+		err = walkDirFn(path, d, changed, err)
+		if err != nil {
+			if err == filepath.SkipDir && d.IsDir() {
+				err = nil
+			}
+			return err
+		}
+	}
+
+	for _, d1 := range dirs {
+		path1 := filepath.Join(path, d1.Name())
+		if err := s.walkDir(path1, d1, changed, walkDirFn); err != nil {
+			if err == filepath.SkipDir {
+				break
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Scanner) scanMediaFilesInDir(ctx context.Context, dir string, changed bool) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("read dir: %w", err)
@@ -258,7 +335,7 @@ findCoverLoop:
 		default:
 		}
 
-		err := s.processFile(filepath.Join(dir, e.Name()), cover)
+		err := s.processFile(filepath.Join(dir, e.Name()), cover, changed)
 		if errors.Is(err, errNotAMediaFile) {
 			continue
 		}
@@ -271,7 +348,7 @@ findCoverLoop:
 
 var errNotAMediaFile = errors.New("not a media file")
 
-func (s *Scanner) processFile(path string, cover *string) error {
+func (s *Scanner) processFile(path string, cover *string, parentDirChanged bool) error {
 	ext := filepath.Ext(path)
 	if !strings.HasPrefix(mime.TypeByExtension(ext), "audio/") {
 		return errNotAMediaFile
@@ -287,6 +364,18 @@ func (s *Scanner) processFile(path string, cover *string) error {
 	contentType := mime.TypeByExtension(ext)
 	if !strings.HasPrefix(contentType, "audio/") {
 		return errNotAMediaFile
+	}
+
+	s.counter.Add(1)
+
+	if !s.fullScan && !parentDirChanged && info.ModTime().Before(s.lastScan) {
+		timeStat, err := times.Stat(path)
+		if err != nil {
+			return fmt.Errorf("times stat: %w", err)
+		}
+		if timeStat.HasChangeTime() && timeStat.ChangeTime().Before(s.lastScan) {
+			return nil
+		}
 	}
 
 	file, err := audiotags.Open(path)
@@ -375,6 +464,22 @@ func (s *Scanner) processFile(path string, cover *string) error {
 	}
 
 	return nil
+}
+
+func (s *Scanner) checkIfChanged(path string, info fs.FileInfo) bool {
+	if info.ModTime().After(s.lastScan) {
+		return true
+	}
+	return s.checkIfChangedByPath(path)
+}
+
+func (s *Scanner) checkIfChangedByPath(path string) bool {
+	stat, err := times.Stat(path)
+	if err != nil {
+		log.Errorf("check if file changed: %s", err)
+		return true
+	}
+	return stat.ModTime().After(s.lastScan) || !stat.HasChangeTime() || stat.ChangeTime().After(s.lastScan)
 }
 
 func readSingleTag(tags map[string][]string, key string) (string, bool) {

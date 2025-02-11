@@ -32,6 +32,7 @@ type Scanner struct {
 	scanning  bool
 	counter   atomic.Uint32
 	scanStart time.Time
+	fullScan  bool
 
 	instanceID string
 	firstScan  bool

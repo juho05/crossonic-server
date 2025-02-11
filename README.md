@@ -15,7 +15,7 @@ other Subsonic media players.
 - [x] media library scan
   - [x] on startup
   - [x] `startScan` endpoint
-  - [ ] incremental scan
+  - [x] incremental scan
   - [ ] file watching
 - [x] [ListenBrainz](https://listenbrainz.org) integration
   - [x] scrobbling

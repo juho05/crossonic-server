@@ -69,7 +69,7 @@ func run() error {
 
 	if !config.DisableStartupScan() {
 		go func() {
-			err = scanner.Scan(db)
+			err = scanner.Scan(db, false)
 			if err != nil {
 				log.Errorf("scan media: %s", err)
 			}

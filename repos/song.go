@@ -213,6 +213,9 @@ type SongRepository interface {
 	FindAllByPathOrMBID(ctx context.Context, paths []string, mbids []string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindNonExistentIDs(ctx context.Context, ids []string) ([]string, error)
 
+	FindPaths(ctx context.Context, updatedBefore time.Time, paginate Paginate) ([]string, error)
+	DeleteByPaths(ctx context.Context, paths []string) error
+
 	GetStreamInfo(ctx context.Context, id string) (*SongStreamInfo, error)
 
 	Create(ctx context.Context, params CreateSongParams) (*Song, error)
