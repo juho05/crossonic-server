@@ -87,7 +87,7 @@ func NewTranscoder() (*Transcoder, error) {
 	return &Transcoder{}, nil
 }
 
-func (t *Transcoder) SelectFormat(name string, maxBitRateK int) (Format, int) {
+func (t *Transcoder) SelectFormat(name string, channels, maxBitRateK int) (Format, int) {
 	if name == "raw" {
 		return Format{}, 0
 	}
@@ -101,6 +101,7 @@ func (t *Transcoder) SelectFormat(name string, maxBitRateK int) (Format, int) {
 	}
 	maxBitRateK = min(f.maxBitRateK, maxBitRateK)
 	maxBitRateK = max(f.minBitRateK, maxBitRateK)
+	maxBitRateK = min(f.maxBitRatePerChannelK*channels, maxBitRateK)
 	return f, maxBitRateK
 }
 

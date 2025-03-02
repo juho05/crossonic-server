@@ -68,7 +68,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		maxBitRate = int(info.BitRate)
 	}
 
-	fileFormat, bitRate := h.Transcoder.SelectFormat(format, maxBitRate)
+	fileFormat, bitRate := h.Transcoder.SelectFormat(format, info.ChannelCount, maxBitRate)
 
 	if format == "raw" || (fileFormat.Mime == info.ContentType && (maxBitRate == 0 || maxBitRate >= int(info.BitRate))) {
 		format = "raw"
@@ -99,7 +99,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			})
 			log.Tracef("Streaming %s with offset (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
 		} else {
-			bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, maxBitRate, time.Duration(timeOffset)*time.Second, w, func() {
+			bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, bitRate, time.Duration(timeOffset)*time.Second, w, func() {
 				close(done)
 			})
 			log.Tracef("Streaming %s with transcoded offset (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
@@ -113,15 +113,16 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cacheObj, exists, err := h.TranscodeCache.GetObject(fmt.Sprintf("%s-%s-%d", id, fileFormat.Name, bitRate))
-	if err != nil {
-		log.Errorf("stream: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
+	cacheKey := fmt.Sprintf("%s-%s-%d", id, fileFormat.Name, bitRate)
 
+	cacheObj, exists := h.TranscodeCache.GetObject(cacheKey)
 	if !exists {
-		bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, maxBitRate, 0, cacheObj, func() {
+		cacheObj, err = h.TranscodeCache.CreateObject(cacheKey)
+		if err != nil {
+			respondErr(w, query.Get("f"), fmt.Errorf("stream: %w", err))
+			return
+		}
+		bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, bitRate, 0, cacheObj, func() {
 			err := cacheObj.SetComplete()
 			if err != nil {
 				log.Errorf("ffmpeg: transcode: %s", err)
@@ -130,6 +131,10 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Errorf("stream: %s", err)
 			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			err = h.TranscodeCache.DeleteObject(cacheKey)
+			if err != nil {
+				log.Errorf("stream: %s", err)
+			}
 			return
 		}
 		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s) (new transcode)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
@@ -301,25 +306,22 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cacheObj, exists, err := h.CoverCache.GetObject(fmt.Sprintf("%s-%d", id, size))
-	if err != nil {
-		log.Errorf("get cover art: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	cacheReader, err := cacheObj.Reader()
-	if err != nil {
-		log.Errorf("get cover art: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		return
-	}
-	defer func() {
-		err = cacheReader.Close()
+	cacheKey := fmt.Sprintf("%s-%d", id, size)
+
+	cacheObj, exists := h.CoverCache.GetObject(cacheKey)
+	if exists {
+		cacheReader, err := cacheObj.Reader()
 		if err != nil {
 			log.Errorf("get cover art: %s", err)
+			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			return
 		}
-	}()
-	if exists {
+		defer func() {
+			err = cacheReader.Close()
+			if err != nil {
+				log.Errorf("get cover art: %s", err)
+			}
+		}()
 		w.Header().Set("Cache-Control", "max-age=10080") // 3h
 		w.Header().Set("Content-Type", "image/jpeg")
 		if cacheObj.IsComplete() {
@@ -387,16 +389,32 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "max-age=10080") // 3h
 	w.WriteHeader(http.StatusOK)
+	cacheObj, err = h.CoverCache.CreateObject(cacheKey)
+	if err != nil {
+		respondErr(w, format(r), fmt.Errorf("get cover art: %w", err))
+		return
+	}
 	go func() {
 		err = imaging.Encode(cacheObj, img, imaging.JPEG)
 		if err != nil {
 			log.Errorf("get cover art: encode %s: %s", id, err)
+			err = h.CoverCache.DeleteObject(cacheKey)
+			if err != nil {
+				log.Errorf("get cover art: %s", err)
+			}
+			return
 		}
 		err = cacheObj.SetComplete()
 		if err != nil {
 			log.Errorf("get cover art: %s", err)
 		}
 	}()
+	cacheReader, err := cacheObj.Reader()
+	if err != nil {
+		respondErr(w, format(r), fmt.Errorf("get cover art: %w", err))
+		return
+	}
+	defer cacheObj.Close()
 	_, _ = io.Copy(w, cacheReader)
 }
 

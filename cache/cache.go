@@ -2,6 +2,7 @@ package cache
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -12,6 +13,11 @@ import (
 	"time"
 
 	"github.com/juho05/log"
+)
+
+var (
+	ErrNotExist = errors.New("object does not exist")
+	ErrExist    = errors.New("object already exists")
 )
 
 type Cache struct {
@@ -62,21 +68,28 @@ func New(cacheDir string, maxSize int64, maxUnusedTime time.Duration) (*Cache, e
 	return c, nil
 }
 
-func (c *Cache) GetObject(key string) (*CacheObject, bool, error) {
+func (c *Cache) GetObject(key string) (*CacheObject, bool) {
 	c.objectsLock.RLock()
-	if o, ok := c.objects[key]; ok {
+	defer c.objectsLock.RUnlock()
+	o, ok := c.objects[key]
+	return o, ok
+}
+
+func (c *Cache) CreateObject(key string) (*CacheObject, error) {
+	c.objectsLock.RLock()
+	if _, ok := c.objects[key]; ok {
 		c.objectsLock.RUnlock()
-		return o, true, nil
+		return nil, os.ErrExist
 	}
 	c.objectsLock.RUnlock()
 	object, err := c.newCacheObject(key)
 	if err != nil {
-		return nil, false, fmt.Errorf("cache new object: %w", err)
+		return nil, fmt.Errorf("cache new object: %w", err)
 	}
 	c.objectsLock.Lock()
 	c.objects[key] = object
 	c.objectsLock.Unlock()
-	return object, false, nil
+	return object, nil
 }
 
 func (c *Cache) DeleteObject(key string) error {
