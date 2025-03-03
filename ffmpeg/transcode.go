@@ -99,6 +99,9 @@ func (t *Transcoder) SelectFormat(name string, channels, maxBitRateK int) (Forma
 		}
 		f = formats["mp3"]
 	}
+	if maxBitRateK == 0 {
+		return f, f.defaultBitRateK
+	}
 	maxBitRateK = min(f.maxBitRateK, maxBitRateK)
 	maxBitRateK = max(f.minBitRateK, maxBitRateK)
 	maxBitRateK = min(f.maxBitRatePerChannelK*channels, maxBitRateK)
