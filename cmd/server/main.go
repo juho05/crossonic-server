@@ -33,6 +33,7 @@ func init() {
 	_ = mime.AddExtensionType(".opus", "audio/opus")
 	_ = mime.AddExtensionType(".wav", "audio/wav")
 	_ = mime.AddExtensionType(".flac", "audio/flac")
+	_ = mime.AddExtensionType(".wasm", "application/wasm")
 }
 
 func run() error {

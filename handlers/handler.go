@@ -54,7 +54,19 @@ func (h *Handler) registerRoutes() {
 	r.Route("/rest/crossonic", h.registerCrossonicRoutes)
 	r.Route("/rest", h.registerSubsonicRoutes)
 	if config.FrontendDir() != "" {
-		r.Mount("/", http.FileServer(http.Dir(config.FrontendDir())))
+		r.Group(func(r chi.Router) {
+			r.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					// required for drift web support:
+					// https://drift.simonbinder.eu/platforms/web/#additional-headers
+					w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+					w.Header().Set("Cross-Origin-Embedder-Policy", "credentialless")
+					next.ServeHTTP(w, r)
+				})
+			})
+			r.Mount("/", http.FileServer(http.Dir(config.FrontendDir())))
+		})
+
 		log.Infof("Serving frontend files in %s", config.FrontendDir())
 	} else {
 		log.Trace("Frontend hosting disabled")
