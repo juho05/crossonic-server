@@ -64,16 +64,6 @@ var formats = map[string]Format{
 		maxBitRateK:           480,
 		maxBitRatePerChannelK: 240,
 	},
-	"aac": {
-		Name:                  "aac",
-		outFormat:             "adts",
-		Mime:                  "audio/aac",
-		encoder:               "aac",
-		minBitRateK:           64,
-		defaultBitRateK:       192,
-		maxBitRateK:           500,
-		maxBitRatePerChannelK: 500,
-	},
 }
 
 type Transcoder struct {

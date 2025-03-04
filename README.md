@@ -24,7 +24,7 @@ other Subsonic media players.
   - [x] per-user internet radio stations
 - [x] Transcoding and caching
   - [x] configurable with `format=` and `maxBitRate=` parameters
-  - `raw`, `mp3`, `opus`, `vorbis`, `aac`
+  - `raw`, `mp3`, `opus`, `vorbis`
 - [x] Fetch artist images and artist/album info from [last.fm](https://last.fm)
 - [x] Multiple artists, album artists, genres
 - [x] **Stores a unique ID in the metadata of all media files** to preserve IDs when moving/renaming files on disk
