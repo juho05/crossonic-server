@@ -115,7 +115,7 @@ func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitR
 	maxBitRateK = min(format.maxBitRateK, maxBitRateK)
 	maxBitRateK = max(format.minBitRateK, maxBitRateK)
 	maxBitRateK = min(format.maxBitRatePerChannelK*channels, maxBitRateK)
-	args := []string{"-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-b:a", fmt.Sprintf("%dk", maxBitRateK), "-c:a", format.encoder, "-f", format.outFormat, "-"}
+	args := []string{"-v", "error", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-b:a", fmt.Sprintf("%dk", maxBitRateK), "-c:a", format.encoder, "-f", format.outFormat, "-"}
 
 	stderr := new(bytes.Buffer)
 	cmd := exec.Command(ffmpegPath, args...)
@@ -145,7 +145,7 @@ func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitR
 
 func (t *Transcoder) SeekRaw(path string, timeOffset time.Duration, w io.Writer, onDone func()) error {
 	ext := strings.TrimPrefix(filepath.Ext(path), ".")
-	cmd := exec.Command(ffmpegPath, "-v", "0", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-c", "copy", "-f", ext, "-")
+	cmd := exec.Command(ffmpegPath, "-v", "error", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-c", "copy", "-f", ext, "-")
 
 	stderr := new(bytes.Buffer)
 	cmd.Stdout = w
