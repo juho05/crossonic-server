@@ -118,13 +118,13 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 
 		listens := make([]*listenbrainz.Listen, 0, len(ids))
 		createScrobblesParams := make([]repos.CreateScrobbleParams, 0, len(ids))
-		for i, id := range ids {
-			if !submission {
-				err := tx.Scrobble().DeleteNowPlaying(r.Context(), user)
-				if err != nil {
-					return fmt.Errorf("delete old now playing: %w", err)
-				}
+		if !submission {
+			err := tx.Scrobble().DeleteNowPlaying(r.Context(), user)
+			if err != nil {
+				return fmt.Errorf("delete old now playing: %w", err)
 			}
+		}
+		for i, id := range ids {
 			song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfo{
 				Album: true,
 				Lists: true,
