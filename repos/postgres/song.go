@@ -438,7 +438,7 @@ func genSongJoins(include repos.IncludeSongInfo) *bqb.Query {
 
 	if include.PlayInfo && include.User != "" {
 		q.Space(`LEFT JOIN (
-			SELECT song_id, COUNT(*) as count, MAX(time) as last_played FROM scrobbles WHERE user_name = ? GROUP BY (user_name, song_id)
+			SELECT song_id, COUNT(*) as count, MAX(time) as last_played FROM scrobbles WHERE user_name = ? AND now_playing = false AND (duration_ms IS NULL OR duration_ms >= 240000 OR duration_ms >= song_duration_ms/2) GROUP BY (user_name, song_id)
 		) plays ON plays.song_id = songs.id`, include.User)
 	}
 

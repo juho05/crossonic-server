@@ -235,7 +235,7 @@ func genAlbumJoins(include repos.IncludeAlbumInfo) *bqb.Query {
 
 	if include.PlayInfo && include.User != "" {
 		q.Space(`LEFT JOIN (
-			SELECT album_id, COUNT(*) as count, MAX(time) as last_played FROM scrobbles WHERE user_name = ? AND album_id IS NOT NULL GROUP BY (user_name, album_id)
+			SELECT album_id, COUNT(*) as count, MAX(time) as last_played FROM scrobbles WHERE user_name = ? AND album_id IS NOT NULL AND now_playing = false AND (duration_ms IS NULL OR duration_ms >= 240000 OR duration_ms >= song_duration_ms/2) GROUP BY (user_name, album_id)
 		) plays ON plays.album_id = albums.id`, include.User)
 	}
 
