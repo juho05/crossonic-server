@@ -80,9 +80,12 @@ func (p playlistRepository) RemoveTracks(ctx context.Context, id string, trackNu
 	}
 	return wrapErr("", p.tx(ctx, func(p playlistRepository) error {
 		q := bqb.New("DELETE FROM playlist_song WHERE playlist_id = ? AND track IN (?)", id, trackNumbers)
-		err := executeQuery(ctx, p.db, q)
+		count, err := executeQueryCountAffectedRows(ctx, p.db, q)
 		if err != nil {
 			return fmt.Errorf("delete playlist_songs: %w", err)
+		}
+		if count != len(trackNumbers) {
+			return fmt.Errorf("delete playlist_songs: %w", repos.ErrNotFound)
 		}
 
 		slices.Sort(trackNumbers)
@@ -101,9 +104,12 @@ func (p playlistRepository) RemoveTracks(ctx context.Context, id string, trackNu
 			caseExpr.Space("END")
 		}
 
-		q = bqb.New(`WITH ordered_rows AS (
-			SELECT track FROM playlist_song WHERE playlist_id = ? AND track > ? ORDER BY track
-		) UPDATE playlist_song SET track = ? WHERE playlist_id = ? AND track IN (SELECT track FROM ordered_rows)`, id, trackNumbers[0], caseExpr, id)
+		err = executeQuery(ctx, p.db, bqb.New("SET CONSTRAINTS playlist_song_pkey DEFERRED"))
+		if err != nil {
+			return fmt.Errorf("set track key to deferred: %w", err)
+		}
+
+		q = bqb.New(`UPDATE playlist_song SET track = ? WHERE playlist_id = ? AND track > ?`, caseExpr, id, trackNumbers[0])
 		err = executeQuery(ctx, p.db, q)
 		if err != nil {
 			return fmt.Errorf("update track numbers: %w", err)
