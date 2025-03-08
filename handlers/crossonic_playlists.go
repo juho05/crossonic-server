@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"image"
 	"net/http"
 	"os"
@@ -109,6 +110,12 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 				log.Errorf("set playlist cover: invalidate cache: %s", err)
 			}
 		}
+	}
+
+	err = h.DB.Playlist().Update(r.Context(), user, id, repos.UpdatePlaylistParams{})
+	if err != nil {
+		respondErr(w, format(r), fmt.Errorf("set playlist cover: update playlist updated time: %w", err))
+		return
 	}
 
 	responses.New().EncodeOrLog(w, query.Get("f"))
