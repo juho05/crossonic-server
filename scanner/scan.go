@@ -171,6 +171,12 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	default:
 	}
 
+	log.Tracef("fixing track numbers in playlists...")
+	err = s.tx.Playlist().FixTrackNumbers(ctx)
+	if err != nil {
+		return fmt.Errorf("fix playlist track numbers: %w", err)
+	}
+
 	err = s.tx.System().SetLastScan(ctx, time.Now())
 	if err != nil {
 		return fmt.Errorf("update last scan: %w", err)

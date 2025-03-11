@@ -69,5 +69,7 @@ type PlaylistRepository interface {
 	ClearTracks(ctx context.Context, id string) error
 	SetTracks(ctx context.Context, id string, songIDs []string) error
 
+	FixTrackNumbers(ctx context.Context) error
+
 	Delete(ctx context.Context, user, id string) error
 }

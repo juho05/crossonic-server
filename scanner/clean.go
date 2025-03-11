@@ -48,9 +48,8 @@ func (s *Scanner) deleteOrphanedSongsByPath(ctx context.Context) error {
 	removePaths := make([]string, 0, deleteOrphanedSongsByPathBatchSize)
 	var foundCount atomic.Int32
 	for i := 0; ; i += deleteOrphanedSongsByPathBatchSize {
-		offset := foundCount.Swap(0)
 		paths, err := s.tx.Song().FindPaths(ctx, s.scanStart, repos.Paginate{
-			Offset: int(offset),
+			Offset: int(foundCount.Load()),
 			Limit:  &limit,
 		})
 		if err != nil {

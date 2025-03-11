@@ -142,11 +142,12 @@ func (p playlistRepository) Delete(ctx context.Context, user, id string) error {
 	return executeQueryExpectAffectedRows(ctx, p.db, q)
 }
 
-func (p playlistRepository) FixTrackIndexes(ctx context.Context) error {
-	//return p.tx(ctx, func(p playlistRepository) error {
-	//
-	//})
-	return nil
+func (p playlistRepository) FixTrackNumbers(ctx context.Context) error {
+	q := bqb.New(`UPDATE playlist_song SET track = t.new_track FROM
+			(SELECT song_id,playlist_id,track,(row_number() OVER (PARTITION BY playlist_id ORDER BY track))-1 as new_track
+		FROM playlist_song ORDER BY playlist_id) as t
+		WHERE playlist_song.song_id = t.song_id AND playlist_song.playlist_id = t.playlist_id AND playlist_song.track != t.new_track`)
+	return executeQuery(ctx, p.db, q)
 }
 
 func (p playlistRepository) getMaxTrackNr(ctx context.Context, id string) (int, error) {
