@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/juho05/crossonic-server/repos"
 )
@@ -42,88 +43,60 @@ func (s *Scanner) deleteOrphaned(ctx context.Context) error {
 }
 
 func (s *Scanner) deleteOrphanedSongsByPath(ctx context.Context) error {
+	limit := deleteOrphanedSongsByPathBatchSize
 	var waitGroup sync.WaitGroup
+	removePaths := make([]string, 0, deleteOrphanedSongsByPathBatchSize)
+	var foundCount atomic.Int32
+	for i := 0; ; i += deleteOrphanedSongsByPathBatchSize {
+		offset := foundCount.Swap(0)
+		paths, err := s.tx.Song().FindPaths(ctx, s.scanStart, repos.Paginate{
+			Offset: int(offset),
+			Limit:  &limit,
+		})
+		if err != nil {
+			return fmt.Errorf("find song paths: %w", err)
+		}
+		if len(paths) == 0 {
+			// done
+			break
+		}
 
-	checkPathsChan := make(chan string, deleteOrphanedSongsByPathBatchSize)
+		removePathsChan := make(chan string, deleteOrphanedSongsByPathBatchSize)
+		checkPathsChan := make(chan string, deleteOrphanedSongsByPathBatchSize)
 
-	removePathsChan := make(chan string, deleteOrphanedSongsByPathBatchSize)
-
-	// find missing paths
-	for range deleteOrphanedSongsByPathWorkerCount {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
-			for path := range checkPathsChan {
-				_, err := os.Stat(path)
-				if errors.Is(err, os.ErrNotExist) {
-					removePathsChan <- path
+		// find missing paths
+		for range deleteOrphanedSongsByPathWorkerCount {
+			waitGroup.Add(1)
+			go func() {
+				defer waitGroup.Done()
+				for path := range checkPathsChan {
+					_, err := os.Stat(path)
+					if errors.Is(err, os.ErrNotExist) {
+						removePathsChan <- path
+					} else {
+						foundCount.Add(1)
+					}
 				}
-			}
-		}()
-	}
+			}()
+		}
 
-	// delete songs by paths
-	deleteSongsDone := make(chan error)
-	go func() {
-		defer close(deleteSongsDone)
+		for _, p := range paths {
+			checkPathsChan <- p
+		}
+		close(checkPathsChan)
+		waitGroup.Wait()
+		close(removePathsChan)
 
-		removePaths := make([]string, 0, deleteOrphanedSongsByPathBatchSize)
-		for path := range removePathsChan {
-			removePaths = append(removePaths, path)
-			if len(removePaths) >= deleteOrphanedSongsByPathBatchSize {
-				err := s.tx.Song().DeleteByPaths(ctx, removePaths)
-				if err != nil {
-					deleteSongsDone <- fmt.Errorf("delete songs by paths: %w", err)
-					return
-				}
-				removePaths = removePaths[:0]
-			}
+		for p := range removePathsChan {
+			removePaths = append(removePaths, p)
 		}
 		if len(removePaths) > 0 {
 			err := s.tx.Song().DeleteByPaths(ctx, removePaths)
 			if err != nil {
-				deleteSongsDone <- fmt.Errorf("delete songs by paths: %w", err)
-				return
+				return fmt.Errorf("delete songs by paths: %w", err)
 			}
+			removePaths = removePaths[:0]
 		}
-	}()
-
-	// find all song paths
-	limit := deleteOrphanedSongsByPathBatchSize
-	for i := 0; ; i += deleteOrphanedSongsByPathBatchSize {
-		paths, err := s.tx.Song().FindPaths(ctx, s.lastScan, repos.Paginate{
-			Offset: i,
-			Limit:  &limit,
-		})
-		if err != nil {
-			close(checkPathsChan)
-			waitGroup.Wait()
-			close(removePathsChan)
-			<-deleteSongsDone
-			return fmt.Errorf("find song paths: %w", err)
-		}
-		if len(paths) == 0 {
-			break
-		}
-		for _, p := range paths {
-			select {
-			case <-ctx.Done():
-				break
-			default:
-			}
-			checkPathsChan <- p
-		}
-	}
-
-	// finish path checker
-	close(checkPathsChan)
-	waitGroup.Wait()
-
-	// finish song remover
-	close(removePathsChan)
-	err := <-deleteSongsDone
-	if err != nil {
-		return err
 	}
 
 	return nil

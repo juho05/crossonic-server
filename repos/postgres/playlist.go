@@ -142,6 +142,13 @@ func (p playlistRepository) Delete(ctx context.Context, user, id string) error {
 	return executeQueryExpectAffectedRows(ctx, p.db, q)
 }
 
+func (p playlistRepository) FixTrackIndexes(ctx context.Context) error {
+	//return p.tx(ctx, func(p playlistRepository) error {
+	//
+	//})
+	return nil
+}
+
 func (p playlistRepository) getMaxTrackNr(ctx context.Context, id string) (int, error) {
 	q := bqb.New("SELECT COALESCE(MAX(playlist_song.track), -1) FROM playlist_song WHERE playlist_song.playlist_id = ?", id)
 	return getQuery[int](ctx, p.db, q)
