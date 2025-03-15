@@ -170,8 +170,8 @@ func (a artistRepository) RemoveRating(ctx context.Context, user, artistID strin
 	return executeQuery(ctx, a.db, q)
 }
 
-func (a artistRepository) GetInfo(ctx context.Context, artistID string, after time.Time) (*repos.ArtistInfo, error) {
-	q := bqb.New("SELECT artists.id, artists.info_updated, artists.biography, artists.lastfm_url, artists.lastfm_mbid, artists.music_brainz_id FROM artists WHERE artists.id = ? AND (artists.info_updated IS NULL OR artists.info_updated > ?)", artistID, after)
+func (a artistRepository) GetInfo(ctx context.Context, artistID string) (*repos.ArtistInfo, error) {
+	q := bqb.New("SELECT artists.id, artists.info_updated, artists.biography, artists.lastfm_url, artists.lastfm_mbid, artists.music_brainz_id FROM artists WHERE artists.id = ?", artistID)
 	return getQuery[*repos.ArtistInfo](ctx, a.db, q)
 }
 

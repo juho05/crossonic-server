@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
@@ -158,8 +157,8 @@ func (a albumRepository) RemoveRating(ctx context.Context, user, albumID string)
 	return executeQuery(ctx, a.db, q)
 }
 
-func (a albumRepository) GetInfo(ctx context.Context, albumID string, after time.Time) (*repos.AlbumInfo, error) {
-	q := bqb.New("SELECT albums.id, albums.info_updated, albums.description, albums.lastfm_url, albums.lastfm_mbid, albums.music_brainz_id FROM albums WHERE albums.id = ? AND (albums.info_updated IS NULL OR albums.info_updated > ?)", albumID, after)
+func (a albumRepository) GetInfo(ctx context.Context, albumID string) (*repos.AlbumInfo, error) {
+	q := bqb.New("SELECT albums.id, albums.info_updated, albums.description, albums.lastfm_url, albums.lastfm_mbid, albums.music_brainz_id FROM albums WHERE albums.id = ?", albumID)
 	return getQuery[*repos.AlbumInfo](ctx, a.db, q)
 }
 

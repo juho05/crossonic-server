@@ -17,6 +17,7 @@ import (
 
 func respondErr(w http.ResponseWriter, format string, err error) {
 	if errors.Is(err, repos.ErrNotFound) {
+		log.Error(err)
 		responses.EncodeError(w, format, "not found", responses.SubsonicErrorNotFound)
 		return
 	}

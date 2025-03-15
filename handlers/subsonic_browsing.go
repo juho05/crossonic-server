@@ -229,10 +229,13 @@ func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
 		id = *song.AlbumID
 	}
 
-	info, err := h.DB.Album().GetInfo(r.Context(), id, time.Now().Add(-keepLastFMInfoFor))
-	if err != nil {
+	info, err := h.DB.Album().GetInfo(r.Context(), id)
+	if err != nil && !errors.Is(err, repos.ErrNotFound) {
 		respondErr(w, format(r), fmt.Errorf("get album info: get info: %w", err))
 		return
+	}
+	if info.Updated != nil && time.Since(*info.Updated) > keepLastFMInfoFor {
+		info.Updated = nil
 	}
 
 	if info.Updated == nil && h.LastFM != nil {
@@ -336,10 +339,13 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 			}
 		}
 
-		info, err := h.DB.Artist().GetInfo(r.Context(), id, time.Now().Add(-keepLastFMInfoFor))
+		info, err := h.DB.Artist().GetInfo(r.Context(), id)
 		if err != nil {
 			respondErr(w, format(r), fmt.Errorf("get artist info: get info: %w", err))
 			return
+		}
+		if info.Updated != nil && time.Since(*info.Updated) > keepLastFMInfoFor {
+			info.Updated = nil
 		}
 
 		if info.Updated == nil && h.LastFM != nil {

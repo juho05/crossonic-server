@@ -170,7 +170,7 @@ type AlbumRepository interface {
 	SetRating(ctx context.Context, user, albumID string, rating int) error
 	RemoveRating(ctx context.Context, user, albumID string) error
 
-	GetInfo(ctx context.Context, albumID string, after time.Time) (*AlbumInfo, error)
+	GetInfo(ctx context.Context, albumID string) (*AlbumInfo, error)
 	SetInfo(ctx context.Context, albumID string, params SetAlbumInfo) error
 
 	GetAllArtistConnections(ctx context.Context) ([]AlbumArtistConnection, error)

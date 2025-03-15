@@ -103,6 +103,6 @@ type ArtistRepository interface {
 	SetRating(ctx context.Context, user, artistID string, rating int) error
 	RemoveRating(ctx context.Context, user, artistID string) error
 
-	GetInfo(ctx context.Context, artistID string, after time.Time) (*ArtistInfo, error)
+	GetInfo(ctx context.Context, artistID string) (*ArtistInfo, error)
 	SetInfo(ctx context.Context, artistID string, params SetArtistInfo) error
 }
