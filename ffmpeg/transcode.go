@@ -13,56 +13,51 @@ import (
 )
 
 type Format struct {
-	Name                  string
-	Mime                  string
-	outFormat             string
-	encoder               string
-	minBitRateK           int
-	defaultBitRateK       int
-	maxBitRateK           int
-	maxBitRatePerChannelK int
+	Name            string
+	Mime            string
+	outFormat       string
+	encoder         string
+	minBitRateK     int
+	defaultBitRateK int
+	maxBitRateK     int
 }
 
 var formats = map[string]Format{
 	"mp3": {
-		Name:                  "mp3",
-		outFormat:             "mp3",
-		Mime:                  "audio/mpeg",
-		encoder:               "libmp3lame",
-		minBitRateK:           64,
-		defaultBitRateK:       192,
-		maxBitRateK:           320,
-		maxBitRatePerChannelK: 320,
+		Name:            "mp3",
+		outFormat:       "mp3",
+		Mime:            "audio/mpeg",
+		encoder:         "libmp3lame",
+		minBitRateK:     64,
+		defaultBitRateK: 192,
+		maxBitRateK:     320,
 	},
 	"opus": {
-		Name:                  "opus",
-		outFormat:             "ogg",
-		Mime:                  "audio/ogg",
-		encoder:               "libopus",
-		minBitRateK:           32,
-		defaultBitRateK:       192,
-		maxBitRateK:           512,
-		maxBitRatePerChannelK: 256,
+		Name:            "opus",
+		outFormat:       "ogg",
+		Mime:            "audio/ogg",
+		encoder:         "libopus",
+		minBitRateK:     32,
+		defaultBitRateK: 192,
+		maxBitRateK:     512,
 	},
 	"ogg": {
-		Name:                  "opus",
-		outFormat:             "ogg",
-		Mime:                  "audio/ogg",
-		encoder:               "libopus",
-		minBitRateK:           32,
-		defaultBitRateK:       192,
-		maxBitRateK:           512,
-		maxBitRatePerChannelK: 256,
+		Name:            "vorbis",
+		outFormat:       "ogg",
+		Mime:            "audio/ogg",
+		encoder:         "libvorbis",
+		minBitRateK:     96,
+		defaultBitRateK: 192,
+		maxBitRateK:     480,
 	},
 	"vorbis": {
-		Name:                  "vorbis",
-		outFormat:             "ogg",
-		Mime:                  "audio/ogg",
-		encoder:               "libvorbis",
-		minBitRateK:           96,
-		defaultBitRateK:       192,
-		maxBitRateK:           480,
-		maxBitRatePerChannelK: 240,
+		Name:            "vorbis",
+		outFormat:       "ogg",
+		Mime:            "audio/ogg",
+		encoder:         "libvorbis",
+		minBitRateK:     80,
+		defaultBitRateK: 192,
+		maxBitRateK:     384,
 	},
 }
 
@@ -94,7 +89,6 @@ func (t *Transcoder) SelectFormat(name string, channels, maxBitRateK int) (Forma
 	}
 	maxBitRateK = min(f.maxBitRateK, maxBitRateK)
 	maxBitRateK = max(f.minBitRateK, maxBitRateK)
-	maxBitRateK = min(f.maxBitRatePerChannelK*channels, maxBitRateK)
 	return f, maxBitRateK
 }
 
@@ -104,8 +98,35 @@ func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitR
 	}
 	maxBitRateK = min(format.maxBitRateK, maxBitRateK)
 	maxBitRateK = max(format.minBitRateK, maxBitRateK)
-	maxBitRateK = min(format.maxBitRatePerChannelK*channels, maxBitRateK)
-	args := []string{"-v", "error", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-b:a", fmt.Sprintf("%dk", maxBitRateK), "-c:a", format.encoder, "-f", format.outFormat, "-"}
+	bitRateFlags := []string{"-b:a", fmt.Sprintf("%dk", maxBitRateK)}
+	if format.encoder == "libvorbis" {
+		// FIXME: the resulting bitrate seems to be a bit higher than requested in most cases
+		bitRateFlags = []string{"-q:a"}
+		if maxBitRateK <= 80 {
+			bitRateFlags = append(bitRateFlags, "1")
+		} else if maxBitRateK <= 96 {
+			bitRateFlags = append(bitRateFlags, "2")
+		} else if maxBitRateK <= 112 {
+			bitRateFlags = append(bitRateFlags, "3")
+		} else if maxBitRateK <= 128 {
+			bitRateFlags = append(bitRateFlags, "4")
+		} else if maxBitRateK <= 160 {
+			bitRateFlags = append(bitRateFlags, "5")
+		} else if maxBitRateK <= 192 {
+			bitRateFlags = append(bitRateFlags, "6")
+		} else if maxBitRateK <= 224 {
+			bitRateFlags = append(bitRateFlags, "7")
+		} else if maxBitRateK <= 256 {
+			bitRateFlags = append(bitRateFlags, "8")
+		} else if maxBitRateK <= 320 {
+			bitRateFlags = append(bitRateFlags, "9")
+		} else {
+			bitRateFlags = append(bitRateFlags, "10")
+		}
+	}
+	args := []string{"-v", "error", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn"}
+	args = append(args, bitRateFlags...)
+	args = append(args, "-c:a", format.encoder, "-f", format.outFormat, "-")
 
 	stderr := new(bytes.Buffer)
 	cmd := exec.Command(ffmpegPath, args...)
