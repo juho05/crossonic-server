@@ -193,9 +193,10 @@ type SongFindBySearchParams struct {
 	Paginate Paginate
 }
 
-type SongSetLBFeedbackUpdatedParams struct {
-	SongID string
-	MBID   string
+type SongSetLBFeedbackUploadedParams struct {
+	SongID     string
+	RemoteMBID *string
+	Uploaded   bool
 }
 
 // repo
@@ -234,15 +235,15 @@ type SongRepository interface {
 	Star(ctx context.Context, user, songID string) error
 	StarMultiple(ctx context.Context, user string, songID []string) (int, error)
 	UnStar(ctx context.Context, user, songID string) error
+	UnStarMultiple(ctx context.Context, user string, songID []string) (int, error)
 
 	SetRating(ctx context.Context, user, songID string, rating int) error
 	RemoveRating(ctx context.Context, user, songID string) error
 
-	SetLBFeedbackUpdated(ctx context.Context, user string, params []SongSetLBFeedbackUpdatedParams) error
-	RemoveLBFeedbackUpdated(ctx context.Context, user string, songIDs []string) error
-	FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx context.Context, user string, mbids []string) ([]string, error)
-	DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx context.Context, user string, mbids []string) (int, error)
-	FindNotLBUpdatedSongs(ctx context.Context, user string, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindNotUploadedLBFeedback(ctx context.Context, user string, lbLovedMBIDs []string, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindLocalOutdatedFeedbackByLB(ctx context.Context, user string, lbLovedMBIDs []string, include IncludeSongInfo) ([]*CompleteSong, error)
+	SetLBFeedbackUploaded(ctx context.Context, user string, params []SongSetLBFeedbackUploadedParams, updateRemoteMBIDs bool) error
+	SetLBFeedbackUploadedForAllMatchingStarredSongs(ctx context.Context, user string, lbLovedMBIDs []string) error
 
 	Count(ctx context.Context) (int, error)
 	GetMedianReplayGain(ctx context.Context) (float64, error)

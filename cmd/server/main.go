@@ -74,8 +74,10 @@ func run() error {
 			if err != nil {
 				log.Errorf("scan media: %s", err)
 			}
-			lBrainz.StartPeriodicSync(24 * time.Hour)
+			lBrainz.StartPeriodicSync(3 * time.Hour)
 		}()
+	} else {
+		lBrainz.StartPeriodicSync(3 * time.Hour)
 	}
 
 	lfm := lastfm.New(config.LastFMApiKey())

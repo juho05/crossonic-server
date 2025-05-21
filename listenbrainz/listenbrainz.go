@@ -14,6 +14,7 @@ import (
 	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
 )
 
@@ -419,6 +420,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 					ReleaseName:   f.AlbumName,
 				})
 			}
+			log.Tracef("listenbrainz: looking up %d recording mbids", len(req.Recordings))
 			res, err := listenBrainzRequest[[]response](ctx, "/1/metadata/lookup", http.MethodPost, con.Token, req)
 			if err != nil {
 				return 0, fmt.Errorf("update song favorites: %w", err)
@@ -437,11 +439,12 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 		RecordingMBID string        `json:"recording_mbid"`
 		Score         FeedbackScore `json:"score"`
 	}
-	successSongs := make([]repos.SongSetLBFeedbackUpdatedParams, 0, len(feedback))
+	successSongs := make([]repos.SongSetLBFeedbackUploadedParams, 0, len(feedback))
 	for _, f := range feedback {
 		if f.SongMBID == nil {
 			continue
 		}
+		log.Tracef("listenbrainz: uploading feedback for %s (%s, %s): %s", f.SongName, f.SongID, f.SongMBID, f.Score)
 		_, err := listenBrainzRequest[any](ctx, "/1/feedback/recording-feedback", http.MethodPost, con.Token, request{
 			RecordingMBID: *f.SongMBID,
 			Score:         f.Score,
@@ -450,19 +453,23 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 			log.Errorf("listenbrainz: update song feedback: %s", err)
 			continue
 		}
-		successSongs = append(successSongs, repos.SongSetLBFeedbackUpdatedParams{
-			SongID: f.SongID,
-			MBID:   *f.SongMBID,
+		successSongs = append(successSongs, repos.SongSetLBFeedbackUploadedParams{
+			SongID:     f.SongID,
+			RemoteMBID: f.SongMBID,
+			Uploaded:   true,
 		})
 	}
 
-	err := l.db.Song().SetLBFeedbackUpdated(ctx, con.User, successSongs)
+	err := l.db.Song().SetLBFeedbackUploaded(ctx, con.User, successSongs, true)
 	if err != nil {
-		return 0, fmt.Errorf("listenbrainz: update song feedback: update lb_feedback_updated: %w", err)
+		return 0, fmt.Errorf("listenbrainz: update song feedback: update lb_feedback_status: %w", err)
 	}
 	return len(successSongs), nil
 }
 
+// if upload status is unknown:      global favorite <- local is favorite OR remote is favorite
+// if upload status is uploaded:     global favorite <- remote is favorite
+// if upload status is not uploaded: global favorite <- local is favorite
 func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 	users, err := l.db.User().FindAll(ctx)
 	if err != nil {
@@ -481,10 +488,30 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 			continue
 		}
 
-		// upload non-uploaded feedback to ListenBrainz
-		songs, err := l.db.Song().FindNotLBUpdatedSongs(ctx, u.Name, repos.IncludeSongInfoFull(u.Name))
+		lbFeedback, err := l.collectListenbrainzLoveFeedback(ctx, *u.ListenBrainzUsername, token)
 		if err != nil {
-			log.Errorf("listenbrainz: sync song feedback: find not lb updated songs: %s", err)
+			log.Errorf("listenbrainz: sync song feedback: collect listenbrainz love feedback: %s", err)
+			continue
+		}
+		lbLovedMBIDs := make([]string, 0, len(lbFeedback))
+		for _, f := range lbFeedback {
+			lbLovedMBIDs = append(lbLovedMBIDs, f.RecordingMBID)
+		}
+
+		err = l.db.Song().SetLBFeedbackUploadedForAllMatchingStarredSongs(ctx, u.Name, lbLovedMBIDs)
+		if err != nil {
+			log.Errorf("listenbrainz: sync song feedback: set all already matching loved songs to uploaded: %s", err)
+			continue
+		}
+
+		songs, err := l.db.Song().FindNotUploadedLBFeedback(ctx, u.Name, lbLovedMBIDs, repos.IncludeSongInfo{
+			Album:       true,
+			User:        u.Name,
+			Annotations: true,
+			Lists:       true,
+		})
+		if err != nil {
+			log.Errorf("listenbrainz: sync song feedback: find not uploaded songs: %s", err)
 			continue
 		}
 		feedbackList := make([]*Feedback, 0, len(songs))
@@ -508,6 +535,25 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 			feedbackList = append(feedbackList, feedback)
 		}
 
+		songs, err = l.db.Song().FindLocalOutdatedFeedbackByLB(ctx, u.Name, lbLovedMBIDs, repos.IncludeSongInfo{
+			User:        u.Name,
+			Annotations: true,
+		})
+		if err != nil {
+			log.Errorf("listenbrainz: sync song feedback: find local outdated feedback: %s", err)
+			continue
+		}
+
+		unstarSongIDs := make([]string, 0, 5)
+		starSongIDs := make([]string, 0, 5)
+		for _, s := range songs {
+			if s.Starred != nil {
+				unstarSongIDs = append(unstarSongIDs, s.ID)
+			} else {
+				starSongIDs = append(starSongIDs, s.ID)
+			}
+		}
+
 		uploadCount, err := l.UpdateSongFeedback(ctx, Connection{
 			User:       u.Name,
 			LBUsername: *u.ListenBrainzUsername,
@@ -519,38 +565,33 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 		}
 		uploadedLocal += uploadCount
 
-		lbFeedback, err := l.collectListenbrainzLoveFeedback(ctx, *u.ListenBrainzUsername, token)
-		if err != nil {
-			log.Errorf("listenbrainz: sync song feedback: collect listenbrainz love feedback: %s", err)
-			continue
-		}
-		lbFeedbackMBIDs := make([]string, 0, len(lbFeedback))
-		for _, f := range lbFeedback {
-			lbFeedbackMBIDs = append(lbFeedbackMBIDs, f.RecordingMBID)
-		}
-
 		err = l.db.Transaction(ctx, func(tx repos.Tx) error {
-			// delete local uploaded feedback that is not present on ListenBrainz
-			affected, err := tx.Song().DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx, u.Name, lbFeedbackMBIDs)
+			deletedCount, err := tx.Song().UnStarMultiple(ctx, u.Name, unstarSongIDs)
 			if err != nil {
-				return fmt.Errorf("delete stars when not in list of love feedback: %w", err)
+				return fmt.Errorf("unstar starred songs not in list of love feedback: %w", err)
 			}
-			deletedLocal += affected
+			deletedLocal += int(deletedCount)
 
-			// update local uploaded feedback that is present on ListenBrainz
-			songIDs, err := tx.Song().FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx, u.Name, lbFeedbackMBIDs)
-			if err != nil {
-				return fmt.Errorf("find non-starred songs in list of love feedback: %w", err)
-			}
-			newStarCount, err := tx.Song().StarMultiple(ctx, u.Name, songIDs)
+			newStarCount, err := tx.Song().StarMultiple(ctx, u.Name, starSongIDs)
 			if err != nil {
 				return fmt.Errorf("star non-starred songs in list of love feedback: %w", err)
 			}
 			createdLocal += int(newStarCount)
+
+			err = tx.Song().SetLBFeedbackUploaded(ctx, u.Name, util.Map(songs, func(s *repos.CompleteSong) repos.SongSetLBFeedbackUploadedParams {
+				return repos.SongSetLBFeedbackUploadedParams{
+					SongID:     s.ID,
+					RemoteMBID: nil,
+					Uploaded:   true,
+				}
+			}), false)
+			if err != nil {
+				return fmt.Errorf("update lb_feedback_status: %w", err)
+			}
 			return nil
 		})
 		if err != nil {
-			log.Errorf("listenbrainz: sync song feedback: %s", err)
+			log.Errorf("listenbrainz: sync song feedback: update local feedback: %s", err)
 			continue
 		}
 	}

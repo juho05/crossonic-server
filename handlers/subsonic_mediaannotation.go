@@ -361,9 +361,15 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 				}
 			}
 
-			err := tx.Song().RemoveLBFeedbackUpdated(r.Context(), user, songIDs)
+			err := tx.Song().SetLBFeedbackUploaded(r.Context(), user, util.Map(songIDs, func(id string) repos.SongSetLBFeedbackUploadedParams {
+				return repos.SongSetLBFeedbackUploadedParams{
+					SongID:     id,
+					RemoteMBID: nil,
+					Uploaded:   false,
+				}
+			}), false)
 			if err != nil {
-				return fmt.Errorf("remove ListenBrainz feedback updated: %w", err)
+				return fmt.Errorf("set lb_feedback_status to uploaded = false: %w", err)
 			}
 
 			return nil

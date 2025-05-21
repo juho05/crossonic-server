@@ -312,12 +312,12 @@ func (s songRepository) Star(ctx context.Context, user, songID string) error {
 	return executeQuery(ctx, s.db, q)
 }
 
-func (s songRepository) StarMultiple(ctx context.Context, user string, songID []string) (int, error) {
-	if len(songID) == 0 {
+func (s songRepository) StarMultiple(ctx context.Context, user string, songIDs []string) (int, error) {
+	if len(songIDs) == 0 {
 		return 0, nil
 	}
 	valueList := bqb.Optional("")
-	for _, s := range songID {
+	for _, s := range songIDs {
 		valueList.Comma("(?, ?, NOW())", s, user)
 	}
 	q := bqb.New("INSERT INTO song_stars (song_id, user_name, created) VALUES ? ON CONFLICT(song_id,user_name) DO NOTHING", valueList)
@@ -327,6 +327,14 @@ func (s songRepository) StarMultiple(ctx context.Context, user string, songID []
 func (s songRepository) UnStar(ctx context.Context, user, songID string) error {
 	q := bqb.New("DELETE FROM song_stars WHERE user_name = ? AND song_id = ?", user, songID)
 	return executeQuery(ctx, s.db, q)
+}
+
+func (s songRepository) UnStarMultiple(ctx context.Context, user string, songIDs []string) (int, error) {
+	if len(songIDs) == 0 {
+		return 0, nil
+	}
+	q := bqb.New("DELETE FROM song_stars WHERE user_name = ? AND song_id IN (?)", user, songIDs)
+	return executeQueryCountAffectedRows(ctx, s.db, q)
 }
 
 func (s songRepository) SetRating(ctx context.Context, user, songID string, rating int) error {
@@ -339,51 +347,74 @@ func (s songRepository) RemoveRating(ctx context.Context, user, songID string) e
 	return executeQuery(ctx, s.db, q)
 }
 
-func (s songRepository) SetLBFeedbackUpdated(ctx context.Context, user string, params []repos.SongSetLBFeedbackUpdatedParams) error {
+func (s songRepository) FindNotUploadedLBFeedback(ctx context.Context, user string, lbLovedMBIDs []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+	include.Annotations = true
+	if len(lbLovedMBIDs) == 0 {
+		lbLovedMBIDs = append(lbLovedMBIDs, "\n") // prevent lbLovedMBIDs from being empty
+	}
+	q := bqb.New(`
+		SELECT ? FROM songs ?
+		LEFT JOIN lb_feedback_status ON lb_feedback_status.song_id = songs.id AND lb_feedback_status.user_name = ?
+		WHERE
+			(lb_feedback_status.uploaded IS NULL AND song_stars.created IS NOT NULL AND songs.music_brainz_id NOT IN (?))
+			OR
+			(lb_feedback_status.uploaded = false AND
+				(
+						song_stars.created IS NULL
+						AND
+						(songs.music_brainz_id IN (?) OR lb_feedback_status.remote_mbid IN (?))
+					OR
+						song_stars.created IS NOT NULL
+						AND songs.music_brainz_id NOT IN (?)
+						AND lb_feedback_status.remote_mbid NOT IN (?)
+				)
+			)
+	`, genSongSelectList(include), genSongJoins(include), user, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs)
+	return execSongSelectMany(ctx, s.db, q, include)
+}
+
+func (s songRepository) FindLocalOutdatedFeedbackByLB(ctx context.Context, user string, lbLovedMBIDs []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+	include.Annotations = true
+	if len(lbLovedMBIDs) == 0 {
+		lbLovedMBIDs = append(lbLovedMBIDs, "\n") // prevent lbLovedMBIDs from being empty
+	}
+	q := bqb.New(`
+		SELECT ? FROM songs ?
+		LEFT JOIN lb_feedback_status ON lb_feedback_status.song_id = songs.id AND lb_feedback_status.user_name = ?
+		WHERE
+			(lb_feedback_status.uploaded IS NULL AND song_stars.created IS NULL AND songs.music_brainz_id IN (?))
+			OR
+			(lb_feedback_status.uploaded = true AND (song_stars.created IS NULL AND (songs.music_brainz_id IN (?) OR lb_feedback_status.remote_mbid IN (?)) OR song_stars.created IS NOT NULL AND songs.music_brainz_id NOT IN (?) AND lb_feedback_status.remote_mbid NOT IN (?)))
+	`, genSongSelectList(include), genSongJoins(include), user, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs)
+	return execSongSelectMany(ctx, s.db, q, include)
+}
+
+func (s songRepository) SetLBFeedbackUploaded(ctx context.Context, user string, params []repos.SongSetLBFeedbackUploadedParams, updateRemoteMBIDs bool) error {
 	if len(params) == 0 {
 		return nil
 	}
 	valueList := bqb.Optional("")
 	for _, p := range params {
-		valueList.Comma("(?, ?, ?)", p.SongID, user, p.MBID)
+		valueList.Comma("(?,?,?,?)", p.SongID, user, p.RemoteMBID, p.Uploaded)
 	}
-	q := bqb.New("INSERT INTO lb_feedback_updated (song_id,user_name,mbid) VALUES ?", valueList)
+	q := bqb.New("INSERT INTO lb_feedback_status (song_id,user_name,remote_mbid,uploaded) VALUES ? ON CONFLICT (song_id,user_name) DO UPDATE SET uploaded = excluded.uploaded", valueList)
+	if updateRemoteMBIDs {
+		q.Comma("remote_mbid = excluded.remote_mbid")
+	}
 	return executeQuery(ctx, s.db, q)
 }
 
-func (s songRepository) RemoveLBFeedbackUpdated(ctx context.Context, user string, songIDs []string) error {
-	if len(songIDs) == 0 {
+func (s songRepository) SetLBFeedbackUploadedForAllMatchingStarredSongs(ctx context.Context, user string, lbLovedMBIDs []string) error {
+	if len(lbLovedMBIDs) == 0 {
 		return nil
 	}
-	q := bqb.New("DELETE FROM lb_feedback_updated WHERE user_name = ? AND song_id IN (?)", user, songIDs)
+	q := bqb.New(`
+		INSERT INTO lb_feedback_status (song_id,user_name,remote_mbid,uploaded)
+			SELECT songs.id, song_stars.user_name, songs.music_brainz_id, true FROM songs
+			LEFT JOIN song_stars ON song_stars.song_id = songs.id AND song_stars.user_name = ?
+			WHERE song_stars.created IS NOT NULL AND songs.music_brainz_id IN (?)
+		ON CONFLICT (song_id,user_name) DO UPDATE SET uploaded = true`, user, lbLovedMBIDs)
 	return executeQuery(ctx, s.db, q)
-}
-
-func (s songRepository) FindLBFeedbackUpdatedSongIDsInMBIDListNotStarred(ctx context.Context, user string, mbids []string) ([]string, error) {
-	if len(mbids) == 0 {
-		return []string{}, nil
-	}
-	q := bqb.New(`SELECT lb_feedback_updated.song_id FROM lb_feedback_updated
-		LEFT JOIN song_stars ON song_stars.user_name = ? AND song_stars.song_id = lb_feedback_updated.song_id
-		WHERE lb_feedback_updated.user_name = ? AND song_stars.song_id IS NULL AND lb_feedback_updated.mbid IN (?)`, user, user, mbids)
-	return selectQuery[string](ctx, s.db, q)
-}
-
-func (s songRepository) DeleteLBFeedbackUpdatedStarsNotInMBIDList(ctx context.Context, user string, mbids []string) (int, error) {
-	if len(mbids) == 0 {
-		return 0, nil
-	}
-	q := bqb.New(`DELETE FROM song_stars WHERE song_stars.user_name = ? AND song_stars.song_id IN (
-			SELECT lb_feedback_updated.song_id FROM lb_feedback_updated WHERE lb_feedback_updated.user_name = ? AND NOT (lb_feedback_updated.mbid IN (?))
-		)`, user, user, mbids)
-	return executeQueryCountAffectedRows(ctx, s.db, q)
-}
-
-func (s songRepository) FindNotLBUpdatedSongs(ctx context.Context, user string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
-	q.Space("LEFT JOIN lb_feedback_updated ON lb_feedback_updated.user_name = ? AND lb_feedback_updated.song_id = songs.id", user)
-	q.Space("WHERE lb_feedback_updated.song_id IS NULL")
-	return execSongSelectMany(ctx, s.db, q, include)
 }
 
 func (s songRepository) Count(ctx context.Context) (int, error) {
