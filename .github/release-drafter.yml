@@ -1,0 +1,15 @@
+tag-prefix: "v"
+template: |
+  # v$RESOLVED_VERSION
+
+  ## What's Changed
+
+  ### New Features
+
+  - TODO
+
+  ### Bug Fixes
+
+  - TODO
+
+  **Full Changelog:** [$PREVIOUS_TAG...v$RESOLVED_VERSION](https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION)
