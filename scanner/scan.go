@@ -143,12 +143,6 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		return fmt.Errorf("scan dir: %w", err)
 	}
 
-	log.Tracef("updating album artists...")
-	err = s.albums.updateArtists(ctx, s)
-	if err != nil && !errors.Is(err, context.Canceled) {
-		return fmt.Errorf("update album artists: %w", err)
-	}
-
 	err = <-saveSongsDone
 	if err != nil {
 		return fmt.Errorf("run save songs loop: %w", err)
@@ -157,6 +151,12 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	err = <-setAlbumCovers
 	if err != nil {
 		return fmt.Errorf("run set album covers loop: %w", err)
+	}
+
+	log.Tracef("updating album artists...")
+	err = s.albums.updateArtists(ctx, s)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return fmt.Errorf("update album artists: %w", err)
 	}
 
 	log.Tracef("deleting orphaned songs/albums/artists...")
