@@ -80,6 +80,7 @@ type SongStreamInfo struct {
 type SongArtistConnection struct {
 	SongID   string `db:"song_id"`
 	ArtistID string `db:"artist_id"`
+	Index    int    `db:"index"`
 }
 
 type SongGenreConnection struct {

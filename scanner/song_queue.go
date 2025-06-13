@@ -276,10 +276,11 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 
 		songArtistConns := make([]repos.SongArtistConnection, 0, len(changedSongs))
 		for _, s := range changedSongs {
-			for _, aID := range s.artistIDs {
+			for i, aID := range s.artistIDs {
 				songArtistConns = append(songArtistConns, repos.SongArtistConnection{
 					SongID:   *s.id,
 					ArtistID: aID,
+					Index:    i,
 				})
 			}
 		}

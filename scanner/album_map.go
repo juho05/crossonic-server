@@ -21,7 +21,7 @@ type album struct {
 	isCompilation  *bool
 	replayGain     *float64
 	replayGainPeak *float64
-	albumArtistIDs map[string]struct{}
+	albumArtistIDs map[string]int
 	updated        bool
 }
 
@@ -49,7 +49,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 		return nil, fmt.Errorf("find all albums: %w", err)
 	}
 
-	connections := make(map[string]map[string]struct{}, len(albums))
+	connections := make(map[string]map[string]int, len(albums))
 
 	artistConnections, err := s.tx.Album().GetAllArtistConnections(ctx)
 	if err != nil {
@@ -57,9 +57,9 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 	}
 	for _, c := range artistConnections {
 		if connections[c.AlbumID] == nil {
-			connections[c.AlbumID] = make(map[string]struct{}, 1)
+			connections[c.AlbumID] = make(map[string]int)
 		}
-		connections[c.AlbumID][c.ArtistID] = struct{}{}
+		connections[c.AlbumID][c.ArtistID] = len(connections[c.AlbumID])
 	}
 
 	albumMap := &albumMap{
@@ -69,7 +69,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 	for _, a := range albums {
 		albumArtistIDs := connections[a.ID]
 		if albumArtistIDs == nil {
-			albumArtistIDs = make(map[string]struct{}, 0)
+			albumArtistIDs = make(map[string]int, 0)
 		}
 		alb := &album{
 			id:             a.ID,
@@ -173,25 +173,23 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 				changed = true
 			}
 			if len(found.albumArtistIDs) != len(params.albumArtistIDs) {
-				found.albumArtistIDs = make(map[string]struct{}, len(params.albumArtistIDs))
-				for _, art := range params.albumArtistIDs {
-					found.albumArtistIDs[art] = struct{}{}
+				found.albumArtistIDs = make(map[string]int, len(params.albumArtistIDs))
+				for i, art := range params.albumArtistIDs {
+					found.albumArtistIDs[art] = i
 				}
-				changed = true
 			} else {
 				equal := true
-				for _, art := range params.albumArtistIDs {
-					if _, ok := found.albumArtistIDs[art]; !ok {
+				for i, art := range params.albumArtistIDs {
+					if i2, ok := found.albumArtistIDs[art]; !ok || i != i2 {
 						equal = false
 						break
 					}
 				}
 				if !equal {
-					found.albumArtistIDs = make(map[string]struct{}, len(params.albumArtistIDs))
-					for _, art := range params.albumArtistIDs {
-						found.albumArtistIDs[art] = struct{}{}
+					found.albumArtistIDs = make(map[string]int, len(params.albumArtistIDs))
+					for i, art := range params.albumArtistIDs {
+						found.albumArtistIDs[art] = i
 					}
-					changed = true
 				}
 			}
 			found.updated = true
@@ -212,9 +210,9 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 		return found.id, nil
 	}
 
-	albumArtists := make(map[string]struct{}, len(params.albumArtistIDs))
-	for _, art := range params.albumArtistIDs {
-		albumArtists[art] = struct{}{}
+	albumArtists := make(map[string]int, len(params.albumArtistIDs))
+	for i, art := range params.albumArtistIDs {
+		albumArtists[art] = i
 	}
 
 	alb := &album{
@@ -297,10 +295,11 @@ func (a *albumMap) updateArtists(ctx context.Context, s *Scanner) error {
 	connections := make([]repos.AlbumArtistConnection, 0, len(a.albums))
 	for _, albs := range a.albums {
 		for _, alb := range albs {
-			for artistID := range alb.albumArtistIDs {
+			for artistID, i := range alb.albumArtistIDs {
 				connections = append(connections, repos.AlbumArtistConnection{
 					AlbumID:  alb.id,
 					ArtistID: artistID,
+					Index:    i,
 				})
 			}
 		}

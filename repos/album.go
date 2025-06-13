@@ -63,6 +63,7 @@ type AlbumInfo struct {
 type AlbumArtistConnection struct {
 	AlbumID  string `db:"album_id"`
 	ArtistID string `db:"artist_id"`
+	Index    int    `db:"index"`
 }
 
 // params

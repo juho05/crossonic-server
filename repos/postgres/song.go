@@ -284,9 +284,9 @@ func (s songRepository) CreateArtistConnections(ctx context.Context, connections
 	}
 	valueList := bqb.Optional("")
 	for _, c := range connections {
-		valueList.Comma("(?,?)", c.SongID, c.ArtistID)
+		valueList.Comma("(?,?,?)", c.SongID, c.ArtistID, c.Index)
 	}
-	q := bqb.New("INSERT INTO song_artist (song_id,artist_id) VALUES ? ON CONFLICT (song_id,artist_id) DO NOTHING", valueList)
+	q := bqb.New("INSERT INTO song_artist (song_id,artist_id,index) VALUES ? ON CONFLICT (song_id,artist_id) DO NOTHING", valueList)
 	return executeQuery(ctx, s.db, q)
 }
 
@@ -562,7 +562,7 @@ func getSongGenres(ctx context.Context, db executer, songIDs []string) (map[stri
 func getSongArtistRefs(ctx context.Context, db executer, songIDs []string) (map[string][]repos.ArtistRef, error) {
 	q := bqb.New(`SELECT song_artist.song_id, artists.id, artists.name, artists.music_brainz_id FROM song_artist
 		JOIN artists ON song_artist.artist_id = artists.id
-		WHERE song_artist.song_id IN (?)`, songIDs)
+		WHERE song_artist.song_id IN (?) ORDER BY song_artist.index`, songIDs)
 
 	type artistRef struct {
 		repos.ArtistRef
@@ -586,7 +586,7 @@ func getSongAlbumArtistRefs(ctx context.Context, db executer, songIDs []string) 
 		JOIN albums ON songs.album_id = albums.id
 		JOIN album_artist ON album_artist.album_id = albums.id
 		JOIN artists ON album_artist.artist_id = artists.id
-		WHERE songs.id IN (?)`, songIDs)
+		WHERE songs.id IN (?) ORDER BY album_artist.index`, songIDs)
 
 	type artistRef struct {
 		repos.ArtistRef

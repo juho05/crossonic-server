@@ -187,7 +187,6 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	if err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
-
 	log.Infof("Scanned %d files in %s.", s.counter.Load(), time.Since(s.scanStart).Round(time.Millisecond))
 	return nil
 }
