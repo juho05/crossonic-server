@@ -96,6 +96,10 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		}
 	}
 
+	if s.fullScan || s.firstScan {
+		s.lastScan = time.Time{}
+	}
+
 	log.Tracef("loading artist map from db...")
 	s.artists, err = newArtistMapFromDB(ctx, s)
 	if err != nil {
