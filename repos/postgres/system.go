@@ -45,6 +45,16 @@ func (s systemRepository) SetLastScan(ctx context.Context, lastScan time.Time) e
 	return s.set(ctx, "last-scan", lastScan.Format(time.RFC3339))
 }
 
+func (s systemRepository) NeedsFullScan(ctx context.Context) (bool, error) {
+	return getQuery[bool](ctx, s.db, bqb.New(`SELECT EXISTS (
+		SELECT 1 FROM system WHERE key = ?
+	)`, "needs-full-scan"))
+}
+
+func (s systemRepository) ResetNeedsFullScan(ctx context.Context) error {
+	return executeQuery(ctx, s.db, bqb.New("DELETE FROM system WHERE key = ?", "needs-full-scan"))
+}
+
 func (s systemRepository) get(ctx context.Context, key string) (string, error) {
 	q := bqb.New("SELECT value FROM system WHERE key = ?", key)
 	return getQuery[string](ctx, s.db, q)

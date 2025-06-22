@@ -61,9 +61,10 @@ type AlbumInfo struct {
 }
 
 type AlbumArtistConnection struct {
-	AlbumID  string `db:"album_id"`
-	ArtistID string `db:"artist_id"`
-	Index    int    `db:"index"`
+	AlbumID    string `db:"album_id"`
+	ArtistID   string `db:"artist_id"`
+	ArtistName string `db:"artist_name"`
+	Index      int    `db:"index"`
 }
 
 // params
@@ -104,10 +105,13 @@ type CreateAlbumParams struct {
 	IsCompilation  *bool
 	ReplayGain     *float64
 	ReplayGainPeak *float64
+	ArtistNames    []string
 }
 
+// Name and ArtistNames must always be specified together
 type UpdateAlbumParams struct {
 	Name           Optional[string]
+	ArtistNames    Optional[[]string]
 	Year           Optional[*int]
 	RecordLabels   Optional[StringList]
 	MusicBrainzID  Optional[*string]

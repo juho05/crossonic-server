@@ -70,14 +70,9 @@ func (s songRepository) FindBySearch(ctx context.Context, params repos.SongFindB
 	params.Query = strings.ToLower(params.Query)
 	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
 
-	where := bqb.Optional("WHERE")
+	conditions, orderBy := genSearch(params.Query, "songs.search_text", "songs.title")
 
-	if params.Query != "" {
-		where.And("position(? in lower(songs.title)) > 0", params.Query)
-	}
-
-	q = bqb.New("? ?", q, where)
-	q.Space("ORDER BY position(? in lower(songs.title)), lower(songs.title)", params.Query)
+	q = bqb.New("? WHERE ? ?", q, conditions, orderBy)
 	params.Paginate.Apply(q)
 	return execSongSelectMany(ctx, s.db, q, include)
 }
@@ -153,52 +148,11 @@ func (s songRepository) GetStreamInfo(ctx context.Context, id string) (*repos.So
 	return getQuery[*repos.SongStreamInfo](ctx, s.db, q)
 }
 
-func (s songRepository) Create(ctx context.Context, params repos.CreateSongParams) (*repos.Song, error) {
-	var id string
-	if params.ID != nil {
-		id = *params.ID
-	} else {
-		id = crossonic.GenIDSong()
-	}
-	q := bqb.New(`INSERT INTO songs
-		(id, path, album_id, title, track, year, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated,
-		bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?)
-		RETURNING songs.*`,
-		id, params.Path, params.AlbumID, params.Title, params.Track, params.Year, params.Size, params.ContentType, params.Duration,
-		params.BitRate, params.SamplingRate, params.ChannelCount, params.Disc, params.BPM, params.MusicBrainzID, params.ReplayGain, params.ReplayGainPeak,
-		params.Lyrics)
-	return getQuery[*repos.Song](ctx, s.db, q)
-}
-
-func (s songRepository) Update(ctx context.Context, id string, params repos.UpdateSongParams) error {
-	updateList := genUpdateList(map[string]repos.OptionalGetter{
-		"path":             params.Path,
-		"album_id":         params.AlbumID,
-		"title":            params.Title,
-		"track":            params.Track,
-		"year":             params.Year,
-		"size":             params.Size,
-		"content_type":     params.ContentType,
-		"duration_ms":      params.Duration,
-		"bit_rate":         params.BitRate,
-		"sampling_rate":    params.SamplingRate,
-		"channel_count":    params.ChannelCount,
-		"disc_number":      params.Disc,
-		"bpm":              params.BPM,
-		"music_brainz_id":  params.MusicBrainzID,
-		"replay_gain":      params.ReplayGain,
-		"replay_gain_peak": params.ReplayGainPeak,
-		"lyrics":           params.Lyrics,
-	}, true)
-	q := bqb.New("UPDATE songs SET ? WHERE id = ?", updateList, id)
-	return executeQueryExpectAffectedRows(ctx, s.db, q)
-}
-
 func (s songRepository) CreateAll(ctx context.Context, params []repos.CreateSongParams) error {
 	if len(params) == 0 {
 		return nil
 	}
+
 	valueList := bqb.Optional("")
 	for _, p := range params {
 		var id string
@@ -207,13 +161,21 @@ func (s songRepository) CreateAll(ctx context.Context, params []repos.CreateSong
 		} else {
 			id = crossonic.GenIDSong()
 		}
-		valueList.Comma("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?)", id, p.Path, p.AlbumID, p.Title, p.Track, p.Year, p.Size, p.ContentType, p.Duration,
+
+		searchFields := []string{p.Title}
+		if p.AlbumName != nil {
+			searchFields = append(searchFields, *p.AlbumName)
+		}
+		searchFields = append(searchFields, p.ArtistNames...)
+		searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
+
+		valueList.Comma("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?)", id, p.Path, p.AlbumID, p.Title, p.Track, p.Year, p.Size, p.ContentType, p.Duration,
 			p.BitRate, p.SamplingRate, p.ChannelCount, p.Disc, p.BPM, p.MusicBrainzID, p.ReplayGain, p.ReplayGainPeak,
-			p.Lyrics)
+			p.Lyrics, searchText)
 	}
 	q := bqb.New(`INSERT INTO songs
 		(id, path, album_id, title, track, year, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated,
-		bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics)
+		bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics, search_text)
 		VALUES ?`, valueList)
 	return executeQuery(ctx, s.db, q)
 }
@@ -229,8 +191,14 @@ func (s songRepository) TryUpdateAll(ctx context.Context, params []repos.UpdateS
 			params := params[i:min(len(params), i+50)]
 			valueList := bqb.Optional("")
 			for _, p := range params {
-				valueList.Comma("(?::text,?::text,?::text,?::text,?::int,?::int,?::bigint,?::text,?::int,?::int,?::int,?::int,?::int,?::int,?,?::real,?::real,?::text)", p.ID, p.Path, p.AlbumID, p.Title, p.Track, p.Year, p.Size, p.ContentType, p.Duration, p.BitRate, p.SamplingRate,
-					p.ChannelCount, p.Disc, p.BPM, p.MusicBrainzID, p.ReplayGain, p.ReplayGainPeak, p.Lyrics)
+				searchFields := []string{p.Title}
+				if p.AlbumName != nil {
+					searchFields = append(searchFields, *p.AlbumName)
+				}
+				searchFields = append(searchFields, p.ArtistNames...)
+				searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
+				valueList.Comma("(?::text,?::text,?::text,?::text,?::int,?::int,?::bigint,?::text,?::int,?::int,?::int,?::int,?::int,?::int,?,?::real,?::real,?::text,?::text)", p.ID, p.Path, p.AlbumID, p.Title, p.Track, p.Year, p.Size, p.ContentType, p.Duration, p.BitRate, p.SamplingRate,
+					p.ChannelCount, p.Disc, p.BPM, p.MusicBrainzID, p.ReplayGain, p.ReplayGainPeak, p.Lyrics, searchText)
 			}
 
 			q := bqb.New(`UPDATE songs SET
@@ -251,9 +219,10 @@ func (s songRepository) TryUpdateAll(ctx context.Context, params []repos.UpdateS
 					replay_gain=s.replay_gain,
 					replay_gain_peak=s.replay_gain_peak,
 					lyrics=s.lyrics,
+					search_text=s.search_text,
 					updated=NOW()
 				FROM (VALUES ?) AS s(id,path,album_id,title,track,year,size,content_type,duration_ms,bit_rate,sampling_rate,channel_count,disc_number,
-					bpm,music_brainz_id,replay_gain,replay_gain_peak,lyrics)
+					bpm,music_brainz_id,replay_gain,replay_gain_peak,lyrics,search_text)
 				WHERE songs.id = s.id`, valueList)
 			c, err := executeQueryCountAffectedRows(ctx, s.db, q)
 			if err != nil {

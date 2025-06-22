@@ -68,6 +68,8 @@ type song struct {
 
 	title                     string
 	albumID                   *string
+	albumName                 *string
+	artistNames               []string
 	artistIDs                 []string
 	bpm                       *int
 	year                      *int
@@ -176,6 +178,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			replayGainPeak:            media.replayGainPeak,
 			lyrics:                    media.lyrics,
 		}
+		song.artistNames = media.artistNames
 		song.artistIDs = make([]string, 0, len(media.artistNames))
 		for i, a := range media.artistNames {
 			var mbid *string
@@ -189,7 +192,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			song.artistIDs = append(song.artistIDs, id)
 		}
 
-		albumArtistIDs := make([]string, 0, len(media.albumArtistNames))
+		albumArtists := make([]findOrCreateAlbumParamsArtist, 0, len(media.albumArtistNames))
 		for i, a := range media.albumArtistNames {
 			var mbid *string
 			if i < len(media.albumArtistMBIDs) {
@@ -199,7 +202,10 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			if err != nil {
 				return fmt.Errorf("find or create album artist: %s", err)
 			}
-			albumArtistIDs = append(albumArtistIDs, id)
+			albumArtists = append(albumArtists, findOrCreateAlbumParamsArtist{
+				id:   id,
+				name: a,
+			})
 		}
 
 		if media.albumName != nil {
@@ -212,13 +218,14 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 				isCompilation:  &media.isCompilation,
 				replayGain:     media.albumReplayGain,
 				replayGainPeak: media.albumReplayGainPeak,
-				albumArtistIDs: albumArtistIDs,
+				artists:        albumArtists,
 				cover:          media.cover,
 				songPath:       media.path,
 			})
 			if err != nil {
 				return fmt.Errorf("find or create album: %w", err)
 			}
+			song.albumName = media.albumName
 			song.albumID = &aID
 		}
 
@@ -345,6 +352,8 @@ func (s *Scanner) updateSongs(ctx context.Context, songs []*song) ([]*song, erro
 			ReplayGain:     s.replayGain,
 			ReplayGainPeak: s.replayGainPeak,
 			Lyrics:         s.lyrics,
+			AlbumName:      s.albumName,
+			ArtistNames:    s.artistNames,
 		}
 	}))
 	if err != nil {
@@ -496,6 +505,8 @@ func (s *Scanner) createSongsInDB(ctx context.Context, songs []*song) error {
 			ReplayGain:     s.replayGain,
 			ReplayGainPeak: s.replayGainPeak,
 			Lyrics:         s.lyrics,
+			AlbumName:      s.albumName,
+			ArtistNames:    s.artistNames,
 		}
 	}))
 	if err != nil {

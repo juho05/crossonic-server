@@ -60,8 +60,6 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	}()
 	s.counter.Store(0)
 
-	log.Infof("Scanning %s (full scan: %t)...", s.mediaDir, s.fullScan)
-
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	defer cancelCtx()
 
@@ -96,9 +94,23 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		}
 	}
 
+	if !s.fullScan {
+		needsFullScan, err := s.tx.System().NeedsFullScan(ctx)
+		if err != nil {
+			return fmt.Errorf("check if full scan is needed: %w", err)
+		}
+		s.fullScan = needsFullScan
+		err = s.tx.System().ResetNeedsFullScan(ctx)
+		if err != nil {
+			return fmt.Errorf("reset needs full scan: %w", err)
+		}
+	}
+
 	if s.fullScan || s.firstScan {
 		s.lastScan = time.Time{}
 	}
+
+	log.Infof("Scanning %s (full scan: %t)...", s.mediaDir, s.fullScan)
 
 	log.Tracef("loading artist map from db...")
 	s.artists, err = newArtistMapFromDB(ctx, s)

@@ -18,15 +18,27 @@ type albumRepository struct {
 
 func (a albumRepository) Create(ctx context.Context, params repos.CreateAlbumParams) (string, error) {
 	id := crossonic.GenIDAlbum()
+	searchFields := []string{params.Name}
+	searchFields = append(searchFields, params.ArtistNames...)
+	searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
 	q := bqb.New(`INSERT INTO albums (id, name, created, updated, year, record_labels, music_brainz_id, release_mbid,
-		release_types, is_compilation, replay_gain, replay_gain_peak) VALUES (?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?)
+		release_types, is_compilation, replay_gain, replay_gain_peak, search_text) VALUES (?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING albums.*`,
 		id, params.Name, params.Year, params.RecordLabels, params.MusicBrainzID, params.ReleaseMBID, params.ReleaseTypes,
-		params.IsCompilation, params.ReplayGain, params.ReplayGainPeak)
+		params.IsCompilation, params.ReplayGain, params.ReplayGainPeak, searchText)
 	return id, executeQuery(ctx, a.db, q)
 }
 
 func (a albumRepository) Update(ctx context.Context, id string, params repos.UpdateAlbumParams) error {
+	if params.Name.HasValue() != params.ArtistNames.HasValue() {
+		return fmt.Errorf("Name and ArtistNames must always be specified together")
+	}
+	searchText := repos.NewOptionalEmpty[string]()
+	if params.Name.HasValue() {
+		searchFields := []string{params.Name.Get().(string)}
+		searchFields = append(searchFields, params.ArtistNames.Get().([]string)...)
+		searchText = repos.NewOptionalFull(util.NormalizeText(" " + strings.Join(searchFields, " ") + " "))
+	}
 	updateList := genUpdateList(map[string]repos.OptionalGetter{
 		"name":             params.Name,
 		"year":             params.Year,
@@ -37,6 +49,7 @@ func (a albumRepository) Update(ctx context.Context, id string, params repos.Upd
 		"is_compilation":   params.IsCompilation,
 		"replay_gain":      params.ReplayGain,
 		"replay_gain_peak": params.ReplayGainPeak,
+		"search_text":      searchText,
 	}, true)
 	q := bqb.New("UPDATE albums SET ? WHERE id = ?", updateList, id)
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
@@ -115,8 +128,11 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 func (a albumRepository) FindBySearch(ctx context.Context, query string, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	query = strings.ToLower(query)
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
-	q.Space("WHERE position(? in lower(albums.name)) > 0", query)
-	q.Space("ORDER BY position(? in lower(albums.name)), lower(albums.name)", query)
+
+	conditions, orderBy := genSearch(query, "albums.search_text", "albums.name")
+
+	q = bqb.New("? WHERE ? ?", q, conditions, orderBy)
+
 	paginate.Apply(q)
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
@@ -168,7 +184,7 @@ func (a albumRepository) SetInfo(ctx context.Context, albumID string, params rep
 }
 
 func (a albumRepository) GetAllArtistConnections(ctx context.Context) ([]repos.AlbumArtistConnection, error) {
-	q := bqb.New("SELECT album_artist.album_id, album_artist.artist_id, album_artist.index FROM album_artist ORDER BY album_artist.index")
+	q := bqb.New("SELECT album_artist.album_id, album_artist.artist_id, album_artist.index, artists.name as artist_name FROM album_artist INNER JOIN artists ON artists.id = album_artist.artist_id ORDER BY album_artist.index")
 	return selectQuery[repos.AlbumArtistConnection](ctx, a.db, q)
 }
 

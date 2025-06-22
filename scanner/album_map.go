@@ -21,12 +21,18 @@ type album struct {
 	isCompilation  *bool
 	replayGain     *float64
 	replayGainPeak *float64
-	albumArtistIDs map[string]int
+	artistIDs      map[string]int
+	artistNames    []string
 	updated        bool
 }
 
 type albumMap struct {
 	albums map[string][]*album
+}
+
+type findOrCreateAlbumParamsArtist struct {
+	id   string
+	name string
 }
 
 type findOrCreateAlbumParams struct {
@@ -38,7 +44,7 @@ type findOrCreateAlbumParams struct {
 	isCompilation  *bool
 	replayGain     *float64
 	replayGainPeak *float64
-	albumArtistIDs []string
+	artists        []findOrCreateAlbumParamsArtist
 	cover          *string
 	songPath       string
 }
@@ -50,6 +56,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 	}
 
 	connections := make(map[string]map[string]int, len(albums))
+	artistNames := make(map[string][]string, len(albums))
 
 	artistConnections, err := s.tx.Album().GetAllArtistConnections(ctx)
 	if err != nil {
@@ -60,6 +67,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 			connections[c.AlbumID] = make(map[string]int)
 		}
 		connections[c.AlbumID][c.ArtistID] = len(connections[c.AlbumID])
+		artistNames[c.AlbumID] = append(artistNames[c.AlbumID], c.ArtistName)
 	}
 
 	albumMap := &albumMap{
@@ -71,12 +79,17 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 		if albumArtistIDs == nil {
 			albumArtistIDs = make(map[string]int, 0)
 		}
+		albumArtistNames := artistNames[a.ID]
+		if albumArtistNames == nil {
+			albumArtistNames = make([]string, 0)
+		}
 		alb := &album{
-			id:             a.ID,
-			mbid:           a.MusicBrainzID,
-			releaseMBID:    a.ReleaseMBID,
-			year:           a.Year,
-			albumArtistIDs: albumArtistIDs,
+			id:          a.ID,
+			mbid:        a.MusicBrainzID,
+			releaseMBID: a.ReleaseMBID,
+			year:        a.Year,
+			artistIDs:   albumArtistIDs,
+			artistNames: albumArtistNames,
 		}
 		albumMap.albums[a.Name] = append(albumMap.albums[a.Name], alb)
 	}
@@ -106,11 +119,11 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 		}
 
 		// match album artists
-		if len(a.albumArtistIDs) > 0 && len(params.albumArtistIDs) > 0 {
-			if len(a.albumArtistIDs) == len(params.albumArtistIDs) {
+		if len(a.artistIDs) > 0 && len(params.artists) > 0 {
+			if len(a.artistIDs) == len(params.artists) {
 				match := true
-				for _, artist := range params.albumArtistIDs {
-					if _, ok := a.albumArtistIDs[artist]; !ok {
+				for _, artist := range params.artists {
+					if _, ok := a.artistIDs[artist.id]; !ok {
 						match = false
 						break
 					}
@@ -172,24 +185,30 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 				found.replayGainPeak = params.replayGainPeak
 				changed = true
 			}
-			if len(found.albumArtistIDs) != len(params.albumArtistIDs) {
-				found.albumArtistIDs = make(map[string]int, len(params.albumArtistIDs))
-				for i, art := range params.albumArtistIDs {
-					found.albumArtistIDs[art] = i
+			if len(found.artistIDs) != len(params.artists) {
+				found.artistIDs = make(map[string]int, len(params.artists))
+				found.artistNames = make([]string, 0, len(params.artists))
+				for i, art := range params.artists {
+					found.artistIDs[art.id] = i
+					found.artistNames = append(found.artistNames, art.name)
 				}
+				changed = true
 			} else {
 				equal := true
-				for i, art := range params.albumArtistIDs {
-					if i2, ok := found.albumArtistIDs[art]; !ok || i != i2 {
+				for i, art := range params.artists {
+					if i2, ok := found.artistIDs[art.id]; !ok || i != i2 {
 						equal = false
 						break
 					}
 				}
 				if !equal {
-					found.albumArtistIDs = make(map[string]int, len(params.albumArtistIDs))
-					for i, art := range params.albumArtistIDs {
-						found.albumArtistIDs[art] = i
+					found.artistIDs = make(map[string]int, len(params.artists))
+					found.artistNames = make([]string, 0, len(params.artists))
+					for i, art := range params.artists {
+						found.artistIDs[art.id] = i
+						found.artistNames = append(found.artistNames, art.name)
 					}
+					changed = true
 				}
 			}
 			found.updated = true
@@ -210,9 +229,11 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 		return found.id, nil
 	}
 
-	albumArtists := make(map[string]int, len(params.albumArtistIDs))
-	for i, art := range params.albumArtistIDs {
-		albumArtists[art] = i
+	artistIDs := make(map[string]int, len(params.artists))
+	artistNames := make([]string, 0, len(params.artists))
+	for i, art := range params.artists {
+		artistIDs[art.id] = i
+		artistNames = append(artistNames, art.name)
 	}
 
 	alb := &album{
@@ -224,7 +245,8 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 		isCompilation:  params.isCompilation,
 		replayGain:     params.replayGain,
 		replayGainPeak: params.replayGainPeak,
-		albumArtistIDs: albumArtists,
+		artistIDs:      artistIDs,
+		artistNames:    artistNames,
 		updated:        true,
 	}
 	a.albums[name] = append(a.albums[name], alb)
@@ -254,6 +276,8 @@ func (a *albumMap) updateAlbum(ctx context.Context, s *Scanner, name string, alb
 		IsCompilation:  repos.NewOptionalFull(album.isCompilation),
 		ReplayGain:     repos.NewOptionalFull(album.replayGain),
 		ReplayGainPeak: repos.NewOptionalFull(album.replayGainPeak),
+		Name:           repos.NewOptionalFull(name),
+		ArtistNames:    repos.NewOptionalFull(album.artistNames),
 	})
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
@@ -278,6 +302,7 @@ func (a *albumMap) createAlbum(ctx context.Context, s *Scanner, name string, alb
 		IsCompilation:  album.isCompilation,
 		ReplayGain:     album.replayGain,
 		ReplayGainPeak: album.replayGainPeak,
+		ArtistNames:    album.artistNames,
 	})
 	if err != nil {
 		return fmt.Errorf("create: %w", err)
@@ -295,7 +320,7 @@ func (a *albumMap) updateArtists(ctx context.Context, s *Scanner) error {
 	connections := make([]repos.AlbumArtistConnection, 0, len(a.albums))
 	for _, albs := range a.albums {
 		for _, alb := range albs {
-			for artistID, i := range alb.albumArtistIDs {
+			for artistID, i := range alb.artistIDs {
 				connections = append(connections, repos.AlbumArtistConnection{
 					AlbumID:  alb.id,
 					ArtistID: artistID,

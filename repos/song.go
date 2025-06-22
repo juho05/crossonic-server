@@ -139,26 +139,8 @@ type CreateSongParams struct {
 	ReplayGain     *float64
 	ReplayGainPeak *float64
 	Lyrics         *string
-}
-
-type UpdateSongParams struct {
-	Path           Optional[string]
-	AlbumID        Optional[*string]
-	Title          Optional[string]
-	Track          Optional[*int]
-	Year           Optional[*int]
-	Size           Optional[int64]
-	ContentType    Optional[string]
-	Duration       Optional[DurationMS]
-	BitRate        Optional[int]
-	SamplingRate   Optional[int]
-	ChannelCount   Optional[int]
-	Disc           Optional[*int]
-	BPM            Optional[*int]
-	MusicBrainzID  Optional[*string]
-	ReplayGain     Optional[*float64]
-	ReplayGainPeak Optional[*float64]
-	Lyrics         Optional[*string]
+	AlbumName      *string
+	ArtistNames    []string
 }
 
 type UpdateSongAllParams struct {
@@ -180,6 +162,8 @@ type UpdateSongAllParams struct {
 	ReplayGain     *float64
 	ReplayGainPeak *float64
 	Lyrics         *string
+	AlbumName      *string
+	ArtistNames    []string
 }
 
 type SongFindRandomParams struct {
@@ -220,8 +204,6 @@ type SongRepository interface {
 
 	GetStreamInfo(ctx context.Context, id string) (*SongStreamInfo, error)
 
-	Create(ctx context.Context, params CreateSongParams) (*Song, error)
-	Update(ctx context.Context, id string, params UpdateSongParams) error
 	CreateAll(ctx context.Context, params []CreateSongParams) error
 	TryUpdateAll(ctx context.Context, params []UpdateSongAllParams) (int, error)
 

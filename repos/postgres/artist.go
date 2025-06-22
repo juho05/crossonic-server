@@ -8,6 +8,7 @@ import (
 
 	crossonic "github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/nullism/bqb"
 )
 
@@ -18,24 +19,29 @@ type artistRepository struct {
 
 func (a artistRepository) Create(ctx context.Context, params repos.CreateArtistParams) (string, error) {
 	id := crossonic.GenIDArtist()
-	q := bqb.New(`INSERT INTO artists (id, name, created, updated, music_brainz_id)
-		VALUES (?, ?, NOW(), NOW(), ?)`, id, params.Name, params.MusicBrainzID)
+	q := bqb.New(`INSERT INTO artists (id, name, created, updated, music_brainz_id, search_text)
+		VALUES (?, ?, NOW(), NOW(), ?, ?)`, id, params.Name, params.MusicBrainzID, " "+util.NormalizeText(params.Name)+" ")
 	return id, executeQuery(ctx, a.db, q)
 }
 
 func (a artistRepository) CreateIfNotExistsByName(ctx context.Context, params []repos.CreateArtistParams) error {
 	valueList := bqb.Optional("")
 	for _, p := range params {
-		valueList.Comma("(?, ?, NOW(), NOW(), ?)", crossonic.GenIDArtist(), p.Name, p.MusicBrainzID)
+		valueList.Comma("(?, ?, NOW(), NOW(), ?, ?)", crossonic.GenIDArtist(), p.Name, p.MusicBrainzID, " "+util.NormalizeText(p.Name)+" ")
 	}
-	q := bqb.New("INSERT INTO artists (id, name, created, updated, music_brainz_id) VALUES ? ON CONFLICT (name) DO NOTHING", valueList)
+	q := bqb.New("INSERT INTO artists (id, name, created, updated, music_brainz_id, search_text) VALUES ? ON CONFLICT (name) DO NOTHING", valueList)
 	return executeQuery(ctx, a.db, q)
 }
 
 func (a artistRepository) Update(ctx context.Context, id string, params repos.UpdateArtistParams) error {
+	searchText := repos.NewOptionalEmpty[string]()
+	if params.Name.HasValue() {
+		searchText = repos.NewOptionalFull(" " + util.NormalizeText(params.Name.Get().(string)) + " ")
+	}
 	updateList := genUpdateList(map[string]repos.OptionalGetter{
 		"name":            params.Name,
 		"music_brainz_id": params.MusicBrainzID,
+		"search_text":     searchText,
 	}, true)
 	q := bqb.New("UPDATE artists SET ? WHERE artists.id = ?", updateList, id)
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
@@ -117,14 +123,17 @@ func (a artistRepository) FindAll(ctx context.Context, params repos.FindArtistsP
 func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
 	query = strings.ToLower(query)
 	q := bqb.New("SELECT ? FROM artists ?", genArtistSelectList(include), genArtistJoins(include))
-	q.Space("WHERE position(? in lower(artists.name)) > 0", query)
+
+	conditions, orderBy := genSearch(query, "artists.search_text", "artists.name")
+
+	q.Space("WHERE ?", conditions)
 	if onlyAlbumArtists {
 		if !include.AlbumInfo {
 			return nil, repos.NewError("onlyAlbumArtists only allowed if include.AlbumInfo is true", repos.ErrInvalidParams, nil)
 		}
 		q.And("COALESCE(aa.count, 0) > 0")
 	}
-	q.Space("ORDER BY position(? in lower(artists.name)), lower(artists.name)", query)
+	q = bqb.New("? ?", q, orderBy)
 	paginate.Apply(q)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
