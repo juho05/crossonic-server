@@ -121,13 +121,13 @@ func (s *Scanner) saveCoverFromPath(originalPath, id string) error {
 	}
 	defer old.Close()
 
-	new, err := os.Create(s.idToCoverPath(id))
+	newFile, err := os.Create(s.idToCoverPath(id))
 	if err != nil {
 		return fmt.Errorf("create cover file: %w", err)
 	}
-	defer new.Close()
+	defer newFile.Close()
 
-	_, err = io.Copy(new, old)
+	_, err = io.Copy(newFile, old)
 	if err != nil {
 		return fmt.Errorf("copy original path to cover file: %w", err)
 	}
@@ -149,11 +149,11 @@ func (s *Scanner) saveCoverFromEmbeddedCover(lastModified time.Time, songPath, i
 		return nil
 	}
 
-	new, err := os.Create(s.idToCoverPath(id))
+	newFile, err := os.Create(s.idToCoverPath(id))
 	if err != nil {
 		return fmt.Errorf("create cover file: %w", err)
 	}
-	defer new.Close()
+	defer newFile.Close()
 
 	file, err := audiotags.Open(songPath)
 	if err != nil {
@@ -169,7 +169,7 @@ func (s *Scanner) saveCoverFromEmbeddedCover(lastModified time.Time, songPath, i
 		return fmt.Errorf("read embedded song cover: %w", err)
 	}
 
-	err = jpeg.Encode(new, img, nil)
+	err = jpeg.Encode(newFile, img, nil)
 	if err != nil {
 		return fmt.Errorf("encode cover image into cover file: %w", err)
 	}

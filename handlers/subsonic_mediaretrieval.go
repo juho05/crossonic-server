@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
@@ -64,13 +64,13 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if maxBitRate > int(info.BitRate) {
-		maxBitRate = int(info.BitRate)
+	if maxBitRate > info.BitRate {
+		maxBitRate = info.BitRate
 	}
 
 	fileFormat, bitRate := h.Transcoder.SelectFormat(format, info.ChannelCount, maxBitRate)
 
-	if format == "raw" || (fileFormat.Mime == info.ContentType && (maxBitRate == 0 || maxBitRate >= int(info.BitRate))) {
+	if format == "raw" || (fileFormat.Mime == info.ContentType && (maxBitRate == 0 || maxBitRate >= info.BitRate)) {
 		format = "raw"
 		fileFormat.Mime = info.ContentType
 		fileFormat.Name = strings.TrimPrefix(filepath.Ext(info.Path), ".")
@@ -99,7 +99,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			})
 			log.Tracef("Streaming %s with offset (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
 		} else {
-			bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, bitRate, time.Duration(timeOffset)*time.Second, w, func() {
+			bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, time.Duration(timeOffset)*time.Second, w, func() {
 				close(done)
 			})
 			log.Tracef("Streaming %s with transcoded offset (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
@@ -122,7 +122,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			respondErr(w, query.Get("f"), fmt.Errorf("stream: %w", err))
 			return
 		}
-		bitRate, err = h.Transcoder.Transcode(info.Path, int(info.ChannelCount), fileFormat, bitRate, 0, cacheObj, func() {
+		bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, 0, cacheObj, func() {
 			err := cacheObj.SetComplete()
 			if err != nil {
 				log.Errorf("ffmpeg: transcode: %s", err)
@@ -427,7 +427,7 @@ func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) 
 	if err != nil {
 		return fmt.Errorf("load artist cover from last fm by id: %w", err)
 	}
-	imageURL, err := h.LastFM.GetArtistImageURL(ctx, *info.URL)
+	imageURL, err := h.LastFM.GetArtistImageURL(*info.URL)
 	if err != nil {
 		return fmt.Errorf("load artist cover from last fm by id: %w", err)
 	}

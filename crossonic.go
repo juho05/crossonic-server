@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	ServerName        = "crossonic-server"
-	Version    string = "dev"
+	ServerName = "crossonic-server"
+	Version    = "dev"
 )
 
 //go:embed all:repos/migrations

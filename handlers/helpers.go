@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"

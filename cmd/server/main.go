@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/juho05/crossonic-server/repos"
 	"mime"
 	"net/http"
 	"os"
@@ -61,7 +62,7 @@ func run() error {
 		return err
 	}
 
-	scanner, err := scanner.New(config.MusicDir(), db, coverCache, transcodeCache)
+	mediaScanner, err := scanner.New(config.MusicDir(), db, coverCache, transcodeCache)
 	if err != nil {
 		return err
 	}
@@ -70,19 +71,27 @@ func run() error {
 
 	if !config.DisableStartupScan() {
 		go func() {
-			err = scanner.Scan(db, false)
+			err = mediaScanner.Scan(db, false)
 			if err != nil {
 				log.Errorf("scan media: %s", err)
 			}
 			lBrainz.StartPeriodicSync(3 * time.Hour)
 		}()
 	} else {
+		log.Tracef("calculating fallback gain...")
+		fallbackGain, err := db.Song().GetMedianReplayGain(context.Background())
+		if err != nil {
+			return fmt.Errorf("get median replay gain: %w", err)
+		}
+		if fallbackGain > 0 {
+			repos.SetFallbackGain(fallbackGain)
+		}
 		lBrainz.StartPeriodicSync(3 * time.Hour)
 	}
 
 	lfm := lastfm.New(config.LastFMApiKey())
 
-	handler := handlers.New(db, scanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
+	handler := handlers.New(db, mediaScanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
 
 	addr := config.ListenAddr()
 
@@ -111,7 +120,7 @@ func run() error {
 		<-sigint
 		timeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
 		log.Info("Shutting down...")
-		lBrainz.Close()
+		_ = lBrainz.Close()
 		err = server.Shutdown(timeout)
 		if err != nil {
 			log.Errorf("shutdown: %s", err)

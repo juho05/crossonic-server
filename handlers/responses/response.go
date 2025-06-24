@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/log"
 )
 

@@ -35,15 +35,15 @@ RUN apk add -U --no-cache \
     tini \
     shared-mime-info
 
-COPY --from=builder \
-    /usr/lib/libgcc_s.so.1 \
-    /usr/lib/libstdc++.so.6 \
-    /usr/lib/libtag.so.2 \
-    /usr/lib/
-COPY --from=builder \
-    /src/crossonic-server \
-    /src/crossonic-admin \
-    /bin/
+COPY --from=builder [
+    "/usr/lib/libgcc_s.so.1",
+    "/usr/lib/libstdc++.so.6",
+    "/usr/lib/libtag.so.2",
+    "/usr/lib/"]
+COPY --from=builder [
+    "/src/crossonic-server",
+    "/src/crossonic-admin",
+    "/bin/"]
 EXPOSE 8080
 ENV TZ=""
 ENV MUSIC_DIR=/music

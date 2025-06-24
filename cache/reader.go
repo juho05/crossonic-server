@@ -7,11 +7,11 @@ import (
 )
 
 type cacheReader struct {
-	obj    *CacheObject
+	obj    *Object
 	offset int64
 }
 
-func (c *CacheObject) newCacheReader() (*cacheReader, error) {
+func (c *Object) newCacheReader() (*cacheReader, error) {
 	err := c.UseFile()
 	if err != nil {
 		return nil, fmt.Errorf("new cache reader: %w", err)

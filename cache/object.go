@@ -14,7 +14,7 @@ var (
 	ErrNotComplete = errors.New("not complete")
 )
 
-type CacheObject struct {
+type Object struct {
 	cache *Cache
 	key   string
 
@@ -30,13 +30,13 @@ type CacheObject struct {
 	delete bool
 }
 
-func (c *Cache) newCacheObject(key string) (*CacheObject, error) {
+func (c *Cache) newCacheObject(key string) (*Object, error) {
 	file, err := os.Create(c.keyToPath(key))
 	if err != nil {
 		return nil, fmt.Errorf("new cache object: %w", err)
 	}
-	os.Remove(c.keyToPath(key) + "-complete")
-	return &CacheObject{
+	_ = os.Remove(c.keyToPath(key) + "-complete")
+	return &Object{
 		cache:    c,
 		key:      key,
 		modified: time.Now(),
@@ -46,7 +46,7 @@ func (c *Cache) newCacheObject(key string) (*CacheObject, error) {
 	}, nil
 }
 
-func (c *CacheObject) Write(p []byte) (n int, err error) {
+func (c *Object) Write(p []byte) (n int, err error) {
 	if c.complete {
 		return 0, fmt.Errorf("cache object: write: %w", ErrComplete)
 	}
@@ -58,7 +58,7 @@ func (c *CacheObject) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-func (c *CacheObject) SetComplete() error {
+func (c *Object) SetComplete() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.complete = true
@@ -70,31 +70,31 @@ func (c *CacheObject) SetComplete() error {
 	return nil
 }
 
-func (c *CacheObject) IsComplete() bool {
+func (c *Object) IsComplete() bool {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.complete
 }
 
-func (c *CacheObject) Modified() time.Time {
+func (c *Object) Modified() time.Time {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.modified
 }
 
-func (c *CacheObject) Reader() (io.ReadSeekCloser, error) {
+func (c *Object) Reader() (io.ReadSeekCloser, error) {
 	return c.newCacheReader()
 }
 
-func (c *CacheObject) Key() string {
+func (c *Object) Key() string {
 	return c.key
 }
 
-func (c *CacheObject) Path() string {
+func (c *Object) Path() string {
 	return c.cache.keyToPath(c.key)
 }
 
-func (c *CacheObject) Close() error {
+func (c *Object) Close() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	var err error
@@ -105,7 +105,7 @@ func (c *CacheObject) Close() error {
 	return err
 }
 
-func (c *CacheObject) UseFile() error {
+func (c *Object) UseFile() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.file == nil {
@@ -120,7 +120,7 @@ func (c *CacheObject) UseFile() error {
 	return nil
 }
 
-func (c *CacheObject) ReleaseFile() error {
+func (c *Object) ReleaseFile() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.readerCount--

@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 )
 

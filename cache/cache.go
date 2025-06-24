@@ -15,18 +15,13 @@ import (
 	"github.com/juho05/log"
 )
 
-var (
-	ErrNotExist = errors.New("object does not exist")
-	ErrExist    = errors.New("object already exists")
-)
-
 type Cache struct {
 	dir string
 
 	maxSize       int64
 	maxUnusedTime time.Duration
 
-	objects     map[string]*CacheObject
+	objects     map[string]*Object
 	objectsLock sync.RWMutex
 
 	cleaning bool
@@ -35,13 +30,13 @@ type Cache struct {
 }
 
 func New(cacheDir string, maxSize int64, maxUnusedTime time.Duration) (*Cache, error) {
-	close := make(chan struct{})
+	closeFn := make(chan struct{})
 	c := &Cache{
 		dir:           cacheDir,
-		objects:       make(map[string]*CacheObject),
+		objects:       make(map[string]*Object),
 		maxSize:       maxSize,
 		maxUnusedTime: maxUnusedTime,
-		close:         close,
+		close:         closeFn,
 	}
 	err := os.MkdirAll(cacheDir, 0755)
 	if err != nil {
@@ -57,7 +52,7 @@ func New(cacheDir string, maxSize int64, maxUnusedTime time.Duration) (*Cache, e
 	loop:
 		for {
 			select {
-			case <-close:
+			case <-closeFn:
 				break loop
 			case <-ticker.C:
 				c.clean()
@@ -68,14 +63,14 @@ func New(cacheDir string, maxSize int64, maxUnusedTime time.Duration) (*Cache, e
 	return c, nil
 }
 
-func (c *Cache) GetObject(key string) (*CacheObject, bool) {
+func (c *Cache) GetObject(key string) (*Object, bool) {
 	c.objectsLock.RLock()
 	defer c.objectsLock.RUnlock()
 	o, ok := c.objects[key]
 	return o, ok
 }
 
-func (c *Cache) CreateObject(key string) (*CacheObject, error) {
+func (c *Cache) CreateObject(key string) (*Object, error) {
 	c.objectsLock.RLock()
 	if _, ok := c.objects[key]; ok {
 		c.objectsLock.RUnlock()
@@ -156,8 +151,8 @@ func (c *Cache) clean() {
 	c.objectsLock.Lock()
 	defer c.objectsLock.Unlock()
 	var size int64
-	objects := make([]*CacheObject, 0, len(c.objects))
-	var largest *CacheObject
+	objects := make([]*Object, 0, len(c.objects))
+	var largest *Object
 	for key, o := range c.objects {
 		if o.readerCount <= 0 {
 			if o.delete || time.Since(o.accessed) > c.maxUnusedTime {
@@ -169,7 +164,10 @@ func (c *Cache) clean() {
 				if err != nil {
 					log.Errorf("cache: clean: %s", err)
 				}
-				os.Remove(c.keyToPath(key) + "-complete")
+				err = os.Remove(c.keyToPath(key) + "-complete")
+				if err != nil && !errors.Is(err, os.ErrNotExist) {
+					log.Warnf("failed to remove %s: %s", c.keyToPath(key)+"-complete", err)
+				}
 				delete(c.objects, key)
 				continue
 			}
@@ -194,11 +192,14 @@ func (c *Cache) clean() {
 		if err != nil {
 			log.Errorf("cache: clean: %s", err)
 		}
-		os.Remove(c.keyToPath(largest.key) + "-complete")
+		err = os.Remove(c.keyToPath(largest.key) + "-complete")
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Warnf("failed to remove %s: %s", c.keyToPath(largest.key)+"-complete", err)
+		}
 		delete(c.objects, largest.key)
 		size -= largest.size
 	}
-	slices.SortFunc(objects, func(a, b *CacheObject) int {
+	slices.SortFunc(objects, func(a, b *Object) int {
 		return cmp.Compare(time.Since(b.accessed), time.Since(a.accessed))
 	})
 	for _, o := range objects {
@@ -237,20 +238,22 @@ func (c *Cache) loadObjects() error {
 		}
 		key, err := c.keyFromPath(f.Name())
 		if err != nil {
-			log.Errorf("cache: load objects: %w", err)
+			log.Errorf("cache: load objects: %s", err)
 			continue
 		}
 		if _, err := os.Stat(c.keyToPath(key) + "-complete"); err != nil {
-			os.Remove(c.keyToPath(key))
-			os.Remove(c.keyToPath(key) + "-complete")
+			err := os.Remove(c.keyToPath(key))
+			if err != nil {
+				log.Warnf("failed to remove unfinished cache object %s: %s", c.keyToPath(key), err)
+			}
 			continue
 		}
 		i, err := f.Info()
 		if err != nil {
-			log.Errorf("cache: load objects: %w", err)
+			log.Errorf("cache: load objects: %s", err)
 			continue
 		}
-		c.objects[key] = &CacheObject{
+		c.objects[key] = &Object{
 			cache:    c,
 			key:      key,
 			size:     i.Size(),

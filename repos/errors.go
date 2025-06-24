@@ -1,6 +1,9 @@
 package repos
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type ErrorType string
 
@@ -41,11 +44,13 @@ func (e Error) Error() string {
 }
 
 func (e Error) Is(target error) bool {
-	if t, ok := target.(Error); ok {
-		return e.Type == t.Type
+	var t1 Error
+	if errors.As(target, &t1) {
+		return e.Type == t1.Type
 	}
-	if t, ok := target.(ErrorType); ok {
-		return e.Type == t
+	var t2 ErrorType
+	if errors.As(target, &t2) {
+		return e.Type == t2
 	}
 	return false
 }

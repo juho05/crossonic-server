@@ -69,7 +69,7 @@ func selectQuery[T any](ctx context.Context, db executer, query *bqb.Query) ([]T
 		return nil, wrapErr("build query", err)
 	}
 
-	result := []T{}
+	result := make([]T, 0)
 	err = db.SelectContext(ctx, &result, sql, args...)
 	printQueryOnErr(sql, err)
 	return result, wrapErr("execute select query", err)
@@ -79,7 +79,7 @@ func printQueryOnErr(query string, err error) {
 	if err == nil {
 		return
 	}
-	if sqlErrToErrType(err) == repos.ErrGeneral && !errors.Is(err, context.Canceled) {
+	if errors.Is(sqlErrToErrType(err), repos.ErrGeneral) && !errors.Is(err, context.Canceled) {
 		log.Errorf("error on query: %s: %s", query, err)
 	}
 }

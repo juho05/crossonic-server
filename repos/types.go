@@ -13,22 +13,22 @@ func NewDurationMS(millis int64) DurationMS {
 	return DurationMS(time.Duration(millis) * time.Millisecond)
 }
 
-func NewDurationMSFromStd(d time.Duration) DurationMS {
-	return DurationMS(d)
-}
-
+//goland:noinspection GoMixedReceiverTypes
 func (nt DurationMS) Millis() int64 {
 	return nt.ToStd().Milliseconds()
 }
 
+//goland:noinspection GoMixedReceiverTypes
 func (nt DurationMS) Seconds() int {
 	return int(nt.ToStd().Seconds())
 }
 
+//goland:noinspection GoMixedReceiverTypes
 func (nt DurationMS) ToStd() time.Duration {
 	return time.Duration(nt)
 }
 
+//goland:noinspection GoMixedReceiverTypes
 func (nt *DurationMS) Scan(value any) error {
 	if value == nil {
 		return nil
@@ -48,6 +48,7 @@ func (nt *DurationMS) Scan(value any) error {
 	return nil
 }
 
+//goland:noinspection GoMixedReceiverTypes
 func (nt DurationMS) Value() (driver.Value, error) {
 	return time.Duration(nt).Milliseconds(), nil
 }
@@ -57,6 +58,7 @@ type NullDurationMS struct {
 	Valid    bool
 }
 
+//goland:noinspection GoMixedReceiverTypes
 func (nt *NullDurationMS) Scan(value any) error {
 	if value == nil {
 		return nil
@@ -79,6 +81,7 @@ func (nt *NullDurationMS) Scan(value any) error {
 	return nil
 }
 
+//goland:noinspection GoMixedReceiverTypes
 func (nt NullDurationMS) Value() (driver.Value, error) {
 	if !nt.Valid {
 		return nil, nil
@@ -88,6 +91,7 @@ func (nt NullDurationMS) Value() (driver.Value, error) {
 
 type StringList []string
 
+//goland:noinspection GoMixedReceiverTypes
 func (nt *StringList) Scan(value interface{}) error {
 	if value == nil {
 		*nt = nil
@@ -101,6 +105,7 @@ func (nt *StringList) Scan(value interface{}) error {
 	return nil
 }
 
+//goland:noinspection GoMixedReceiverTypes
 func (nt StringList) Value() (driver.Value, error) {
 	return strings.Join(nt, "\003"), nil
 }

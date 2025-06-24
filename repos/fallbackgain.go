@@ -24,7 +24,7 @@ func SetFallbackGain(gain float64) {
 	fallbackGainLock.Lock()
 	defer fallbackGainLock.Unlock()
 	if gain >= 0 {
-		log.Warnf("trying to set fallbackGain >= 0: %d. Setting to nil instead", gain)
+		log.Warnf("trying to set fallbackGain >= 0: %.2f. Setting to nil instead", gain)
 		fallbackGain = nil
 		return
 	}

@@ -193,6 +193,15 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		return fmt.Errorf("fix playlist track numbers: %w", err)
 	}
 
+	log.Tracef("calculating fallback gain...")
+	fallbackGain, err := s.tx.Song().GetMedianReplayGain(ctx)
+	if err != nil {
+		return fmt.Errorf("get median replay gain: %w", err)
+	}
+	if fallbackGain > 0 {
+		repos.SetFallbackGain(fallbackGain)
+	}
+
 	err = s.tx.System().SetLastScan(ctx, time.Now())
 	if err != nil {
 		return fmt.Errorf("update last scan: %w", err)
@@ -262,7 +271,7 @@ func (s *Scanner) scanMediaDir(ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
-		if err != filepath.SkipDir && err != filepath.SkipAll {
+		if !errors.Is(err, filepath.SkipDir) && !errors.Is(err, filepath.SkipAll) {
 			return fmt.Errorf("walk media dir: %w", err)
 		}
 	}
@@ -291,7 +300,7 @@ func (s *Scanner) walkDir(path string, d fs.DirEntry, parentChanged bool, walkDi
 		changed = stat.ModTime().After(s.lastScan) || !stat.HasChangeTime() || stat.ChangeTime().After(s.lastScan)
 	}
 	if err := walkDirFn(path, d, changed, nil); err != nil || !d.IsDir() {
-		if err == filepath.SkipDir && d.IsDir() {
+		if errors.Is(err, filepath.SkipDir) && d.IsDir() {
 			// Successfully skipped directory.
 			err = nil
 		}
@@ -303,7 +312,7 @@ func (s *Scanner) walkDir(path string, d fs.DirEntry, parentChanged bool, walkDi
 		// Second call, to report ReadDir error.
 		err = walkDirFn(path, d, changed, err)
 		if err != nil {
-			if err == filepath.SkipDir && d.IsDir() {
+			if errors.Is(err, filepath.SkipDir) && d.IsDir() {
 				err = nil
 			}
 			return err
@@ -313,7 +322,7 @@ func (s *Scanner) walkDir(path string, d fs.DirEntry, parentChanged bool, walkDi
 	for _, d1 := range dirs {
 		path1 := filepath.Join(path, d1.Name())
 		if err := s.walkDir(path1, d1, changed, walkDirFn); err != nil {
-			if err == filepath.SkipDir {
+			if errors.Is(err, filepath.SkipDir) {
 				break
 			}
 			return err

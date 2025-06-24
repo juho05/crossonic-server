@@ -2,6 +2,7 @@
 ALTER TABLE songs
 ADD COLUMN search_text text;
 
+-- noinspection SqlWithoutWhere
 UPDATE songs SET search_text = ' ' || lower(title) || ' ';
 
 ALTER TABLE songs
@@ -10,6 +11,7 @@ ALTER COLUMN search_text SET NOT NULL;
 ALTER TABLE albums
 ADD COLUMN search_text text;
 
+-- noinspection SqlWithoutWhere
 UPDATE albums SET search_text = ' ' || lower(name) || ' ';
 
 ALTER TABLE albums
@@ -18,6 +20,7 @@ ALTER COLUMN search_text SET NOT NULL;
 ALTER TABLE artists
 ADD COLUMN search_text text;
 
+-- noinspection SqlWithoutWhere
 UPDATE artists SET search_text = ' ' || lower(name) || ' ';
 
 ALTER TABLE artists

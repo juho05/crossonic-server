@@ -104,12 +104,6 @@ func IncludeSongInfoBare() IncludeSongInfo {
 	return IncludeSongInfo{}
 }
 
-func IncludeSongInfoAlbum() IncludeSongInfo {
-	return IncludeSongInfo{
-		Album: true,
-	}
-}
-
 func IncludeSongInfoFull(user string) IncludeSongInfo {
 	return IncludeSongInfo{
 		Album:       true,

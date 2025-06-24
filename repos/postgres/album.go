@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
 	"github.com/nullism/bqb"
@@ -148,9 +148,9 @@ func (a albumRepository) FindStarred(ctx context.Context, paginate repos.Paginat
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
 
-func (s albumRepository) GetTracks(ctx context.Context, albumID string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+func (a albumRepository) GetTracks(ctx context.Context, albumID string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	q := bqb.New("SELECT ? FROM songs ? WHERE songs.album_id = ? ORDER BY songs.disc_number, songs.track", genSongSelectList(include), genSongJoins(include), albumID)
-	return execSongSelectMany(ctx, s.db, q, include)
+	return execSongSelectMany(ctx, a.db, q, include)
 }
 
 func (a albumRepository) Star(ctx context.Context, user, albumID string) error {

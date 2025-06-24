@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/listenbrainz"
 	"github.com/juho05/crossonic-server/repos"

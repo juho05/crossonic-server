@@ -95,7 +95,7 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 	err = imaging.Encode(file, img, imaging.JPEG)
 	file.Close()
 	if err != nil {
-		os.Remove(path)
+		_ = os.Remove(path)
 		log.Errorf("set playlist cover: save image: encode: %s", err)
 		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
 		return

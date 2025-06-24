@@ -173,7 +173,7 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 			tracks := make([]int, 0, len(query["songIndexToRemove"]))
 			for _, iStr := range query["songIndexToRemove"] {
 				i, err := strconv.Atoi(iStr)
-				if err != nil || i < 0 || i >= int(playlist.TrackCount) {
+				if err != nil || i < 0 || i >= playlist.TrackCount {
 					return fmt.Errorf("invalid song index: %s", iStr)
 				}
 				tracks = append(tracks, i)

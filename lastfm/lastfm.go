@@ -115,8 +115,8 @@ func (l *LastFm) GetAlbumInfo(ctx context.Context, name, artistName string, mbid
 
 var artistOpenGraphQuery = cascadia.MustCompile(`html > head > meta[property="og:image"]`)
 
-// from https://github.com/sentriz/gonic/blob/0e45f5e84cd650211351179edf3eed89a54c6c75/lastfm/client.go#L182
-func (l *LastFm) GetArtistImageURL(ctx context.Context, artistURL string) (string, error) {
+// GetArtistImageURL uses code from https://github.com/sentriz/gonic/blob/0e45f5e84cd650211351179edf3eed89a54c6c75/lastfm/client.go#L182
+func (l *LastFm) GetArtistImageURL(artistURL string) (string, error) {
 	resp, err := http.Get(artistURL)
 	if err != nil {
 		return "", fmt.Errorf("get artist image url: get artist page: %w", err)
@@ -153,8 +153,8 @@ func lastFMRequest[T any](l *LastFm, ctx context.Context, method, responseKey st
 	for k, v := range params {
 		query[k] = v
 	}
-	url := fmt.Sprintf("%s?%s", baseURL, query.Encode())
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	uri := fmt.Sprintf("%s?%s", baseURL, query.Encode())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		return obj, fmt.Errorf("last.fm new request: %w", err)
 	}

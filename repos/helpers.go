@@ -66,11 +66,11 @@ type OptionalGetter interface {
 }
 
 func EncryptPassword(password string) ([]byte, error) {
-	aes, err := aes.NewCipher(config.PasswordEncryptionKey())
+	aesCipher, err := aes.NewCipher(config.PasswordEncryptionKey())
 	if err != nil {
 		return nil, fmt.Errorf("new cipher: %w", err)
 	}
-	gcm, err := cipher.NewGCM(aes)
+	gcm, err := cipher.NewGCM(aesCipher)
 	if err != nil {
 		return nil, fmt.Errorf("new gcm: %w", err)
 	}
@@ -83,11 +83,11 @@ func EncryptPassword(password string) ([]byte, error) {
 }
 
 func DecryptPassword(encryptedPassword []byte) (string, error) {
-	aes, err := aes.NewCipher(config.PasswordEncryptionKey())
+	aesCipher, err := aes.NewCipher(config.PasswordEncryptionKey())
 	if err != nil {
 		return "", fmt.Errorf("new cipher: %w", err)
 	}
-	gcm, err := cipher.NewGCM(aes)
+	gcm, err := cipher.NewGCM(aesCipher)
 	if err != nil {
 		return "", fmt.Errorf("new gcm: %w", err)
 	}

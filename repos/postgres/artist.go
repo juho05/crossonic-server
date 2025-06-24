@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
 	"github.com/nullism/bqb"

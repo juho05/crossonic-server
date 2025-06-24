@@ -44,5 +44,5 @@ func (u userRepository) FindByName(ctx context.Context, name string) (*repos.Use
 }
 
 func (u userRepository) DeleteByName(ctx context.Context, name string) error {
-	return executeQueryExpectAffectedRows(ctx, u.db, bqb.New("DELETE FROM users WHERE name = ?"))
+	return executeQueryExpectAffectedRows(ctx, u.db, bqb.New("DELETE FROM users WHERE name = ?", name))
 }

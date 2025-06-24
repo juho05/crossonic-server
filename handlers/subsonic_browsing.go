@@ -117,8 +117,8 @@ func (h *Handler) handleGetGenres(w http.ResponseWriter, r *http.Request) {
 	genres := make([]*responses.Genre, 0, len(dbGenres))
 	for _, g := range dbGenres {
 		genres = append(genres, &responses.Genre{
-			SongCount:  int(g.SongCount),
-			AlbumCount: int(g.AlbumCount),
+			SongCount:  g.SongCount,
+			AlbumCount: g.AlbumCount,
 			Value:      g.Name,
 		})
 	}

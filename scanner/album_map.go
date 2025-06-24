@@ -77,7 +77,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 	for _, a := range albums {
 		albumArtistIDs := connections[a.ID]
 		if albumArtistIDs == nil {
-			albumArtistIDs = make(map[string]int, 0)
+			albumArtistIDs = make(map[string]int)
 		}
 		albumArtistNames := artistNames[a.ID]
 		if albumArtistNames == nil {

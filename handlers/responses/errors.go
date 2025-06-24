@@ -2,6 +2,7 @@ package responses
 
 type SubsonicError int
 
+//goland:noinspection GoUnusedConst
 const (
 	SubsonicErrorGeneric                                                  SubsonicError = 0
 	SubsonicErrorRequiredParameterMissing                                 SubsonicError = 10

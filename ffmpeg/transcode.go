@@ -85,7 +85,7 @@ func (t *Transcoder) SelectFormat(name string, channels, maxBitRateK int) (Forma
 	f, ok := formats[format]
 	if !ok {
 		if format != "" {
-			log.Warnf("Requested transcoding format %s not supported. Falling back to mp3...")
+			log.Warnf("Requested transcoding format %s not supported. Falling back to mp3...", format)
 		}
 		f = formats["mp3"]
 	}

@@ -56,7 +56,7 @@ func removeCrossonicMetadata(args []string, db repos.DB) error {
 		}
 		file, err := audiotags.Open(path)
 		if err != nil {
-			log.Errorf("remove crossonic id in %s: %w", path, err)
+			log.Errorf("remove crossonic id in %s: %s", path, err)
 			return nil
 		}
 		defer file.Close()

@@ -218,24 +218,6 @@ func requiredInt(key string) (i int) {
 	return i
 }
 
-func optionalFloat32(key string, def float32) (f float32) {
-	if f, ok := values[key]; ok {
-		return f.(float32)
-	}
-	defer func() {
-		values[key] = f
-	}()
-	str := os.Getenv(key)
-	if str == "" {
-		return def
-	}
-	f64, err := strconv.ParseFloat(str, 32)
-	if err != nil {
-		log.Fatalf("%s must be an integer", key)
-	}
-	return float32(f64)
-}
-
 func boolean(key string, def bool) (b bool) {
 	if b, ok := values[key]; ok {
 		return b.(bool)

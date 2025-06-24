@@ -73,17 +73,17 @@ func (f *File) Close() {
 	C.audiotags_file_close((*C.TagLib_FileRefRef)(f))
 }
 
-func (f *File) ReadTags() keyMap {
+func (f *File) ReadTags() KeyMap {
 	id := mapsNextID.Add(1)
 	defer maps.Delete(id)
 
-	m := keyMap{}
+	m := KeyMap{}
 	maps.Store(id, m)
 	C.audiotags_file_properties((*C.TagLib_FileRefRef)(f), C.int(id))
 	return m
 }
 
-func (f *File) WriteTags(tagMap keyMap) bool {
+func (f *File) WriteTags(tagMap KeyMap) bool {
 	if len(tagMap) == 0 {
 		return bool(C.audiotags_clear_properties((*C.TagLib_FileRefRef)(f)))
 	}
@@ -183,12 +183,12 @@ func (f *File) RemovePictures() bool {
 var maps sync.Map
 var mapsNextID atomic.Uint64
 
-type keyMap = map[string][]string
+type KeyMap = map[string][]string
 
 //export goTagPut
 func goTagPut(id C.int, key *C.char, val *C.char) {
 	r, _ := maps.Load(uint64(id))
-	m := r.(keyMap)
+	m := r.(KeyMap)
 	k := strings.ToLower(C.GoString(key))
 	v := C.GoString(val)
 	m[k] = append(m[k], v)

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
@@ -22,8 +22,6 @@ var (
 	ErrUnexpectedResponseCode = errors.New("unexpected response code")
 	ErrUnexpectedResponseBody = errors.New("unexpected response body")
 	ErrUnauthenticated        = errors.New("unauthenticated")
-	ErrNotEnoughMetadata      = errors.New("now enough metadata")
-	ErrNotFound               = errors.New("not found")
 )
 
 type ListenBrainz struct {
@@ -46,6 +44,7 @@ type Listen struct {
 
 type FeedbackScore int
 
+//goland:noinspection GoUnusedConst
 const (
 	FeedbackScoreLove FeedbackScore = 1
 	FeedbackScoreNone FeedbackScore = 0
@@ -444,7 +443,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 		if f.SongMBID == nil {
 			continue
 		}
-		log.Tracef("listenbrainz: uploading feedback for %s (%s, %s): %s", f.SongName, f.SongID, f.SongMBID, f.Score)
+		log.Tracef("listenbrainz: uploading feedback for %s (%s, %v): %v", f.SongName, f.SongID, f.SongMBID, f.Score)
 		_, err := listenBrainzRequest[any](ctx, "/1/feedback/recording-feedback", http.MethodPost, con.Token, request{
 			RecordingMBID: *f.SongMBID,
 			Score:         f.Score,
@@ -467,6 +466,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 	return len(successSongs), nil
 }
 
+// SyncSongFeedback syncs according to the following logic:
 // if upload status is unknown:      global favorite <- local is favorite OR remote is favorite
 // if upload status is uploaded:     global favorite <- remote is favorite
 // if upload status is not uploaded: global favorite <- local is favorite
@@ -570,13 +570,13 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("unstar starred songs not in list of love feedback: %w", err)
 			}
-			deletedLocal += int(deletedCount)
+			deletedLocal += deletedCount
 
 			newStarCount, err := tx.Song().StarMultiple(ctx, u.Name, starSongIDs)
 			if err != nil {
 				return fmt.Errorf("star non-starred songs in list of love feedback: %w", err)
 			}
-			createdLocal += int(newStarCount)
+			createdLocal += newStarCount
 
 			err = tx.Song().SetLBFeedbackUploaded(ctx, u.Name, util.Map(songs, func(s *repos.CompleteSong) repos.SongSetLBFeedbackUploadedParams {
 				return repos.SongSetLBFeedbackUploadedParams{
