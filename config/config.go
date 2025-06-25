@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/base64"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -9,229 +10,309 @@ import (
 	"github.com/juho05/log"
 )
 
-func LoadAll() {
-	BaseURL()
-	DBUser()
-	DBPassword()
-	DBHost()
-	DBName()
-	DBPort()
-	MusicDir()
-	DataDir()
-	CacheDir()
-	PasswordEncryptionKey()
-	ListenAddr()
-	AutoMigrate()
-	LogLevel()
-	LogFile()
-	DisableStartupScan()
-	ListenBrainzURL()
-	LastFMApiKey()
-	FrontendDir()
+type StartupScanOption string
+
+type environment map[string]string
+
+var (
+	StartupScanDisabled StartupScanOption = "disabled"
+	StartupScanQuick    StartupScanOption = "quick"
+	StartupScanFull     StartupScanOption = "full"
+)
+
+func (s StartupScanOption) Valid() bool {
+	return s == StartupScanDisabled || s == StartupScanQuick || s == StartupScanFull
 }
 
-var values = make(map[string]any)
-
-func BaseURL() string {
-	return strings.TrimSuffix(requiredString("BASE_URL"), "/")
+type Config struct {
+	BaseURL         string
+	DBUser          string
+	DBPassword      string
+	DBName          string
+	DBHost          string
+	DBPort          int
+	MusicDir        string
+	DataDir         string
+	CacheDir        string
+	EncryptionKey   []byte
+	ListenAddr      string
+	AutoMigrate     bool
+	LogLevel        log.Severity
+	LogFile         *os.File
+	StartupScan     StartupScanOption
+	ListenBrainzURL string
+	LastFMApiKey    string
+	ScanHidden      bool
+	FrontendDir     string
 }
 
-func DBUser() string {
-	return requiredString("DB_USER")
-}
-
-func DBPassword() string {
-	return requiredString("DB_PASSWORD")
-}
-
-func DBHost() string {
-	return requiredString("DB_HOST")
-}
-
-func DBName() string {
-	return requiredString("DB_NAME")
-}
-
-func DBPort() int {
-	return requiredInt("DB_PORT")
-}
-
-func MusicDir() string {
-	return requiredString("MUSIC_DIR")
-}
-
-func DataDir() string {
-	return requiredString("DATA_DIR")
-}
-
-func CacheDir() string {
-	return requiredString("CACHE_DIR")
-}
-
-func PasswordEncryptionKey() (k []byte) {
-	key := "PASSWORD_ENCRYPTION_KEY"
-	if s, ok := values[key]; ok {
-		return s.([]byte)
+// Load loads the configuration from environment variables into Options.
+// env should be of the same format as os.Environ()
+func Load(environ []string) (Config, []error) {
+	env := make(environment, len(environ))
+	for _, e := range environ {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) != 2 {
+			log.Fatalf("invalid environment variable format: %s", e)
+		}
+		env[parts[0]] = parts[1]
 	}
-	defer func() {
-		values[key] = k
-	}()
-	str := os.Getenv(key)
-	if str == "" {
-		log.Fatalf("%s must not be empty", key)
-	}
+
+	var errors []error
+
+	var config Config
 	var err error
-	k, err = base64.RawStdEncoding.DecodeString(str)
+
+	config.BaseURL, err = loadBaseURL(env)
 	if err != nil {
-		log.Fatalf("%s must be in base64 format", key)
+		errors = append(errors, err)
+	}
+
+	config.DBUser, err = loadDBUser(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.DBName, err = loadDBName(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.DBPassword, err = loadDBPassword(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.DBHost, err = loadDBHost(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.DBPort, err = loadDBPort(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.MusicDir, err = loadMusicDir(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.DataDir, err = loadDataDir(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.CacheDir, err = loadCacheDir(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.EncryptionKey, err = loadEncryptionKey(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.ListenAddr = loadListenAddr(env)
+
+	config.AutoMigrate, err = loadAutoMigrate(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.LogLevel, err = loadLogLevel(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.LogFile, err = loadLogFile(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.StartupScan, err = loadStartupScan(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.ListenBrainzURL = loadListenBrainzURL(env)
+	config.LastFMApiKey = loadLastFMApiKey(env)
+
+	config.ScanHidden, err = loadScanHidden(env)
+	if err != nil {
+		errors = append(errors, err)
+	}
+
+	config.FrontendDir = loadFrontendDir(env)
+
+	return config, errors
+}
+
+func loadBaseURL(env environment) (string, error) {
+	str, err := requiredString(env, "BASE_URL")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(str, "/"), nil
+}
+
+func loadDBUser(env environment) (string, error) {
+	return requiredString(env, "DB_USER")
+}
+
+func loadDBPassword(env environment) (string, error) {
+	return requiredString(env, "DB_PASSWORD")
+}
+
+func loadDBHost(env environment) (string, error) {
+	return requiredString(env, "DB_HOST")
+}
+
+func loadDBName(env environment) (string, error) {
+	return requiredString(env, "DB_NAME")
+}
+
+func loadDBPort(env environment) (int, error) {
+	return requiredInt(env, "DB_PORT")
+}
+
+func loadMusicDir(env environment) (string, error) {
+	return requiredString(env, "MUSIC_DIR")
+}
+
+func loadDataDir(env environment) (string, error) {
+	return requiredString(env, "DATA_DIR")
+}
+
+func loadCacheDir(env environment) (string, error) {
+	return requiredString(env, "CACHE_DIR")
+}
+
+func loadEncryptionKey(env environment) ([]byte, error) {
+	key := "ENCRYPTION_KEY"
+	str := env[key]
+	if str == "" {
+		return nil, newError(key, "must not be empty")
+	}
+	k, err := base64.RawStdEncoding.DecodeString(str)
+	if err != nil {
+		return nil, newError(key, "must be in base64 format")
 	}
 	if len(k) != 32 {
-		log.Fatalf("%s must be a base64 encoded byte array of length 32", key)
+		return nil, newError(key, "must be a base64 encoded byte array of length 32")
 	}
-	return k
+	return k, nil
 }
 
-func ListenAddr() string {
-	return optionalString("LISTEN_ADDR", "0.0.0.0:8080")
+func loadListenAddr(env environment) string {
+	return optionalString(env, "LISTEN_ADDR", "0.0.0.0:8080")
 }
 
-func AutoMigrate() (b bool) {
-	return boolean("AUTO_MIGRATE", false)
+func loadAutoMigrate(env environment) (bool, error) {
+	return boolean(env, "AUTO_MIGRATE", true)
 }
 
-func LogLevel() (sev log.Severity) {
-	if l, ok := values["LOG_LEVEL"]; ok {
-		return l.(log.Severity)
-	}
-	defer func() {
-		values["LOG_LEVEL"] = sev
-	}()
+func loadLogLevel(env environment) (log.Severity, error) {
+	key := "LOG_LEVEL"
 	def := log.INFO
-	logLevelStr := os.Getenv("LOG_LEVEL")
+	logLevelStr := env[key]
 	if logLevelStr == "" {
-		return def
+		return def, nil
 	}
 	level, err := strconv.Atoi(logLevelStr)
 	if err != nil {
-		log.Errorf("Invalid log level '%s': not a number. Using default: %d", logLevelStr, def)
-		return def
+		return def, newError(key, "invalid log level: must be an integer")
 	}
 	if level < int(log.NONE) || level > int(log.TRACE) {
-		log.Errorf("Invalid log level. Valid values: 0 (none), 1 (fatal), 2 (error), 3 (warning), 4 (info), 5 (trace). Using default: %d", def)
-		return def
+		return def, newError(key, "invalid log level: valid values: 0 (none), 1 (fatal), 2 (error), 3 (warning), 4 (info), 5 (trace)")
 	}
-	return log.Severity(level)
+	return log.Severity(level), nil
 }
 
-func LogFile() (file *os.File) {
-	if f, ok := values["LOG_FILE"]; ok {
-		return f.(*os.File)
-	}
-	defer func() {
-		values["LOG_FILE"] = file
-	}()
+// FIXME config should not be responsible for opening log file
+func loadLogFile(env environment) (*os.File, error) {
+	key := "LOG_FILE"
 	def := os.Stderr
-	if os.Getenv("LOG_FILE") == "" {
+	if env[key] == "" {
+		return def, nil
+	}
+	appnd, _ := strconv.ParseBool(env["LOG_APPEND"])
+	if appnd {
+		file, err := os.OpenFile(env[key], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return def, newError(key, fmt.Sprintf("failed to open log file (append): %s", err))
+		}
+		return file, nil
+	} else {
+		file, err := os.Create(env[key])
+		if err != nil {
+			return def, newError(key, fmt.Sprintf("failed to open log file: %s", err))
+		}
+		return file, nil
+	}
+}
+
+func loadStartupScan(env environment) (StartupScanOption, error) {
+	key := "STARTUP_SCAN"
+	startupScan := StartupScanOption(optionalString(env, key, string(StartupScanQuick)))
+	if !startupScan.Valid() {
+		return "", newError(key, "invalid startup scan option (valid: disabled, quick, full)")
+	}
+	return startupScan, nil
+}
+
+func loadListenBrainzURL(env environment) string {
+	return strings.TrimSuffix(optionalString(env, "LISTENBRAINZ_URL", "https://api.listenbrainz.org"), "/")
+}
+
+func loadLastFMApiKey(env environment) string {
+	return optionalString(env, "LASTFM_API_KEY", "")
+}
+
+func loadScanHidden(env environment) (bool, error) {
+	return boolean(env, "SCAN_HIDDEN", false)
+}
+
+func loadFrontendDir(env environment) string {
+	return optionalString(env, "FRONTEND_DIR", "")
+}
+
+func optionalString(env environment, key, def string) string {
+	str := env[key]
+	if str == "" {
 		return def
 	}
-	appnd, _ := strconv.ParseBool(os.Getenv("LOG_APPEND"))
-	if appnd {
-		file, err := os.Open(os.Getenv("LOG_FILE"))
-		if err != nil {
-			log.Fatalf("Failed to open log file %s. Using default: STDERR", err)
-			return def
-		}
-		return file
-	} else {
-		file, err := os.Create(os.Getenv("LOG_FILE"))
-		if err != nil {
-			log.Fatalf("Failed to create log file %s. Using default: STDERR", err)
-			return def
-		}
-		return file
-	}
-}
-
-func DisableStartupScan() bool {
-	return boolean("DISABLE_STARTUP_SCAN", false)
-}
-
-func ListenBrainzURL() string {
-	return strings.TrimSuffix(optionalString("LISTENBRAINZ_URL", "https://api.listenbrainz.org"), "/")
-}
-
-func LastFMApiKey() string {
-	return optionalString("LASTFM_API_KEY", "")
-}
-
-func ScanHidden() bool {
-	return boolean("SCAN_HIDDEN", false)
-}
-
-func FrontendDir() string {
-	return optionalString("FRONTEND_DIR", "")
-}
-
-func optionalString(key, def string) (str string) {
-	if s, ok := values[key]; ok {
-		return s.(string)
-	}
-	defer func() {
-		values[key] = str
-	}()
-	str = os.Getenv(key)
-	if str == "" {
-		str = def
-	}
 	return str
 }
 
-func requiredString(key string) (str string) {
-	if s, ok := values[key]; ok {
-		return s.(string)
-	}
-	defer func() {
-		values[key] = str
-	}()
-	str = os.Getenv(key)
+func requiredString(env environment, key string) (string, error) {
+	str := env[key]
 	if str == "" {
-		log.Fatalf("%s must not be empty", key)
+		return "", newError(key, "must not be empty")
 	}
-	return str
+	return str, nil
 }
 
-func requiredInt(key string) (i int) {
-	if i, ok := values[key]; ok {
-		return i.(int)
-	}
-	defer func() {
-		values[key] = i
-	}()
-	str := os.Getenv(key)
+func requiredInt(env environment, key string) (int, error) {
+	str := env[key]
 	if str == "" {
-		log.Fatalf("%s must not be empty", key)
+		return 0, newError(key, "must not be empty")
 	}
 	i, err := strconv.Atoi(str)
 	if err != nil {
-		log.Fatalf("%s must be an integer", key)
+		return 0, newError(key, "must be an integer")
 	}
-	return i
+	return i, nil
 }
 
-func boolean(key string, def bool) (b bool) {
-	if b, ok := values[key]; ok {
-		return b.(bool)
-	}
-	defer func() {
-		values[key] = b
-	}()
-	str := os.Getenv(key)
+func boolean(env environment, key string, def bool) (bool, error) {
+	str := env[key]
 	if str == "" {
-		return def
+		return def, nil
 	}
 	b, err := strconv.ParseBool(str)
 	if err != nil {
-		log.Fatalf("%s must be a boolean", key)
+		return false, newError(key, "must be a boolean")
 	}
-	return b
+	return b, nil
 }

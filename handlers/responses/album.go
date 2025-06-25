@@ -1,6 +1,7 @@
 package responses
 
 import (
+	"github.com/juho05/crossonic-server/config"
 	"time"
 
 	"github.com/juho05/crossonic-server/repos"
@@ -36,7 +37,7 @@ type Album struct {
 	IsCompilation *bool          `xml:"isCompilation,attr,omitempty" json:"isCompilation,omitempty"`
 }
 
-func NewAlbum(a *repos.CompleteAlbum) *Album {
+func NewAlbum(a *repos.CompleteAlbum, conf config.Config) *Album {
 	if a == nil {
 		return nil
 	}
@@ -89,13 +90,15 @@ func NewAlbum(a *repos.CompleteAlbum) *Album {
 		album.Parent = album.ArtistID
 	}
 
-	if HasCoverArt(a.ID) {
+	if HasCoverArt(a.ID, conf) {
 		album.CoverArt = &a.ID
 	}
 
 	return album
 }
 
-func NewAlbums(a []*repos.CompleteAlbum) []*Album {
-	return util.Map(a, NewAlbum)
+func NewAlbums(a []*repos.CompleteAlbum, conf config.Config) []*Album {
+	return util.Map(a, func(a *repos.CompleteAlbum) *Album {
+		return NewAlbum(a, conf)
+	})
 }

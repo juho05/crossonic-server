@@ -98,7 +98,7 @@ func (h *Handler) passwordAuth(ctx context.Context, username, password string) (
 		}
 		return false, fmt.Errorf("password auth: %w", err)
 	}
-	dbPassword, err := repos.DecryptPassword(user.EncryptedPassword)
+	dbPassword, err := repos.DecryptPassword(user.EncryptedPassword, h.Config.EncryptionKey)
 	if err != nil {
 		return false, fmt.Errorf("password auth: %w", err)
 	}
@@ -113,7 +113,7 @@ func (h *Handler) tokenAuth(ctx context.Context, username, token, salt string) (
 		}
 		return false, fmt.Errorf("token auth: %w", err)
 	}
-	dbPassword, err := repos.DecryptPassword(user.EncryptedPassword)
+	dbPassword, err := repos.DecryptPassword(user.EncryptedPassword, h.Config.EncryptionKey)
 	if err != nil {
 		return false, fmt.Errorf("token auth: %w", err)
 	}

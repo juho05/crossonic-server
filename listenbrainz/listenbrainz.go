@@ -27,6 +27,7 @@ var (
 type ListenBrainz struct {
 	db     repos.DB
 	cancel context.CancelFunc
+	config config.Config
 }
 
 type Listen struct {
@@ -104,7 +105,7 @@ type body struct {
 
 func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, listen *Listen, mediaPlayer string) error {
 	durationMs := listen.Duration.ToStd().Milliseconds()
-	_, err := listenBrainzRequest[any](ctx, "/1/submit-listens", http.MethodPost, con.Token, body{
+	_, err := listenBrainzRequest[any](ctx, l.config.ListenBrainzURL, "/1/submit-listens", http.MethodPost, con.Token, body{
 		ListenType: "playing_now",
 		Payload: []payload{
 			{
@@ -135,7 +136,7 @@ func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, lis
 
 func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen *Listen, mediaPlayer string) error {
 	durationMs := listen.Duration.ToStd().Milliseconds()
-	_, err := listenBrainzRequest[any](ctx, "/1/submit-listens", http.MethodPost, con.Token, body{
+	_, err := listenBrainzRequest[any](ctx, l.config.ListenBrainzURL, "/1/submit-listens", http.MethodPost, con.Token, body{
 		ListenType: "single",
 		Payload: []payload{
 			{
@@ -191,7 +192,7 @@ func (l *ListenBrainz) SubmitImport(ctx context.Context, con Connection, listens
 	}
 	for i := 0; i < len(payloads); {
 		next := i + min(1000, len(payloads))
-		_, err := listenBrainzRequest[any](ctx, "/1/submit-listens", http.MethodPost, con.Token, body{
+		_, err := listenBrainzRequest[any](ctx, l.config.ListenBrainzURL, "/1/submit-listens", http.MethodPost, con.Token, body{
 			ListenType: "import",
 			Payload:    payloads[i:next],
 		})
@@ -210,7 +211,7 @@ func (l *ListenBrainz) CheckToken(ctx context.Context, token string) (Connection
 		Valid    bool   `json:"valid"`
 		UserName string `json:"user_name"`
 	}
-	res, err := listenBrainzRequest[response](ctx, "/1/validate-token", http.MethodGet, token, nil)
+	res, err := listenBrainzRequest[response](ctx, l.config.ListenBrainzURL, "/1/validate-token", http.MethodGet, token, nil)
 	if err != nil {
 		return Connection{}, fmt.Errorf("check listenbrainz token: %s", err)
 	}
@@ -231,7 +232,7 @@ func (l *ListenBrainz) GetListenbrainzConnection(ctx context.Context, user strin
 	if u.EncryptedListenBrainzToken == nil || u.ListenBrainzUsername == nil {
 		return Connection{}, ErrUnauthenticated
 	}
-	token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken)
+	token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken, l.config.EncryptionKey)
 	if err != nil {
 		return Connection{}, fmt.Errorf("get listenbrainz token: %w", err)
 	}
@@ -420,7 +421,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 				})
 			}
 			log.Tracef("listenbrainz: looking up %d recording mbids", len(req.Recordings))
-			res, err := listenBrainzRequest[[]response](ctx, "/1/metadata/lookup", http.MethodPost, con.Token, req)
+			res, err := listenBrainzRequest[[]response](ctx, l.config.ListenBrainzURL, "/1/metadata/lookup", http.MethodPost, con.Token, req)
 			if err != nil {
 				return 0, fmt.Errorf("update song favorites: %w", err)
 			}
@@ -444,7 +445,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 			continue
 		}
 		log.Tracef("listenbrainz: uploading feedback for %s (%s, %v): %v", f.SongName, f.SongID, f.SongMBID, f.Score)
-		_, err := listenBrainzRequest[any](ctx, "/1/feedback/recording-feedback", http.MethodPost, con.Token, request{
+		_, err := listenBrainzRequest[any](ctx, l.config.ListenBrainzURL, "/1/feedback/recording-feedback", http.MethodPost, con.Token, request{
 			RecordingMBID: *f.SongMBID,
 			Score:         f.Score,
 		})
@@ -482,7 +483,7 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 		if u.ListenBrainzUsername == nil {
 			continue
 		}
-		token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken)
+		token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken, l.config.EncryptionKey)
 		if err != nil {
 			log.Errorf("listenbrainz: sync song feedback: decrypt listenbrainz token: %s", err)
 			continue
@@ -622,7 +623,7 @@ func (l *ListenBrainz) collectListenbrainzLoveFeedback(ctx context.Context, lbUs
 		TotalCount int            `json:"total_count"`
 	}
 	for page := 0; totalCount == -1 || page*pageSize < totalCount; page++ {
-		res, err := listenBrainzRequest[response](ctx, fmt.Sprintf("/1/feedback/user/%s/get-feedback?metadata=true&score=1&count=%d&offset=%d", lbUserName, pageSize, page*pageSize), http.MethodGet, token, nil)
+		res, err := listenBrainzRequest[response](ctx, l.config.ListenBrainzURL, fmt.Sprintf("/1/feedback/user/%s/get-feedback?metadata=true&score=1&count=%d&offset=%d", lbUserName, pageSize, page*pageSize), http.MethodGet, token, nil)
 		if err != nil {
 			return nil, fmt.Errorf("collect listenbrainz love feedback: %w", err)
 		}
@@ -636,7 +637,7 @@ func (l *ListenBrainz) collectListenbrainzLoveFeedback(ctx context.Context, lbUs
 	return feedback, nil
 }
 
-func listenBrainzRequest[T any](ctx context.Context, endpoint, method, token string, body any) (T, error) {
+func listenBrainzRequest[T any](ctx context.Context, listenBrainzURL, endpoint, method, token string, body any) (T, error) {
 	var obj T
 	var data io.Reader
 	if body != nil {
@@ -646,7 +647,7 @@ func listenBrainzRequest[T any](ctx context.Context, endpoint, method, token str
 		}
 		data = bytes.NewBuffer(d)
 	}
-	url := config.ListenBrainzURL() + endpoint
+	url := listenBrainzURL + endpoint
 	req, err := http.NewRequestWithContext(ctx, method, url, data)
 	if err != nil {
 		return obj, fmt.Errorf("listenbrainz request: %w", err)
@@ -670,7 +671,7 @@ func listenBrainzRequest[T any](ctx context.Context, endpoint, method, token str
 			seconds = 1
 		}
 		time.Sleep(time.Duration(seconds)*time.Second + 500*time.Millisecond)
-		return listenBrainzRequest[T](ctx, endpoint, method, token, body)
+		return listenBrainzRequest[T](ctx, listenBrainzURL, endpoint, method, token, body)
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusUnauthorized {

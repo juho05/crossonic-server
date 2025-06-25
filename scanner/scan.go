@@ -16,7 +16,6 @@ import (
 
 	"github.com/djherbis/times"
 	"github.com/juho05/crossonic-server/audiotags"
-	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
@@ -261,7 +260,7 @@ func (s *Scanner) scanMediaDir(ctx context.Context) error {
 		if scanDirError != nil {
 			return filepath.SkipAll
 		}
-		if !config.ScanHidden() && d.Name()[0] == '.' {
+		if !s.conf.ScanHidden && d.Name()[0] == '.' {
 			return filepath.SkipDir
 		}
 		dirs <- dir{
@@ -344,7 +343,7 @@ findCoverLoop:
 			continue
 		}
 
-		if !config.ScanHidden() && e.Name()[0] == '.' {
+		if !s.conf.ScanHidden && e.Name()[0] == '.' {
 			continue
 		}
 

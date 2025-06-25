@@ -10,7 +10,6 @@ import (
 	"unicode"
 
 	"github.com/juho05/crossonic-server"
-	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
@@ -42,9 +41,9 @@ func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	albums := responses.NewAlbums(dbAlbums)
+	albums := responses.NewAlbums(dbAlbums, h.Config)
 
-	artist := responses.NewArtist(dbArtist)
+	artist := responses.NewArtist(dbArtist, h.Config)
 	artist.Albums = albums
 
 	res := responses.New()
@@ -76,8 +75,8 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	songs := responses.NewSongs(dbSongs)
-	album := responses.NewAlbum(dbAlbum)
+	songs := responses.NewSongs(dbSongs, h.Config)
+	album := responses.NewAlbum(dbAlbum, h.Config)
 
 	res := responses.New()
 	res.Album = &responses.AlbumWithSongs{
@@ -102,7 +101,7 @@ func (h *Handler) handleGetSong(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := responses.New()
-	res.Song = responses.NewSong(song)
+	res.Song = responses.NewSong(song, h.Config)
 	res.EncodeOrLog(w, f)
 }
 
@@ -170,7 +169,7 @@ func (h *Handler) handleGetArtistsIndex(byID3 bool) func(w http.ResponseWriter, 
 				key = unicode.ToLower(runes[0])
 			}
 
-			artist := responses.NewArtist(a)
+			artist := responses.NewArtist(a, h.Config)
 
 			if i, ok := indexMap[key]; ok {
 				i.Artist = append(i.Artist, artist)
@@ -278,8 +277,8 @@ func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
 	var smallImageUrl *string
 	var mediumImageUrl *string
 	var largeImageUrl *string
-	if responses.HasCoverArt(id) {
-		u := constructCoverURL(id, getQuery(r))
+	if responses.HasCoverArt(id, h.Config) {
+		u := h.constructCoverURL(id, getQuery(r))
 		sm := fmt.Sprintf("%s&size=64", u)
 		md := fmt.Sprintf("%s&size=256", u)
 		lg := fmt.Sprintf("%s&size=512", u)
@@ -384,8 +383,8 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 		var smallImageUrl *string
 		var mediumImageUrl *string
 		var largeImageUrl *string
-		if responses.HasCoverArt(id) {
-			u := constructCoverURL(id, getQuery(r))
+		if responses.HasCoverArt(id, h.Config) {
+			u := h.constructCoverURL(id, getQuery(r))
 			sm := fmt.Sprintf("%s&size=64", u)
 			md := fmt.Sprintf("%s&size=256", u)
 			lg := fmt.Sprintf("%s&size=512", u)
@@ -450,7 +449,7 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 			AverageRating: album.AverageRating,
 			PlayCount:     &album.PlayCount,
 			Child: util.Map(songs, func(s *repos.CompleteSong) any {
-				return responses.NewSong(s)
+				return responses.NewSong(s, h.Config)
 			}),
 		}
 		res.EncodeOrLog(w, format(r))
@@ -478,7 +477,7 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 			UserRating:    artist.UserRating,
 			AverageRating: artist.AverageRating,
 			Child: util.Map(albums, func(a *repos.CompleteAlbum) any {
-				return responses.NewAlbum(a)
+				return responses.NewAlbum(a, h.Config)
 			}),
 		}
 		res.EncodeOrLog(w, format(r))
@@ -488,8 +487,8 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func constructCoverURL(id string, query url.Values) string {
-	u := fmt.Sprintf("%s/rest/getCoverArt?id=%s&c=%s&u=%s&v=%s", config.BaseURL(), id, query.Get("c"), query.Get("u"), query.Get("v"))
+func (h *Handler) constructCoverURL(id string, query url.Values) string {
+	u := fmt.Sprintf("%s/rest/getCoverArt?id=%s&c=%s&u=%s&v=%s", h.Config.BaseURL, id, query.Get("c"), query.Get("u"), query.Get("v"))
 	if query.Has("p") {
 		u += "&p=" + query.Get("p")
 	}

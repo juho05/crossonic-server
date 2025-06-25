@@ -15,7 +15,7 @@ import (
 	"github.com/juho05/log"
 )
 
-func removeCrossonicMetadata(args []string, db repos.DB) error {
+func removeCrossonicMetadata(args []string, db repos.DB, conf config.Config) error {
 	if len(args) < 3 {
 		fmt.Println("USAGE:", args[0], "remove-crossonic-metadata <selection> <path?>\n\nSELECTION:\n  current (delete metadata created by this crossonic instance\n  all (delete metadata created by any crossonic instance)")
 		os.Exit(1)
@@ -30,7 +30,7 @@ func removeCrossonicMetadata(args []string, db repos.DB) error {
 		fmt.Println("USAGE:", args[0], "remove-crossonic-metadata <selection> <path?>\n\nSELECTION:\n  current (delete metadata created by this crossonic instance\n  all (delete metadata created by any crossonic instance)")
 		os.Exit(1)
 	}
-	path := config.MusicDir()
+	path := conf.MusicDir
 	if len(args) == 4 {
 		path = args[3]
 	}

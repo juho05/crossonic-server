@@ -37,9 +37,9 @@ func init() {
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 }
 
-func run() error {
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", config.DBUser(), config.DBPassword(), config.DBHost(), config.DBPort(), config.DBName())
-	db, err := postgres.NewDB(dsn)
+func run(conf config.Config) error {
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", conf.DBUser, conf.DBPassword, conf.DBHost, conf.DBPort, conf.DBName)
+	db, err := postgres.NewDB(dsn, conf)
 	if err != nil {
 		return err
 	}
@@ -51,27 +51,27 @@ func run() error {
 	}
 
 	// 5 GB
-	transcodeCache, err := cache.New(filepath.Join(config.CacheDir(), "transcode"), 5e9, 7*24*time.Hour)
+	transcodeCache, err := cache.New(filepath.Join(conf.CacheDir, "transcode"), 5e9, 7*24*time.Hour)
 	if err != nil {
 		return err
 	}
 
 	// 1 GB
-	coverCache, err := cache.New(filepath.Join(config.CacheDir(), "covers"), 1e9, 30*24*time.Hour)
+	coverCache, err := cache.New(filepath.Join(conf.CacheDir, "covers"), 1e9, 30*24*time.Hour)
 	if err != nil {
 		return err
 	}
 
-	mediaScanner, err := scanner.New(config.MusicDir(), db, coverCache, transcodeCache)
+	mediaScanner, err := scanner.New(conf.MusicDir, db, conf, coverCache, transcodeCache)
 	if err != nil {
 		return err
 	}
 
 	lBrainz := listenbrainz.New(db)
 
-	if !config.DisableStartupScan() {
+	if conf.StartupScan != config.StartupScanDisabled {
 		go func() {
-			err = mediaScanner.Scan(db, false)
+			err = mediaScanner.Scan(db, conf.StartupScan == config.StartupScanFull)
 			if err != nil {
 				log.Errorf("scan media: %s", err)
 			}
@@ -89,11 +89,11 @@ func run() error {
 		lBrainz.StartPeriodicSync(3 * time.Hour)
 	}
 
-	lfm := lastfm.New(config.LastFMApiKey())
+	lfm := lastfm.New(conf.LastFMApiKey)
 
-	handler := handlers.New(db, mediaScanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
+	handler := handlers.New(conf, db, mediaScanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
 
-	addr := config.ListenAddr()
+	addr := conf.ListenAddr
 
 	server := http.Server{
 		Addr:     addr,
@@ -142,12 +142,18 @@ func run() error {
 
 func main() {
 	_ = godotenv.Load()
-	config.LoadAll()
+	conf, errs := config.Load(os.Environ())
+	if len(errs) > 0 {
+		for _, e := range errs {
+			log.Errorf("ERROR: %s", e)
+		}
+		log.Fatalf("ERROR: failed to load config")
+	}
 
-	log.SetSeverity(config.LogLevel())
-	log.SetOutput(config.LogFile())
+	log.SetSeverity(conf.LogLevel)
+	log.SetOutput(conf.LogFile)
 
-	err := run()
+	err := run(conf)
 	if err != nil {
 		log.Fatalf("ERROR: %s", err)
 	}

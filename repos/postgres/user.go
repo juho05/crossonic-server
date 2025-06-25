@@ -2,18 +2,20 @@ package postgres
 
 import (
 	"context"
+	"github.com/juho05/crossonic-server/config"
 
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/nullism/bqb"
 )
 
 type userRepository struct {
-	db executer
-	tx func(ctx context.Context, fn func(u userRepository) error) error
+	db   executer
+	tx   func(ctx context.Context, fn func(u userRepository) error) error
+	conf config.Config
 }
 
 func (u userRepository) Create(ctx context.Context, name, password string) error {
-	encryptedPassword, err := repos.EncryptPassword(password)
+	encryptedPassword, err := repos.EncryptPassword(password, u.conf.EncryptionKey)
 	if err != nil {
 		return repos.NewError("encrypt password", repos.ErrGeneral, err)
 	}
@@ -25,7 +27,7 @@ func (u userRepository) UpdateListenBrainzConnection(ctx context.Context, user s
 	var encryptedToken []byte
 	var err error
 	if lbToken != nil {
-		encryptedToken, err = repos.EncryptPassword(*lbToken)
+		encryptedToken, err = repos.EncryptPassword(*lbToken, u.conf.EncryptionKey)
 		if err != nil {
 			return repos.NewError("encrypt ListenBrainz token", repos.ErrGeneral, err)
 		}

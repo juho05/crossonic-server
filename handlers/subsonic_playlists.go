@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
@@ -24,7 +23,7 @@ func (h *Handler) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
 		respondInternalErr(w, query.Get("f"), fmt.Errorf("find all playlists: %w", err))
 		return
 	}
-	playlists := responses.NewPlaylists(dbPlaylists)
+	playlists := responses.NewPlaylists(dbPlaylists, h.Config)
 	response := responses.New()
 	response.Playlists = &responses.Playlists{
 		Playlists: playlists,
@@ -224,7 +223,7 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = os.Remove(filepath.Join(config.DataDir(), "covers", id))
+	err = os.Remove(filepath.Join(h.Config.DataDir, "covers", id))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		log.Errorf("delete playlist: delete cover file: %s", err)
 	}
@@ -253,9 +252,9 @@ func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*respon
 		return nil, fmt.Errorf("get playlist by id: get tracks: %w", err)
 	}
 
-	songs := responses.NewSongs(tracks)
+	songs := responses.NewSongs(tracks, h.Config)
 
-	playlist := responses.NewPlaylist(dbPlaylist)
+	playlist := responses.NewPlaylist(dbPlaylist, h.Config)
 	playlist.Entry = songs
 	return playlist, nil
 }

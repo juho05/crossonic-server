@@ -16,7 +16,6 @@ import (
 
 	"github.com/disintegration/imaging"
 	"github.com/juho05/crossonic-server"
-	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
@@ -332,11 +331,11 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := filepath.Join(config.DataDir(), "covers")
+	dir := filepath.Join(h.Config.DataDir, "covers")
 	fileFS := os.DirFS(dir)
 	file, err := fileFS.Open(id)
 	if errors.Is(err, fs.ErrNotExist) {
-		if config.LastFMApiKey() == "" {
+		if h.Config.LastFMApiKey == "" {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 			return
 		}
@@ -447,7 +446,7 @@ func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) 
 		size := min(img.Bounds().Dx(), img.Bounds().Dy())
 		img = imaging.CropCenter(img, size, size)
 	}
-	file, err := os.Create(filepath.Join(config.DataDir(), "covers", id))
+	file, err := os.Create(filepath.Join(h.Config.DataDir, "covers", id))
 	if err != nil {
 		return fmt.Errorf("load artist cover from last fm by id: create file: %w", err)
 	}

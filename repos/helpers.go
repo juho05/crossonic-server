@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/juho05/crossonic-server/config"
 	"github.com/nullism/bqb"
 )
 
@@ -65,8 +64,8 @@ type OptionalGetter interface {
 	Get() any
 }
 
-func EncryptPassword(password string) ([]byte, error) {
-	aesCipher, err := aes.NewCipher(config.PasswordEncryptionKey())
+func EncryptPassword(password string, key []byte) ([]byte, error) {
+	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("new cipher: %w", err)
 	}
@@ -82,8 +81,8 @@ func EncryptPassword(password string) ([]byte, error) {
 	return gcm.Seal(nonce, nonce, []byte(password), nil), nil
 }
 
-func DecryptPassword(encryptedPassword []byte) (string, error) {
-	aesCipher, err := aes.NewCipher(config.PasswordEncryptionKey())
+func DecryptPassword(encryptedPassword, key []byte) (string, error) {
+	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("new cipher: %w", err)
 	}

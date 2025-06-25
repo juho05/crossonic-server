@@ -21,7 +21,7 @@ type DB struct {
 	tx *sqlx.Tx
 }
 
-func NewDB(dsn string) (*DB, error) {
+func NewDB(dsn string, conf config.Config) (*DB, error) {
 	db, err := sqlx.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open db: postgres: %w", err)
@@ -31,7 +31,7 @@ func NewDB(dsn string) (*DB, error) {
 		return nil, fmt.Errorf("open db: postgres: %w", err)
 	}
 
-	if config.AutoMigrate() {
+	if conf.AutoMigrate {
 		err = autoMigrate(db.DB)
 		if err != nil {
 			return nil, fmt.Errorf("open db: postgres: %w", err)

@@ -65,7 +65,7 @@ services:
       DB_NAME: crossonic
       # Base64 encoded string representing exactly 32 bytes.
       # Generate with: docker run --rm -it --entrypoint crossonic-admin ghcr.io/juho05/crossonic-server gen-encryption-key
-      PASSWORD_ENCRYPTION_KEY: <key>
+      ENCRYPTION_KEY: <key>
       # URL where crossonic-server is reachable
       BASE_URL: "https://crossonic.example.com"
     volumes:

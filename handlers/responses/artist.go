@@ -1,6 +1,7 @@
 package responses
 
 import (
+	"github.com/juho05/crossonic-server/config"
 	"time"
 
 	"github.com/juho05/crossonic-server/repos"
@@ -24,7 +25,7 @@ type ArtistRef struct {
 	Name string `xml:"name,attr" json:"name"`
 }
 
-func NewArtist(a *repos.CompleteArtist) *Artist {
+func NewArtist(a *repos.CompleteArtist, conf config.Config) *Artist {
 	if a == nil {
 		return nil
 	}
@@ -45,14 +46,16 @@ func NewArtist(a *repos.CompleteArtist) *Artist {
 		artist.AverageRating = a.AverageRating
 	}
 
-	if HasCoverArt(a.ID) {
+	if HasCoverArt(a.ID, conf) {
 		artist.CoverArt = &a.ID
 	}
 	return artist
 }
 
-func NewArtists(a []*repos.CompleteArtist) []*Artist {
-	return util.Map(a, NewArtist)
+func NewArtists(a []*repos.CompleteArtist, conf config.Config) []*Artist {
+	return util.Map(a, func(a *repos.CompleteArtist) *Artist {
+		return NewArtist(a, conf)
+	})
 }
 
 func newArtistRef(a repos.ArtistRef) *ArtistRef {

@@ -26,9 +26,11 @@ type Handler struct {
 
 	CoverCache     *cache.Cache
 	TranscodeCache *cache.Cache
+
+	Config config.Config
 }
 
-func New(db repos.DB, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
+func New(conf config.Config, db repos.DB, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
 	h := &Handler{
 		DB:             db,
 		Scanner:        scanner,
@@ -37,6 +39,7 @@ func New(db repos.DB, scanner *scanner.Scanner, listenBrainz *listenbrainz.Liste
 		Transcoder:     transcoder,
 		TranscodeCache: transcodeCache,
 		CoverCache:     coverCache,
+		Config:         conf,
 	}
 	h.registerRoutes()
 	return h
@@ -53,7 +56,7 @@ func (h *Handler) registerRoutes() {
 
 	r.Route("/rest/crossonic", h.registerCrossonicRoutes)
 	r.Route("/rest", h.registerSubsonicRoutes)
-	if config.FrontendDir() != "" {
+	if h.Config.FrontendDir != "" {
 		r.Group(func(r chi.Router) {
 			r.Use(func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,10 +67,10 @@ func (h *Handler) registerRoutes() {
 					next.ServeHTTP(w, r)
 				})
 			})
-			r.Mount("/", http.FileServer(http.Dir(config.FrontendDir())))
+			r.Mount("/", http.FileServer(http.Dir(h.Config.FrontendDir)))
 		})
 
-		log.Infof("Serving frontend files in %s", config.FrontendDir())
+		log.Infof("Serving frontend files in %s", h.Config.FrontendDir)
 	} else {
 		log.Trace("Frontend hosting disabled")
 	}

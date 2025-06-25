@@ -61,7 +61,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	songs := responses.NewSongs(dbSongs)
+	songs := responses.NewSongs(dbSongs, h.Config)
 	res := responses.New()
 	res.RandomSongs = &responses.RandomSongs{
 		Songs: songs,
@@ -157,7 +157,7 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 			return
 		}
 
-		albums := responses.NewAlbums(a)
+		albums := responses.NewAlbums(a, h.Config)
 		res := responses.New()
 		if version == 2 {
 			res.AlbumList2 = &responses.AlbumList2{
@@ -234,15 +234,15 @@ func (h *Handler) handleGetStarred(version int) func(w http.ResponseWriter, r *h
 		res := responses.New()
 		if version == 2 {
 			res.Starred2 = &responses.Starred2{
-				Songs:   responses.NewSongs(songs),
-				Albums:  responses.NewAlbums(albums),
-				Artists: responses.NewArtists(artists),
+				Songs:   responses.NewSongs(songs, h.Config),
+				Albums:  responses.NewAlbums(albums, h.Config),
+				Artists: responses.NewArtists(artists, h.Config),
 			}
 		} else {
 			res.Starred = &responses.Starred{
-				Songs:   responses.NewSongs(songs),
-				Albums:  responses.NewAlbums(albums),
-				Artists: responses.NewArtists(artists),
+				Songs:   responses.NewSongs(songs, h.Config),
+				Albums:  responses.NewAlbums(albums, h.Config),
+				Artists: responses.NewArtists(artists, h.Config),
 			}
 		}
 		res.EncodeOrLog(w, f)
@@ -274,7 +274,7 @@ func (h *Handler) handleGetSongsByGenre(w http.ResponseWriter, r *http.Request) 
 
 	res := responses.New()
 	res.SongsByGenre = &responses.SongsByGenre{
-		Songs: responses.NewSongs(songs),
+		Songs: responses.NewSongs(songs, h.Config),
 	}
 	res.EncodeOrLog(w, format(r))
 }

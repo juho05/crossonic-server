@@ -236,7 +236,7 @@ func (h *Handler) handleGetNowPlaying(w http.ResponseWriter, r *http.Request) {
 
 	entries := util.Map(dbSongs, func(s *repos.NowPlayingSong) *responses.NowPlayingEntry {
 		return &responses.NowPlayingEntry{
-			Song:       responses.NewSong(s.CompleteSong),
+			Song:       responses.NewSong(s.CompleteSong, h.Config),
 			Username:   s.User,
 			MinutesAgo: int(time.Since(s.Time).Minutes()),
 		}

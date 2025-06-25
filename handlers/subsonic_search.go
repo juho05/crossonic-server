@@ -60,7 +60,7 @@ func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request) ([]*resp
 		respondInternalErr(w, format, fmt.Errorf("search3: artists: %w", err))
 		return nil, false
 	}
-	return responses.NewArtists(artists), true
+	return responses.NewArtists(artists, h.Config), true
 }
 
 func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request) ([]*responses.Album, bool) {
@@ -85,7 +85,7 @@ func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request) ([]*respo
 		respondInternalErr(w, format, fmt.Errorf("search3: albums: %w", err))
 		return nil, false
 	}
-	albums := responses.NewAlbums(dbAlbums)
+	albums := responses.NewAlbums(dbAlbums, h.Config)
 	return albums, true
 }
 
@@ -115,6 +115,6 @@ func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request) ([]*respon
 		respondInternalErr(w, format, fmt.Errorf("search3: songs: %w", err))
 		return nil, false
 	}
-	songs := responses.NewSongs(dbSongs)
+	songs := responses.NewSongs(dbSongs, h.Config)
 	return songs, true
 }

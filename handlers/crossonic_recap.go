@@ -109,7 +109,7 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 
 	songs := util.Map(dbSongs, func(s *repos.ScrobbleTopSong) *responses.TopSongsRecapSong {
 		return &responses.TopSongsRecapSong{
-			Song:            responses.NewSong(s.CompleteSong),
+			Song:            responses.NewSong(s.CompleteSong, h.Config),
 			TotalDurationMS: s.TotalDuration.Millis(),
 		}
 	})

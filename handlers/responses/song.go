@@ -1,6 +1,7 @@
 package responses
 
 import (
+	"github.com/juho05/crossonic-server/config"
 	"path/filepath"
 	"time"
 
@@ -45,12 +46,12 @@ type Song struct {
 	ReplayGain    *ReplayGain  `xml:"replayGain,omitempty" json:"replayGain,omitempty"`
 }
 
-func NewSong(s *repos.CompleteSong) *Song {
+func NewSong(s *repos.CompleteSong, conf config.Config) *Song {
 	if s == nil {
 		return nil
 	}
 	var coverArt *string
-	if s.AlbumID != nil && HasCoverArt(*s.AlbumID) {
+	if s.AlbumID != nil && HasCoverArt(*s.AlbumID, conf) {
 		coverArt = s.AlbumID
 	}
 	song := &Song{
@@ -122,6 +123,8 @@ func NewSong(s *repos.CompleteSong) *Song {
 	return song
 }
 
-func NewSongs(songs []*repos.CompleteSong) []*Song {
-	return util.Map(songs, NewSong)
+func NewSongs(songs []*repos.CompleteSong, conf config.Config) []*Song {
+	return util.Map(songs, func(s *repos.CompleteSong) *Song {
+		return NewSong(s, conf)
+	})
 }

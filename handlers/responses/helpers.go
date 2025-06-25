@@ -8,12 +8,12 @@ import (
 	"github.com/juho05/crossonic-server/config"
 )
 
-func HasCoverArt(id string) bool {
+func HasCoverArt(id string, conf config.Config) bool {
 	idType, ok := crossonic.GetIDType(id)
 	if !ok {
 		return false
 	}
-	coverDir := filepath.Join(config.DataDir(), "covers")
+	coverDir := filepath.Join(conf.DataDir, "covers")
 	info, err := os.Stat(filepath.Join(coverDir, id))
 	if err != nil {
 		return idType == crossonic.IDTypeArtist

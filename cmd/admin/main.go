@@ -33,7 +33,7 @@ func genEncryptionKey() error {
 	return nil
 }
 
-func run(args []string) error {
+func run(args []string, conf config.Config) error {
 	if len(args) < 2 {
 		fmt.Println("USAGE:", args[0], "<command>\n\nCOMMANDS:\n  gen-encryption-key\n  users\n  remove-crossonic-metadata")
 		os.Exit(1)
@@ -41,8 +41,8 @@ func run(args []string) error {
 	if args[1] == "gen-encryption-key" {
 		return genEncryptionKey()
 	}
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", config.DBUser(), config.DBPassword(), config.DBHost(), config.DBPort(), config.DBName())
-	db, err := postgres.NewDB(dsn)
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", conf.DBUser, conf.DBPassword, conf.DBHost, conf.DBPort, conf.DBName)
+	db, err := postgres.NewDB(dsn, conf)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func run(args []string) error {
 	case "users":
 		err = users(args, db)
 	case "remove-crossonic-metadata":
-		err = removeCrossonicMetadata(args, db)
+		err = removeCrossonicMetadata(args, db, conf)
 	default:
 		fmt.Println("Unknown command")
 		fmt.Println("USAGE:", args[0], "<command>\n\nCOMMANDS:\n  gen-encryption-key\n  users\n  remove-crossonic-metadata")
@@ -65,10 +65,18 @@ func run(args []string) error {
 func main() {
 	_ = godotenv.Load()
 
-	log.SetSeverity(config.LogLevel())
-	log.SetOutput(config.LogFile())
+	conf, errs := config.Load(os.Environ())
+	if len(errs) > 0 {
+		for _, e := range errs {
+			log.Errorf("ERROR: %s", e)
+		}
+		log.Fatalf("ERROR: failed to load config")
+	}
 
-	err := run(os.Args)
+	log.SetSeverity(conf.LogLevel)
+	log.SetOutput(conf.LogFile)
+
+	err := run(os.Args, conf)
 	if err != nil {
 		log.Fatalf("%s", err)
 	}

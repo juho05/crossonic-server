@@ -1,6 +1,7 @@
 package responses
 
 import (
+	"github.com/juho05/crossonic-server/config"
 	"time"
 
 	"github.com/juho05/crossonic-server/repos"
@@ -25,7 +26,7 @@ type Playlist struct {
 	Entry     []*Song   `xml:"entry,omitempty" json:"entry,omitempty"`
 }
 
-func NewPlaylist(p *repos.CompletePlaylist) *Playlist {
+func NewPlaylist(p *repos.CompletePlaylist, conf config.Config) *Playlist {
 	playlist := &Playlist{
 		ID:      p.ID,
 		Name:    p.Name,
@@ -41,13 +42,15 @@ func NewPlaylist(p *repos.CompletePlaylist) *Playlist {
 		playlist.Duration = p.Duration.Seconds()
 	}
 
-	if HasCoverArt(p.ID) {
+	if HasCoverArt(p.ID, conf) {
 		playlist.CoverArt = &p.ID
 	}
 
 	return playlist
 }
 
-func NewPlaylists(p []*repos.CompletePlaylist) []*Playlist {
-	return util.Map(p, NewPlaylist)
+func NewPlaylists(p []*repos.CompletePlaylist, conf config.Config) []*Playlist {
+	return util.Map(p, func(p *repos.CompletePlaylist) *Playlist {
+		return NewPlaylist(p, conf)
+	})
 }

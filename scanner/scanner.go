@@ -19,8 +19,10 @@ var (
 )
 
 type Scanner struct {
-	lock     sync.Mutex
+	lock sync.Mutex
+
 	mediaDir string
+	conf     config.Config
 
 	tx repos.Transaction
 
@@ -45,17 +47,18 @@ type Scanner struct {
 	setAlbumCover chan albumCover
 }
 
-func New(mediaDir string, db repos.DB, coverCache *cache.Cache, transcodeCache *cache.Cache) (*Scanner, error) {
+func New(mediaDir string, db repos.DB, conf config.Config, coverCache *cache.Cache, transcodeCache *cache.Cache) (*Scanner, error) {
 	instanceID, err := db.System().InstanceID(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("get instance id: %w", err)
 	}
 	return &Scanner{
 		mediaDir:       mediaDir,
-		coverDir:       filepath.Join(config.DataDir(), "covers"),
+		coverDir:       filepath.Join(conf.DataDir, "covers"),
 		coverCache:     coverCache,
 		transcodeCache: transcodeCache,
 		instanceID:     instanceID,
+		conf:           conf,
 	}, nil
 }
 
