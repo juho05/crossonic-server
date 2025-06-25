@@ -10,8 +10,15 @@ var replacementTable = map[rune][]rune{
 	'ß': {'s', 's'},
 }
 
+// NormalizeText converts text into a form that is suitable for comparison with user input.
+// It removes accents/diacritics, converts neighboring space characters to a single space,
+// converts text into lowercase and removes all non-letter/non-digit characters.
+// Additionally, some characters are replaced according to the following table:
+//   - ß -> ss
+//
+// The result is returned in Unicode NFKD form.
 func NormalizeText(text string) string {
-	nfd := norm.NFD.String(text)
+	nfd := norm.NFKD.String(text)
 	result := make([]rune, 0, len(text))
 	for _, r := range nfd {
 		// replace all space characters with ' '
@@ -33,5 +40,5 @@ func NormalizeText(text string) string {
 			result = append(result, r)
 		}
 	}
-	return norm.NFC.String(string(result))
+	return string(result)
 }
