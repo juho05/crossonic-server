@@ -69,6 +69,8 @@ var formats = map[string]Format{
 type Transcoder struct {
 }
 
+// NewTranscoder creates a new transcoder and looks up
+// the ffmpeg binary path. If ffmpeg cannot be found, an error will be returned.
 func NewTranscoder() (*Transcoder, error) {
 	err := initialize()
 	if err != nil {
@@ -77,6 +79,10 @@ func NewTranscoder() (*Transcoder, error) {
 	return &Transcoder{}, nil
 }
 
+// SelectFormat returns a Format by name and clamps maxBitRateK to a bitrate supported by the
+// format for channel count. If no matching format can be found it defaults to mp3. A maxBitRateK of 0
+// results in the default bitrate for the format being used. The special name "raw" results in an empty format
+// with a maxBitRateK of 0 being returned.
 func (t *Transcoder) SelectFormat(name string, channels, maxBitRateK int) (Format, int) {
 	if name == "raw" {
 		return Format{}, 0
