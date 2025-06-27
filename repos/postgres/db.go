@@ -17,8 +17,9 @@ import (
 )
 
 type DB struct {
-	db *sqlx.DB
-	tx *sqlx.Tx
+	db     *sqlx.DB
+	tx     *sqlx.Tx
+	config config.Config
 }
 
 func NewDB(dsn string, conf config.Config) (*DB, error) {
@@ -39,7 +40,8 @@ func NewDB(dsn string, conf config.Config) (*DB, error) {
 	}
 
 	return &DB{
-		db: db,
+		db:     db,
+		config: conf,
 	}, nil
 }
 
@@ -68,6 +70,7 @@ func (d *DB) User() repos.UserRepository {
 				db: tx,
 			}
 		}),
+		conf: d.config,
 	}
 }
 

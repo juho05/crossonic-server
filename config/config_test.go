@@ -11,6 +11,11 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	log.SetSeverity(log.NONE)
+	os.Exit(m.Run())
+}
+
 func TestLoad(t *testing.T) {
 	fullConfig := Config{
 		BaseURL:    "https://crossonic.example.com",
@@ -579,9 +584,9 @@ func Test_loadLogFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.createFileBeforeTest {
 				file, err := os.Create(tt.fileValue)
-				require.Nilf(t, err, "create log file: %v", err)
+				require.NoErrorf(t, err, "create log file: %v", err)
 				_, err = file.WriteString("TestContent\nbla")
-				require.Nilf(t, err, "write to log file: %v", err)
+				require.NoErrorf(t, err, "write to log file: %v", err)
 				file.Close()
 			}
 
@@ -594,7 +599,7 @@ func Test_loadLogFile(t *testing.T) {
 			if err == nil && tt.fileValue != "" {
 				defer logFile.Close()
 			}
-			require.Nilf(t, err, "load log file: %v", err)
+			require.NoErrorf(t, err, "load log file: %v", err)
 
 			if tt.fileValue == "" {
 				assert.Equal(t, os.Stderr, logFile)
@@ -602,11 +607,11 @@ func Test_loadLogFile(t *testing.T) {
 			}
 
 			_, err = logFile.WriteString("log entry1\nlog entry2\n")
-			assert.Nilf(t, err, "write to config log file: %v", err)
+			assert.NoErrorf(t, err, "write to config log file: %v", err)
 			logFile.Close()
 
 			fileContent, err := os.ReadFile(tt.fileValue)
-			require.Nilf(t, err, "read log file: %v", err)
+			require.NoErrorf(t, err, "read log file: %v", err)
 			fileContentStr := string(fileContent)
 			assert.True(t, strings.Contains(fileContentStr, "log entry1\nlog entry2\n"))
 			assert.Equal(t, tt.createFileBeforeTest && tt.wantAppend, strings.HasPrefix(fileContentStr, "TestContent\nbla"))
