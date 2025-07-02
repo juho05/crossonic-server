@@ -19,7 +19,7 @@ type UserRepository interface {
 
 	// UpdateListenBrainzConnection updates the ListenBrainz username and token of the user.
 	// The token is automatically encrypted.
-	// Returns an error if the user could not be found.
+	// Returns ErrNotFound if the user could not be found.
 	UpdateListenBrainzConnection(ctx context.Context, user string, lbUsername, lbToken *string) error
 
 	// FindAll returns all users.

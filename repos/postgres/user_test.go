@@ -12,28 +12,13 @@ import (
 )
 
 func TestUserRepository(t *testing.T) {
-	db, encKey, cleanup := setupTestDatabase(t)
-	defer cleanup()
+	db, encKey := thSetupDatabase(t)
 
 	ctx := context.Background()
 
-	countUsers := func() int {
-		var count int
-		err := db.db.GetContext(ctx, &count, "SELECT COALESCE(count(*), 0) FROM users")
-		require.NoErrorf(t, err, "count users: %v", err)
-		return count
-	}
-
-	assert.Equal(t, 0, countUsers(), "there should be no users at beginning of test")
+	require.Equal(t, 0, thCount(t, db, "users"), "there should be no users at beginning of test")
 
 	repo := db.User()
-
-	createTestUser := func() string {
-		user := "testuser-" + uuid.NewString()
-		err := repo.Create(ctx, user, "testpassword")
-		require.NoErrorf(t, err, "create test user: %v", err)
-		return user
-	}
 
 	getUser := func(user string, allowNil bool) *repos.User {
 		u, err := repo.FindByName(ctx, user)
@@ -42,11 +27,6 @@ func TestUserRepository(t *testing.T) {
 		}
 		require.NoErrorf(t, err, "get test user: %v", err)
 		return u
-	}
-
-	deleteAllUsers := func() {
-		_, err := db.db.ExecContext(ctx, "DELETE FROM users")
-		require.NoErrorf(t, err, "delete all users: %v", err)
 	}
 
 	t.Run("Create", func(t *testing.T) {
@@ -68,14 +48,14 @@ func TestUserRepository(t *testing.T) {
 		})
 
 		t.Run("trying to create existing user should return error", func(t *testing.T) {
-			user := createTestUser()
+			user := thCreateUser(t, db)
 			err := repo.Create(ctx, user, "asdf")
 			assert.Error(t, err, "expected error creating already existing user")
 		})
 	})
 
 	t.Run("UpdateListenBrainzConnection", func(t *testing.T) {
-		user := createTestUser()
+		user := thCreateUser(t, db)
 
 		t.Run("add listenbrainz connection", func(t *testing.T) {
 			err := repo.UpdateListenBrainzConnection(ctx, user, util.ToPtr("lbtestuser"), util.ToPtr("lbtesttoken"))
@@ -102,10 +82,15 @@ func TestUserRepository(t *testing.T) {
 			assert.Nil(t, u.ListenBrainzUsername)
 			assert.Nil(t, u.EncryptedListenBrainzToken)
 		})
+
+		t.Run("user does not exist", func(t *testing.T) {
+			err := repo.UpdateListenBrainzConnection(ctx, "does not exist", util.ToPtr("lbtestuser"), util.ToPtr("lbtesttoken"))
+			assert.Truef(t, errors.Is(err, repos.ErrNotFound), "expected error %v, got %v", repos.ErrNotFound, err)
+		})
 	})
 
 	t.Run("FindAll", func(t *testing.T) {
-		deleteAllUsers()
+		thDeleteAll(t, db, "users")
 
 		t.Run("zero users", func(t *testing.T) {
 			users, err := repo.FindAll(ctx)
@@ -114,7 +99,7 @@ func TestUserRepository(t *testing.T) {
 			assert.Equal(t, 0, len(users))
 		})
 
-		user1 := createTestUser()
+		user1 := thCreateUser(t, db)
 
 		t.Run("one user", func(t *testing.T) {
 			users, err := repo.FindAll(ctx)
@@ -124,7 +109,7 @@ func TestUserRepository(t *testing.T) {
 			assert.Equal(t, user1, users[0].Name)
 		})
 
-		user2 := createTestUser()
+		user2 := thCreateUser(t, db)
 
 		t.Run("two users", func(t *testing.T) {
 			users, err := repo.FindAll(ctx)
@@ -141,8 +126,8 @@ func TestUserRepository(t *testing.T) {
 
 	t.Run("FindByName", func(t *testing.T) {
 		// ensure multiple users exist
-		_ = createTestUser()
-		user := createTestUser()
+		_ = thCreateUser(t, db)
+		user := thCreateUser(t, db)
 
 		t.Run("user does not exist", func(t *testing.T) {
 			_, err := repo.FindByName(ctx, "does not exist")
@@ -159,21 +144,21 @@ func TestUserRepository(t *testing.T) {
 
 	t.Run("DeleteByName", func(t *testing.T) {
 		t.Run("user does not exist", func(t *testing.T) {
-			deleteAllUsers()
-			_ = createTestUser()
-			_ = createTestUser()
-			require.Equal(t, 2, countUsers())
+			thDeleteAll(t, db, "users")
+			_ = thCreateUser(t, db)
+			_ = thCreateUser(t, db)
+			require.Equal(t, 2, thCount(t, db, "users"))
 
 			err := repo.DeleteByName(ctx, "does not exist")
 			assert.True(t, errors.Is(err, repos.ErrNotFound))
-			require.Equal(t, 2, countUsers())
+			require.Equal(t, 2, thCount(t, db, "users"))
 		})
 
 		t.Run("user does exist", func(t *testing.T) {
-			deleteAllUsers()
-			_ = createTestUser()
-			user := createTestUser()
-			require.Equal(t, 2, countUsers())
+			thDeleteAll(t, db, "users")
+			_ = thCreateUser(t, db)
+			user := thCreateUser(t, db)
+			require.Equal(t, 2, thCount(t, db, "users"))
 
 			err := repo.DeleteByName(ctx, user)
 			assert.NoErrorf(t, err, "delete test user: %v", err)
@@ -181,7 +166,17 @@ func TestUserRepository(t *testing.T) {
 			u := getUser(user, true)
 			assert.Nil(t, u, "test user should not exist after delete")
 
-			assert.Equal(t, 1, countUsers(), "only the user with matching name should be deleted")
+			assert.Equal(t, 1, thCount(t, db, "users"), "only the user with matching name should be deleted")
 		})
 	})
+}
+
+// test helpers
+
+func thCreateUser(t *testing.T, db *DB) string {
+	t.Helper()
+	user := "testuser-" + uuid.NewString()
+	err := db.User().Create(context.Background(), user, "testpassword")
+	require.NoErrorf(t, err, "create test user: %v", err)
+	return user
 }

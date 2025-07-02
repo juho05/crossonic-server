@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/log"
+	"github.com/nullism/bqb"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,8 +22,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestMigrations(t *testing.T) {
-	db, _, cleanup := setupTestDatabase(t)
-	defer cleanup()
+	db, _ := thSetupDatabase(t)
 
 	migrations := &migrate.HttpFileSystemMigrationSource{
 		FileSystem: http.FS(crossonic.MigrationsFS),
@@ -35,7 +36,12 @@ func TestMigrations(t *testing.T) {
 	assert.Equalf(t, nDown, nUp, "down migration count (%d) does not match up migration count (%d)", nDown, nUp)
 }
 
-func setupTestDatabase(t *testing.T) (db *DB, encryptionKey []byte, cleanup func()) {
+// test helpers
+
+// the datbase is automatically closed on test cleanup
+func thSetupDatabase(t *testing.T) (db *DB, encryptionKey []byte) {
+	t.Helper()
+
 	if testing.Short() {
 		t.Skip("skipping db tests in short mode")
 	}
@@ -67,10 +73,45 @@ func setupTestDatabase(t *testing.T) (db *DB, encryptionKey []byte, cleanup func
 	})
 	require.NoError(t, err, "new test db: %v", err)
 
-	return db, encryptionKey, func() {
+	t.Cleanup(func() {
 		err = db.Close()
 		assert.NoError(t, err, "close db: %v", err)
 		err = postgresContainer.Terminate(ctx)
 		assert.NoError(t, err, "terminate test db container: %v", err)
+	})
+
+	return db, encryptionKey
+}
+
+func thCount(t *testing.T, db *DB, table string) int {
+	t.Helper()
+	var count int
+	err := db.db.Get(&count, fmt.Sprintf("SELECT COALESCE(COUNT(*), 0) FROM %s", table))
+	require.NoErrorf(t, err, "count %s: %v", table, err)
+	return count
+}
+
+func thDeleteAll(t *testing.T, db *DB, table string) {
+	t.Helper()
+	_, err := db.db.Exec(fmt.Sprintf("DELETE FROM %s", table))
+	require.NoErrorf(t, err, "delete all from %s: %v", table, err)
+}
+
+func thExists(t *testing.T, db *DB, table string, fields map[string]any) bool {
+	t.Helper()
+	var exists bool
+	where := bqb.Optional("WHERE")
+	where.And("(1 = 1)")
+	for name, expectedValue := range fields {
+		if expectedValue == nil {
+			where.And(fmt.Sprintf("%s IS NULL", name))
+			continue
+		}
+		where.And(fmt.Sprintf("(%s = ?)", name), expectedValue)
 	}
+	sql, args, err := bqb.New(fmt.Sprintf("SELECT EXISTS(SELECT * FROM %s ?)", table), where).ToPgsql()
+	require.NoErrorf(t, err, "create exists query: %v", err)
+	err = db.db.Get(&exists, sql, args...)
+	require.NoErrorf(t, err, "check exists for table %s: %v", table, err)
+	return exists
 }

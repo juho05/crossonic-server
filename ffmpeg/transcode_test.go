@@ -1,9 +1,16 @@
 package ffmpeg
 
 import (
+	"github.com/juho05/log"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	log.SetSeverity(log.NONE)
+	os.Exit(m.Run())
+}
 
 func TestTranscoder_SelectFormat(t1 *testing.T) {
 	tests := []struct {
