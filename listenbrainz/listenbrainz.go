@@ -68,9 +68,10 @@ type Connection struct {
 	Token      string
 }
 
-func New(db repos.DB) *ListenBrainz {
+func New(db repos.DB, conf config.Config) *ListenBrainz {
 	return &ListenBrainz{
-		db: db,
+		db:     db,
+		config: conf,
 	}
 }
 

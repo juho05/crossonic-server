@@ -67,7 +67,7 @@ func run(conf config.Config) error {
 		return err
 	}
 
-	lBrainz := listenbrainz.New(db)
+	lBrainz := listenbrainz.New(db, conf)
 
 	if conf.StartupScan != config.StartupScanDisabled {
 		go func() {
