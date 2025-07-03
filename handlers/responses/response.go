@@ -23,13 +23,14 @@ const (
 )
 
 type Response struct {
-	Status        status `xml:"status,attr" json:"status"`
-	Version       string `xml:"version,attr" json:"version"`
-	XMLNS         string `xml:"xmlns,attr" json:"-"`
-	Type          string `xml:"type,attr" json:"type"`
-	ServerVersion string `xml:"serverVersion,attr" json:"serverVersion"`
-	OpenSubsonic  bool   `xml:"openSubsonic,attr" json:"openSubsonic"`
-	Crossonic     bool   `xml:"crossonic,attr" json:"crossonic"`
+	Status           status `xml:"status,attr" json:"status"`
+	Version          string `xml:"version,attr" json:"version"`
+	XMLNS            string `xml:"xmlns,attr" json:"-"`
+	Type             string `xml:"type,attr" json:"type"`
+	ServerVersion    string `xml:"serverVersion,attr" json:"serverVersion"`
+	OpenSubsonic     bool   `xml:"openSubsonic,attr" json:"openSubsonic"`
+	Crossonic        bool   `xml:"crossonic,attr" json:"crossonic"`
+	CrossonicVersion int    `xml:"crossonicVersion,attr" json:"crossonicVersion"`
 
 	// Subsonic
 	Error                  *Error                  `xml:"error,omitempty" json:"error,omitempty"`
@@ -68,25 +69,27 @@ type Response struct {
 
 func New() Response {
 	return Response{
-		Status:        statusOK,
-		Version:       apiVersion,
-		XMLNS:         xmlns,
-		Type:          crossonic.ServerName,
-		ServerVersion: crossonic.Version,
-		OpenSubsonic:  true,
-		Crossonic:     true,
+		Status:           statusOK,
+		Version:          apiVersion,
+		XMLNS:            xmlns,
+		Type:             crossonic.ServerName,
+		ServerVersion:    crossonic.Version,
+		OpenSubsonic:     true,
+		Crossonic:        true,
+		CrossonicVersion: crossonic.ProtocolVersion,
 	}
 }
 
 func EncodeError(w io.Writer, format, msg string, code SubsonicError) {
 	r := Response{
-		Status:        statusFailed,
-		Version:       apiVersion,
-		XMLNS:         xmlns,
-		Type:          crossonic.ServerName,
-		ServerVersion: crossonic.Version,
-		OpenSubsonic:  true,
-		Crossonic:     true,
+		Status:           statusFailed,
+		Version:          apiVersion,
+		XMLNS:            xmlns,
+		Type:             crossonic.ServerName,
+		ServerVersion:    crossonic.Version,
+		OpenSubsonic:     true,
+		Crossonic:        true,
+		CrossonicVersion: crossonic.ProtocolVersion,
 		Error: &Error{
 			Code:    code,
 			Message: msg,

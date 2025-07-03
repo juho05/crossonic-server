@@ -1,5 +1,6 @@
 # docker buildx build --platform linux/arm64,linux/amd64 --tag ghcr.io/juho05/crossonic-server:latest --push .
 FROM golang:alpine3.22 AS builder
+
 RUN apk add -U --no-cache \
     build-base \
     ca-certificates \
@@ -12,8 +13,9 @@ COPY go.mod .
 COPY go.sum .
 RUN go mod download
 COPY . .
-RUN GOOS=linux go build -o crossonic-server ./cmd/server
-RUN GOOS=linux go build -o crossonic-admin ./cmd/admin
+ARG VERSION=dev
+RUN go build -ldflags "-X github.com/juho05/crossonic-server.Version=$VERSION" -o crossonic-server ./cmd/server
+RUN go build -ldflags "-X github.com/juho05/crossonic-server.Version=$VERSION" -o crossonic-admin ./cmd/admin
 
 FROM alpine:3.22
 LABEL org.opencontainers.image.source=https://github.com/juho05/crossonic-server

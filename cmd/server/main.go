@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
 	"mime"
 	"net/http"
@@ -38,6 +39,11 @@ func init() {
 }
 
 func run(conf config.Config) error {
+	log.Infof("Starting server...")
+	log.Infof("Server name: %s", crossonic.ServerName)
+	log.Infof("Server version: %s", crossonic.Version)
+	log.Infof("Crossonic version: %d", crossonic.ProtocolVersion)
+
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", conf.DBUser, conf.DBPassword, conf.DBHost, conf.DBPort, conf.DBName)
 	db, err := postgres.NewDB(dsn, conf)
 	if err != nil {
