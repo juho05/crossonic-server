@@ -38,9 +38,6 @@ func run(args []string, conf config.Config) error {
 		fmt.Println("USAGE:", args[0], "<command>\n\nCOMMANDS:\n  gen-encryption-key\n  users\n  remove-crossonic-metadata")
 		os.Exit(1)
 	}
-	if args[1] == "gen-encryption-key" {
-		return genEncryptionKey()
-	}
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", conf.DBUser, conf.DBPassword, conf.DBHost, conf.DBPort, conf.DBName)
 	db, err := postgres.NewDB(dsn, conf)
 	if err != nil {
@@ -64,6 +61,15 @@ func run(args []string, conf config.Config) error {
 
 func main() {
 	_ = godotenv.Load()
+
+	// gen-encryption-key does not depend on config and should therefore work without a valid config
+	if len(os.Args) > 1 && os.Args[1] == "gen-encryption-key" {
+		err := genEncryptionKey()
+		if err != nil {
+			log.Fatalf("%s", err)
+		}
+		return
+	}
 
 	conf, errs := config.Load(os.Environ())
 	if len(errs) > 0 {
