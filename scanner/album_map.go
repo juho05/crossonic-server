@@ -220,10 +220,12 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 				}
 			}
 
-			s.setAlbumCover <- albumCover{
-				id:       found.id,
-				cover:    params.cover,
-				songPath: params.songPath,
+			if !s.setAlbumCoverClosed {
+				s.setAlbumCover <- albumCover{
+					id:       found.id,
+					cover:    params.cover,
+					songPath: params.songPath,
+				}
 			}
 		}
 		return found.id, nil
@@ -257,10 +259,12 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 		return "", fmt.Errorf("create album: %w", err)
 	}
 
-	s.setAlbumCover <- albumCover{
-		id:       alb.id,
-		cover:    params.cover,
-		songPath: params.songPath,
+	if !s.setAlbumCoverClosed {
+		s.setAlbumCover <- albumCover{
+			id:       alb.id,
+			cover:    params.cover,
+			songPath: params.songPath,
+		}
 	}
 
 	return alb.id, nil

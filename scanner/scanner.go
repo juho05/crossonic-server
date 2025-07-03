@@ -43,8 +43,10 @@ type Scanner struct {
 	artists *artistMap
 	albums  *albumMap
 
-	songQueue     chan *mediaFile
-	setAlbumCover chan albumCover
+	songQueue           chan *mediaFile
+	songQueueClosed     bool
+	setAlbumCover       chan albumCover
+	setAlbumCoverClosed bool
 }
 
 func New(mediaDir string, db repos.DB, conf config.Config, coverCache *cache.Cache, transcodeCache *cache.Cache) (*Scanner, error) {

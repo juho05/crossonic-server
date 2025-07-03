@@ -35,20 +35,20 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	}
 	s.scanning = true
 	s.fullScan = fullScan
+	defer s.lock.Unlock()
 	defer func() {
-		if s.songQueue != nil {
+		if !s.songQueueClosed {
 			close(s.songQueue)
 		}
-		if s.setAlbumCover != nil {
+		if !s.setAlbumCoverClosed {
 			close(s.setAlbumCover)
 		}
 		s.scanning = false
 		s.albums = nil
 		s.artists = nil
-		s.songQueue = nil
-		s.setAlbumCover = nil
+		s.songQueueClosed = true
+		s.setAlbumCoverClosed = true
 	}()
-	defer s.lock.Unlock()
 
 	s.scanStart = time.Now()
 	previousCount := s.counter.Load()
@@ -124,7 +124,9 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	}
 
 	s.songQueue = make(chan *mediaFile, songQueueBatchSize)
+	s.songQueueClosed = false
 	s.setAlbumCover = make(chan albumCover, setAlbumCoversWorkerCount)
+	s.setAlbumCoverClosed = false
 
 	saveSongsDone := make(chan error, 1)
 	log.Tracef("starting save songs loop with batch size %d...", songQueueBatchSize)
@@ -132,7 +134,7 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		err := s.runSaveSongsLoop(ctx)
 		saveSongsDone <- err
 		close(s.setAlbumCover)
-		s.setAlbumCover = nil
+		s.setAlbumCoverClosed = true
 		if err != nil {
 			log.Errorf("scan: run save songs loop: %s", err)
 			cancelCtx()
@@ -153,16 +155,18 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	log.Tracef("scanning media dir with %d workers...", maxParallelDirs)
 	err = s.scanMediaDir(ctx)
 	close(s.songQueue)
-	s.songQueue = nil
+	s.songQueueClosed = true
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("scan dir: %w", err)
 	}
 
+	log.Tracef("waiting until save songs worker is done...")
 	err = <-saveSongsDone
 	if err != nil {
 		return fmt.Errorf("run save songs loop: %w", err)
 	}
 
+	log.Tracef("waiting until set album covers worker is done...")
 	err = <-setAlbumCovers
 	if err != nil {
 		return fmt.Errorf("run set album covers loop: %w", err)
@@ -465,39 +469,41 @@ func (s *Scanner) processFile(path string, cover *string, parentDirChanged bool)
 	albumMBID := readSingleTagOptional(tags, "musicbrainz_releasegroupid")
 	releaseMBID := readSingleTagOptional(tags, "musicbrainz_albumid")
 
-	s.songQueue <- &mediaFile{
-		id:                  songID,
-		path:                path,
-		size:                info.Size(),
-		contentType:         contentType,
-		lastModified:        info.ModTime(),
-		cover:               cover,
-		bitrate:             props.Bitrate,
-		channels:            props.Channels,
-		lengthMS:            props.LengthMs,
-		sampleRate:          props.Samplerate,
-		title:               title,
-		albumName:           album,
-		albumMBID:           albumMBID,
-		albumReleaseMBID:    releaseMBID,
-		artistNames:         artists,
-		artistMBIDs:         artistMBIDs,
-		albumArtistNames:    albumArtists,
-		albumArtistMBIDs:    albumArtistMBIDs,
-		albumReplayGain:     readReplayGainTag(tags, "replaygain_album_gain"),
-		albumReplayGainPeak: readReplayGainTag(tags, "replaygain_album_peak"),
-		recordLabels:        readStringTags(tags, "labels", "label"),
-		releaseTypes:        readStringTags(tags, "releasetypes", "releasetype"),
-		isCompilation:       isCompilation,
-		bpm:                 readSingleIntTagOptional(tags, "bpm"),
-		year:                year,
-		track:               readSingleIntTagFirstOptional(tags, "/", "tracknumber"),
-		disc:                readSingleIntTagFirstOptional(tags, "/", "discnumber"),
-		genres:              readStringTags(tags, "genres", "genre"),
-		musicBrainzID:       readSingleTagOptional(tags, "musicbrainz_trackid"),
-		replayGain:          readReplayGainTag(tags, "replaygain_track_gain"),
-		replayGainPeak:      readReplayGainTag(tags, "replaygain_track_peak"),
-		lyrics:              lyrics,
+	if !s.songQueueClosed {
+		s.songQueue <- &mediaFile{
+			id:                  songID,
+			path:                path,
+			size:                info.Size(),
+			contentType:         contentType,
+			lastModified:        info.ModTime(),
+			cover:               cover,
+			bitrate:             props.Bitrate,
+			channels:            props.Channels,
+			lengthMS:            props.LengthMs,
+			sampleRate:          props.Samplerate,
+			title:               title,
+			albumName:           album,
+			albumMBID:           albumMBID,
+			albumReleaseMBID:    releaseMBID,
+			artistNames:         artists,
+			artistMBIDs:         artistMBIDs,
+			albumArtistNames:    albumArtists,
+			albumArtistMBIDs:    albumArtistMBIDs,
+			albumReplayGain:     readReplayGainTag(tags, "replaygain_album_gain"),
+			albumReplayGainPeak: readReplayGainTag(tags, "replaygain_album_peak"),
+			recordLabels:        readStringTags(tags, "labels", "label"),
+			releaseTypes:        readStringTags(tags, "releasetypes", "releasetype"),
+			isCompilation:       isCompilation,
+			bpm:                 readSingleIntTagOptional(tags, "bpm"),
+			year:                year,
+			track:               readSingleIntTagFirstOptional(tags, "/", "tracknumber"),
+			disc:                readSingleIntTagFirstOptional(tags, "/", "discnumber"),
+			genres:              readStringTags(tags, "genres", "genre"),
+			musicBrainzID:       readSingleTagOptional(tags, "musicbrainz_trackid"),
+			replayGain:          readReplayGainTag(tags, "replaygain_track_gain"),
+			replayGainPeak:      readReplayGainTag(tags, "replaygain_track_peak"),
+			lyrics:              lyrics,
+		}
 	}
 
 	return nil

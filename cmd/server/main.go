@@ -120,7 +120,9 @@ func run(conf config.Config) error {
 		<-sigint
 		timeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
 		log.Info("Shutting down...")
-		_ = lBrainz.Close()
+		if lBrainz != nil {
+			_ = lBrainz.Close()
+		}
 		err = server.Shutdown(timeout)
 		if err != nil {
 			log.Errorf("shutdown: %s", err)
