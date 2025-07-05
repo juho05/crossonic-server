@@ -354,7 +354,7 @@ findCoverLoop:
 		ext := filepath.Ext(e.Name())
 		fileType := mime.TypeByExtension(ext)
 		if fileType == "image/jpeg" || fileType == "image/png" {
-			base := strings.TrimSuffix(e.Name(), ext)
+			base := strings.ToLower(strings.TrimSuffix(e.Name(), ext))
 			for i := 0; i < len(coverImageNames); i++ {
 				if base == coverImageNames[i] {
 					c := filepath.Join(dir, e.Name())
