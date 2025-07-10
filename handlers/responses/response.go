@@ -30,7 +30,7 @@ type Response struct {
 	ServerVersion    string `xml:"serverVersion,attr" json:"serverVersion"`
 	OpenSubsonic     bool   `xml:"openSubsonic,attr" json:"openSubsonic"`
 	Crossonic        bool   `xml:"crossonic,attr" json:"crossonic"`
-	CrossonicVersion int    `xml:"crossonicVersion,attr" json:"crossonicVersion"`
+	CrossonicVersion string `xml:"crossonicVersion,attr" json:"crossonicVersion"`
 
 	// Subsonic
 	Error                  *Error                  `xml:"error,omitempty" json:"error,omitempty"`

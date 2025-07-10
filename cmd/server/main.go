@@ -42,7 +42,7 @@ func run(conf config.Config) error {
 	log.Infof("Starting server...")
 	log.Infof("Server name: %s", crossonic.ServerName)
 	log.Infof("Server version: %s", crossonic.Version)
-	log.Infof("Crossonic version: %d", crossonic.ProtocolVersion)
+	log.Infof("Crossonic version: %s", crossonic.ProtocolVersion)
 
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", conf.DBUser, conf.DBPassword, conf.DBHost, conf.DBPort, conf.DBName)
 	db, err := postgres.NewDB(dsn, conf)

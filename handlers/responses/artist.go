@@ -14,7 +14,7 @@ type Artist struct {
 	CoverArt      *string    `xml:"coverArt,attr,omitempty" json:"coverArt,omitempty"`
 	AlbumCount    *int       `xml:"albumCount,attr,omitempty"         json:"albumCount,omitempty"`
 	Starred       *time.Time `xml:"starred,attr,omitempty"       json:"starred,omitempty"`
-	MusicBrainzID *string    `xml:"musicBrainzID,omitempty" json:"musicBrainzID,omitempty"`
+	MusicBrainzID *string    `xml:"musicBrainzId,omitempty" json:"musicBrainzId,omitempty"`
 	UserRating    *int       `xml:"userRating,attr,omitempty"    json:"userRating,omitempty"`
 	AverageRating *float64   `xml:"averageRating,attr,omitempty" json:"averageRating,omitempty"`
 	Albums        []*Album   `xml:"album,omitempty" json:"album,omitempty"`
