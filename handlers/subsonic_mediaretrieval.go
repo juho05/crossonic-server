@@ -42,14 +42,26 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var timeOffset time.Duration
+
 	timeOffsetStr := query.Get("timeOffset")
-	var timeOffset int
 	if timeOffsetStr != "" {
-		timeOffset, err = strconv.Atoi(timeOffsetStr)
+		offset, err := strconv.Atoi(timeOffsetStr)
 		if err != nil || timeOffset < 0 {
 			responses.EncodeError(w, query.Get("f"), "invalid timeOffset parameter", responses.SubsonicErrorGeneric)
 			return
 		}
+		timeOffset = time.Duration(offset) * time.Second
+	}
+
+	timeOffsetMsStr := query.Get("timeOffsetMs")
+	if timeOffsetMsStr != "" {
+		offset, err := strconv.Atoi(timeOffsetMsStr)
+		if err != nil || timeOffset < 0 {
+			responses.EncodeError(w, query.Get("f"), "invalid timeOffsetMs parameter", responses.SubsonicErrorGeneric)
+			return
+		}
+		timeOffset = time.Duration(offset) * time.Millisecond
 	}
 
 	info, err := h.DB.Song().GetStreamInfo(r.Context(), id)
@@ -82,7 +94,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", fileFormat.Mime)
 
 	if estimate, _ := strconv.ParseBool(query.Get("estimateContentLength")); estimate {
-		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.Duration.ToStd().Milliseconds()-int64(timeOffset*1000))/1000*float64(bitRate)/8*1024)))
+		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.Duration.ToStd()-timeOffset)/float64(time.Second)*float64(bitRate)/8*1024)))
 	}
 	if r.Method == http.MethodHead {
 		w.WriteHeader(http.StatusOK)
@@ -93,15 +105,15 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		done := make(chan struct{})
 		w.Header().Set("Accept-Ranges", "none")
 		if format == "raw" {
-			err = h.Transcoder.SeekRaw(info.Path, time.Duration(timeOffset)*time.Second, w, func() {
+			err = h.Transcoder.SeekRaw(info.Path, timeOffset, w, func() {
 				close(done)
 			})
-			log.Tracef("Streaming %s with offset (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
+			log.Tracef("Streaming %s with offset (%s) (%s %dkbps) to %s (user: %s)...", id, timeOffset.String(), info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
 		} else {
-			bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, time.Duration(timeOffset)*time.Second, w, func() {
+			bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, timeOffset, w, func() {
 				close(done)
 			})
-			log.Tracef("Streaming %s with transcoded offset (%ds) (%s %dkbps) to %s (user: %s)...", id, timeOffset, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
+			log.Tracef("Streaming %s with transcoded offset (%s) (%s %dkbps) to %s (user: %s)...", id, timeOffset.String(), fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
 		}
 		if err != nil {
 			log.Errorf("stream: %s", err)
@@ -181,7 +193,7 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, info.Path)
 }
 
-var lyricsTimestampRegex = regexp.MustCompile(`^\[([0-9]+[:.]?)+\]`)
+var lyricsTimestampRegex = regexp.MustCompile(`^\[([0-9]+[:.]?)+]`)
 
 func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	query := getQuery(r)
