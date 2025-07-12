@@ -201,7 +201,7 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	if err != nil {
 		return fmt.Errorf("get median replay gain: %w", err)
 	}
-	if fallbackGain > 0 {
+	if fallbackGain != 0 {
 		repos.SetFallbackGain(fallbackGain)
 	}
 
