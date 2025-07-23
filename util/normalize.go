@@ -1,27 +1,18 @@
 package util
 
 import (
+	"github.com/mozillazg/go-unidecode"
 	"unicode"
-
-	"golang.org/x/text/unicode/norm"
 )
-
-var replacementTable = map[rune][]rune{
-	'ß': {'s', 's'},
-}
 
 // NormalizeText converts text into a form that is suitable for comparison with user input.
 // It removes accents/diacritics, converts neighboring space characters to a single space,
 // converts text into lowercase and removes all non-letter/non-digit characters.
-// Additionally, some characters are replaced according to the following table:
-//   - ß -> ss
-//
-// The result is returned in Unicode NFKD form.
+// Additionally, the text is transliterated into ASCII.
 func NormalizeText(text string) string {
-	nfd := norm.NFKD.String(text)
-	result := make([]rune, 0, len(text))
-	for _, r := range nfd {
-		// replace all space characters with ' '
+	ascii := unidecode.Unidecode(text)
+	result := make([]rune, 0, len(ascii))
+	for _, r := range ascii {
 		if unicode.IsSpace(r) {
 			if len(result) == 0 || result[len(result)-1] != ' ' {
 				result = append(result, ' ')
@@ -34,11 +25,7 @@ func NormalizeText(text string) string {
 		}
 		r = unicode.ToLower(r)
 		// apply replacements
-		if rep, ok := replacementTable[r]; ok {
-			result = append(result, rep...)
-		} else {
-			result = append(result, r)
-		}
+		result = append(result, r)
 	}
 	return string(result)
 }

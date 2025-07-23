@@ -220,7 +220,7 @@ func (c *Cache) clean() {
 		delete(c.objects, o.key)
 		size -= o.size
 	}
-	log.Tracef("cleaned %d kB; new size: %d kB of %d kB", oldSize/1000, size/1000, c.maxSize/1000)
+	log.Tracef("cleaned %d kB; new size: %d kB of %d kB", oldSize/1000-size/1000, size/1000, c.maxSize/1000)
 }
 
 func (c *Cache) loadObjects() error {

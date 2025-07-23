@@ -17,7 +17,8 @@ func TestNormalizeText(t *testing.T) {
 		{"accents are removed", "öäüàêÇ", "oauaec"},
 		{"ß is handled", "Soße auf der STRAẞE", "sosse auf der strasse"},
 		{"special characters are removed", "Hello, world!", "hello world"},
-		{"cfk characters are correctly normalized", "안녕하세요 세상아", "안녕하세요 세상아"}, // looks the same but uses different runes
+		{"cfk characters are correctly normalized", "안녕하세요 세상아", "annyeonghaseyo sesanga"},
+		{"Ænima", "Ænima", "aenima"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
