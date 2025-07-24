@@ -68,6 +68,16 @@ services:
       ENCRYPTION_KEY: <key>
       # URL where crossonic-server is reachable
       BASE_URL: "https://crossonic.example.com"
+
+      # (optional) last.fm key to fetch album/artist info and artist images.
+      # To get an API key visit https://www.last.fm/api/account/create, sign in, then fill in
+      # your email and an application name (all other fields are optional).
+      # Then copy the "API key" (crossonic-server does not need your secret) and fill
+      # it in below.
+      # LASTFM_API_KEY: <api-key>
+
+      # (optional) whether a quick or full scan should be performed on startup
+      # STARTUP_SCAN: quick # disabled, quick, full
     volumes:
       - "./cache:/cache"   # cache files
       - "./data:/data"     # cover art etc.
