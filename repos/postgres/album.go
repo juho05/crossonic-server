@@ -131,7 +131,7 @@ func (a albumRepository) FindBySearch(ctx context.Context, query string, paginat
 
 	conditions, orderBy := genSearch(query, "albums.search_text", "albums.name")
 
-	q = bqb.New("? WHERE ? ?", q, conditions, orderBy)
+	q = bqb.New("? WHERE ? ORDER BY ?", q, conditions, orderBy)
 
 	paginate.Apply(q)
 	return execAlbumSelectMany(ctx, a.db, q, include)

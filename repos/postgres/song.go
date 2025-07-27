@@ -72,7 +72,7 @@ func (s songRepository) FindBySearch(ctx context.Context, params repos.SongFindB
 
 	conditions, orderBy := genSearch(params.Query, "songs.search_text", "songs.title")
 
-	q = bqb.New("? WHERE ? ?", q, conditions, orderBy)
+	q = bqb.New("? WHERE ? ORDER BY ?", q, conditions, orderBy)
 	params.Paginate.Apply(q)
 	return execSongSelectMany(ctx, s.db, q, include)
 }

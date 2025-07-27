@@ -126,14 +126,14 @@ func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAl
 
 	conditions, orderBy := genSearch(query, "artists.search_text", "artists.name")
 
-	q.Space("WHERE ?", conditions)
+	q.Space("WHERE (?)", conditions)
 	if onlyAlbumArtists {
 		if !include.AlbumInfo {
 			return nil, repos.NewError("onlyAlbumArtists only allowed if include.AlbumInfo is true", repos.ErrInvalidParams, nil)
 		}
 		q.And("COALESCE(aa.count, 0) > 0")
 	}
-	q = bqb.New("? ?", q, orderBy)
+	q = bqb.New("? ORDER BY ?", q, orderBy)
 	paginate.Apply(q)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }

@@ -98,26 +98,21 @@ func genUpdateList(values map[string]repos.OptionalGetter, updatedField bool) *b
 }
 
 func genSearch(query, searchColumn, titleCol string) (conditions *bqb.Query, orderBy *bqb.Query) {
-	orderBy = bqb.Optional("ORDER BY")
-	if query != "" {
-		where := bqb.Optional("")
-		searchTokens := strings.Split(util.NormalizeText(query), " ")
-		tokenCount := 0
-		for _, token := range searchTokens {
-			if token == "" || token == " " {
-				continue
-			}
-			token = " " + token
-			where.And(fmt.Sprintf("position(? in %s) > 0", searchColumn), token)
-			if tokenCount < 3 {
-				orderBy.Comma(fmt.Sprintf("position(? in %s)", searchColumn), token)
-			}
-			tokenCount++
+	conditions = bqb.New("true")
+	orderBy = bqb.Optional("")
+	searchTokens := strings.Split(util.NormalizeText(query), " ")
+	tokenCount := 0
+	for _, token := range searchTokens {
+		if token == "" || token == " " {
+			continue
 		}
-		orderBy.Comma(fmt.Sprintf("lower(%s)", titleCol))
-		if tokenCount > 0 {
-			return bqb.New("(?)", where), orderBy
+		token = " " + token
+		conditions.And(fmt.Sprintf("position(? in %s) > 0", searchColumn), token)
+		if tokenCount < 3 {
+			orderBy.Comma(fmt.Sprintf("position(? in %s)", searchColumn), token)
 		}
+		tokenCount++
 	}
-	return bqb.New("true"), orderBy
+	orderBy.Comma(fmt.Sprintf("lower(%s)", titleCol))
+	return conditions, orderBy
 }
