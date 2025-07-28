@@ -87,6 +87,8 @@ func TestUserRepository(t *testing.T) {
 			err := repo.UpdateListenBrainzConnection(ctx, "does not exist", util.ToPtr("lbtestuser"), util.ToPtr("lbtesttoken"))
 			assert.Truef(t, errors.Is(err, repos.ErrNotFound), "expected error %v, got %v", repos.ErrNotFound, err)
 		})
+
+		// TODO test that lb_feedback_status is reset after changing ListenBrainz connection
 	})
 
 	t.Run("FindAll", func(t *testing.T) {

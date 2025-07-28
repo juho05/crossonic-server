@@ -24,16 +24,27 @@ func (u userRepository) Create(ctx context.Context, name, password string) error
 }
 
 func (u userRepository) UpdateListenBrainzConnection(ctx context.Context, user string, lbUsername, lbToken *string) error {
-	var encryptedToken []byte
-	var err error
-	if lbToken != nil {
-		encryptedToken, err = repos.EncryptPassword(*lbToken, u.conf.EncryptionKey)
-		if err != nil {
-			return repos.NewError("encrypt ListenBrainz token", repos.ErrGeneral, err)
+	return u.tx(ctx, func(u userRepository) error {
+		var encryptedToken []byte
+		var err error
+		if lbToken != nil {
+			encryptedToken, err = repos.EncryptPassword(*lbToken, u.conf.EncryptionKey)
+			if err != nil {
+				return repos.NewError("encrypt ListenBrainz token", repos.ErrGeneral, err)
+			}
 		}
-	}
-	q := bqb.New("UPDATE users SET encrypted_listenbrainz_token = ?, listenbrainz_username = ? WHERE name = ?", encryptedToken, lbUsername, user)
-	return executeQueryExpectAffectedRows(ctx, u.db, q)
+		q := bqb.New("UPDATE users SET encrypted_listenbrainz_token = ?, listenbrainz_username = ? WHERE name = ?", encryptedToken, lbUsername, user)
+		err = executeQueryExpectAffectedRows(ctx, u.db, q)
+		if err != nil {
+			return err
+		}
+		q = bqb.New("DELETE FROM lb_feedback_status WHERE user_name = ?", user)
+		err = executeQuery(ctx, u.db, q)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (u userRepository) FindAll(ctx context.Context) ([]*repos.User, error) {

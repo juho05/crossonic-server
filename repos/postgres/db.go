@@ -67,7 +67,8 @@ func (d *DB) User() repos.UserRepository {
 		db: exec,
 		tx: newTransactionFn(d, func(tx executer) userRepository {
 			return userRepository{
-				db: tx,
+				db:   tx,
+				conf: d.config,
 			}
 		}),
 		conf: d.config,
