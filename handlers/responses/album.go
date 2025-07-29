@@ -2,6 +2,7 @@ package responses
 
 import (
 	"github.com/juho05/crossonic-server/config"
+	"slices"
 	"time"
 
 	"github.com/juho05/crossonic-server/repos"
@@ -35,6 +36,12 @@ type Album struct {
 	RecordLabels  []*RecordLabel `xml:"recordLabels,omitempty" json:"recordLabels,omitempty"`
 	ReleaseTypes  []string       `xml:"releaseTypes,omitempty" json:"releaseTypes,omitempty"`
 	IsCompilation *bool          `xml:"isCompilation,attr,omitempty" json:"isCompilation,omitempty"`
+	DiscTitles    []DiscTitle    `xml:"discTitles,omitempty" json:"discTitles,omitempty"`
+}
+
+type DiscTitle struct {
+	Disc  int    `xml:"disc,attr" json:"disc"`
+	Title string `xml:"title,attr" json:"title"`
 }
 
 func NewAlbum(a *repos.CompleteAlbum, conf config.Config) *Album {
@@ -88,6 +95,26 @@ func NewAlbum(a *repos.CompleteAlbum, conf config.Config) *Album {
 			return a.ID
 		})
 		album.Parent = album.ArtistID
+	}
+
+	if a.DiscTitles != nil {
+		titles := make([]DiscTitle, 0, len(a.DiscTitles))
+		for disc, title := range a.DiscTitles {
+			titles = append(titles, DiscTitle{
+				Disc:  disc,
+				Title: title,
+			})
+		}
+		slices.SortFunc(titles, func(a, b DiscTitle) int {
+			if a.Disc < b.Disc {
+				return -1
+			}
+			if a.Disc > b.Disc {
+				return 1
+			}
+			return 0
+		})
+		album.DiscTitles = titles
 	}
 
 	if HasCoverArt(a.ID, conf) {

@@ -24,6 +24,7 @@ type album struct {
 	artistIDs      map[string]int
 	artistNames    []string
 	updated        bool
+	discTitles     map[int]string
 }
 
 type albumMap struct {
@@ -71,7 +72,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 	}
 
 	albumMap := &albumMap{
-		albums: make(map[string][]*album, int(float64(len(albums))*0.8)),
+		albums: make(map[string][]*album, len(albums)),
 	}
 
 	for _, a := range albums {
@@ -84,12 +85,19 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 			albumArtistNames = make([]string, 0)
 		}
 		alb := &album{
-			id:          a.ID,
-			mbid:        a.MusicBrainzID,
-			releaseMBID: a.ReleaseMBID,
-			year:        a.Year,
-			artistIDs:   albumArtistIDs,
-			artistNames: albumArtistNames,
+			id:             a.ID,
+			mbid:           a.MusicBrainzID,
+			releaseMBID:    a.ReleaseMBID,
+			year:           a.Year,
+			recordLabels:   a.RecordLabels,
+			releaseTypes:   a.ReleaseTypes,
+			isCompilation:  a.IsCompilation,
+			replayGain:     a.ReplayGain,
+			replayGainPeak: a.ReplayGainPeak,
+			artistIDs:      albumArtistIDs,
+			artistNames:    albumArtistNames,
+			updated:        false,
+			discTitles:     a.DiscTitles,
 		}
 		albumMap.albums[a.Name] = append(albumMap.albums[a.Name], alb)
 	}
@@ -97,7 +105,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 	return albumMap, nil
 }
 
-func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, params findOrCreateAlbumParams) (string, error) {
+func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, params findOrCreateAlbumParams) (*album, error) {
 	var found *album
 	for _, a := range a.albums[name] {
 		// match release mbid
@@ -216,7 +224,7 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 			if changed {
 				err := a.updateAlbum(ctx, s, name, found)
 				if err != nil {
-					return "", fmt.Errorf("update album: %w", err)
+					return nil, fmt.Errorf("update album: %w", err)
 				}
 			}
 
@@ -228,7 +236,7 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 				}
 			}
 		}
-		return found.id, nil
+		return found, nil
 	}
 
 	artistIDs := make(map[string]int, len(params.artists))
@@ -256,7 +264,7 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 	// sets alb.id
 	err := a.createAlbum(ctx, s, name, alb)
 	if err != nil {
-		return "", fmt.Errorf("create album: %w", err)
+		return nil, fmt.Errorf("create album: %w", err)
 	}
 
 	if !s.setAlbumCoverClosed {
@@ -267,7 +275,7 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 		}
 	}
 
-	return alb.id, nil
+	return alb, nil
 }
 
 func (a *albumMap) updateAlbum(ctx context.Context, s *Scanner, name string, album *album) error {
@@ -312,6 +320,33 @@ func (a *albumMap) createAlbum(ctx context.Context, s *Scanner, name string, alb
 		return fmt.Errorf("create: %w", err)
 	}
 	album.id = albID
+	return nil
+}
+
+func (a *albumMap) updateDiscTitle(ctx context.Context, s *Scanner, album *album, disc int, title *string) error {
+	old, oldExists := album.discTitles[disc]
+	if (!oldExists && title == nil) || (title != nil && *title == old) {
+		return nil
+	}
+
+	if title == nil {
+		delete(album.discTitles, disc)
+		if len(album.discTitles) == 0 {
+			album.discTitles = nil
+		}
+	} else {
+		if album.discTitles == nil {
+			album.discTitles = make(map[int]string, 1)
+		}
+		album.discTitles[disc] = *title
+	}
+
+	err := s.tx.Album().Update(ctx, album.id, repos.UpdateAlbumParams{
+		DiscTitles: repos.NewOptionalFull(repos.Map[int, string](album.discTitles)),
+	})
+	if err != nil {
+		return fmt.Errorf("update: %w", err)
+	}
 	return nil
 }
 

@@ -498,6 +498,7 @@ func (s *Scanner) processFile(path string, cover *string, parentDirChanged bool)
 			year:                year,
 			track:               readSingleIntTagFirstOptional(tags, "/", "tracknumber"),
 			disc:                readSingleIntTagFirstOptional(tags, "/", "discnumber"),
+			discTitle:           readSingleTagOptional(tags, "discsubtitle"),
 			genres:              readStringTags(tags, "genres", "genre"),
 			musicBrainzID:       readSingleTagOptional(tags, "musicbrainz_trackid"),
 			replayGain:          readReplayGainTag(tags, "replaygain_track_gain"),

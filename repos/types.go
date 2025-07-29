@@ -2,6 +2,7 @@ package repos
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -108,4 +109,39 @@ func (nt *StringList) Scan(value interface{}) error {
 //goland:noinspection GoMixedReceiverTypes
 func (nt StringList) Value() (driver.Value, error) {
 	return strings.Join(nt, "\003"), nil
+}
+
+type Map[T comparable, U any] map[T]U
+
+//goland:noinspection GoMixedReceiverTypes
+func (m *Map[T, U]) Scan(value interface{}) error {
+	if value == nil {
+		*m = nil
+		return nil
+	}
+	raw, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("cannot scan %T into Map; expected string value", value)
+	}
+
+	newM := make(map[T]U)
+	err := json.Unmarshal([]byte(raw), &newM)
+	if err != nil {
+		return fmt.Errorf("cannot scan %T into Map; expected JSON string value: %w", value, err)
+	}
+
+	*m = newM
+	return nil
+}
+
+//goland:noinspection GoMixedReceiverTypes
+func (m Map[T, U]) Value() (driver.Value, error) {
+	if m == nil {
+		return nil, nil
+	}
+	bytes, err := json.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("marshal map: %w", err)
+	}
+	return string(bytes), nil
 }

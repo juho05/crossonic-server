@@ -8,18 +8,19 @@ import (
 // models
 
 type Album struct {
-	ID             string     `db:"id"`
-	Name           string     `db:"name"`
-	Created        time.Time  `db:"created"`
-	Updated        time.Time  `db:"updated"`
-	Year           *int       `db:"year"`
-	RecordLabels   StringList `db:"record_labels"`
-	MusicBrainzID  *string    `db:"music_brainz_id"`
-	ReleaseMBID    *string    `db:"release_mbid"`
-	ReleaseTypes   StringList `db:"release_types"`
-	IsCompilation  *bool      `db:"is_compilation"`
-	ReplayGain     *float64   `db:"replay_gain"`
-	ReplayGainPeak *float64   `db:"replay_gain_peak"`
+	ID             string           `db:"id"`
+	Name           string           `db:"name"`
+	Created        time.Time        `db:"created"`
+	Updated        time.Time        `db:"updated"`
+	Year           *int             `db:"year"`
+	RecordLabels   StringList       `db:"record_labels"`
+	MusicBrainzID  *string          `db:"music_brainz_id"`
+	ReleaseMBID    *string          `db:"release_mbid"`
+	ReleaseTypes   StringList       `db:"release_types"`
+	IsCompilation  *bool            `db:"is_compilation"`
+	ReplayGain     *float64         `db:"replay_gain"`
+	ReplayGainPeak *float64         `db:"replay_gain_peak"`
+	DiscTitles     Map[int, string] `db:"disc_titles"`
 }
 
 type AlbumTrackInfo struct {
@@ -106,6 +107,7 @@ type CreateAlbumParams struct {
 	ReplayGain     *float64
 	ReplayGainPeak *float64
 	ArtistNames    []string
+	DiscTitles     Map[int, string]
 }
 
 // Name and ArtistNames must always be specified together
@@ -120,6 +122,7 @@ type UpdateAlbumParams struct {
 	IsCompilation  Optional[*bool]
 	ReplayGain     Optional[*float64]
 	ReplayGainPeak Optional[*float64]
+	DiscTitles     Optional[Map[int, string]]
 }
 
 type FindAlbumSortBy int

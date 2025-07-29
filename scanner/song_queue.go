@@ -40,6 +40,7 @@ type mediaFile struct {
 	year                *int
 	track               *int
 	disc                *int
+	discTitle           *string
 	genres              []string
 	musicBrainzID       *string
 	replayGain          *float64
@@ -209,7 +210,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 		}
 
 		if media.albumName != nil {
-			aID, err := s.albums.findOrCreate(ctx, s, *media.albumName, findOrCreateAlbumParams{
+			alb, err := s.albums.findOrCreate(ctx, s, *media.albumName, findOrCreateAlbumParams{
 				mbid:           media.albumMBID,
 				releaseMBID:    media.albumReleaseMBID,
 				year:           media.year,
@@ -225,8 +226,16 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			if err != nil {
 				return fmt.Errorf("find or create album: %w", err)
 			}
+
+			if media.disc != nil {
+				err := s.albums.updateDiscTitle(ctx, s, alb, *media.disc, media.discTitle)
+				if err != nil {
+					return fmt.Errorf("update disc title: %w", err)
+				}
+			}
+
 			song.albumName = media.albumName
-			song.albumID = &aID
+			song.albumID = &alb.id
 		}
 
 		if song.id == nil {

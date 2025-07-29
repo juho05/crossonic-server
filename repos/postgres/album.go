@@ -22,10 +22,10 @@ func (a albumRepository) Create(ctx context.Context, params repos.CreateAlbumPar
 	searchFields = append(searchFields, params.ArtistNames...)
 	searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
 	q := bqb.New(`INSERT INTO albums (id, name, created, updated, year, record_labels, music_brainz_id, release_mbid,
-		release_types, is_compilation, replay_gain, replay_gain_peak, search_text) VALUES (?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		release_types, is_compilation, replay_gain, replay_gain_peak, search_text, disc_titles) VALUES (?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING albums.*`,
 		id, params.Name, params.Year, params.RecordLabels, params.MusicBrainzID, params.ReleaseMBID, params.ReleaseTypes,
-		params.IsCompilation, params.ReplayGain, params.ReplayGainPeak, searchText)
+		params.IsCompilation, params.ReplayGain, params.ReplayGainPeak, searchText, params.DiscTitles)
 	return id, executeQuery(ctx, a.db, q)
 }
 
@@ -50,6 +50,7 @@ func (a albumRepository) Update(ctx context.Context, id string, params repos.Upd
 		"replay_gain":      params.ReplayGain,
 		"replay_gain_peak": params.ReplayGainPeak,
 		"search_text":      searchText,
+		"disc_titles":      params.DiscTitles,
 	}, true)
 	q := bqb.New("UPDATE albums SET ? WHERE id = ?", updateList, id)
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
@@ -209,7 +210,7 @@ func (a albumRepository) CreateArtistConnections(ctx context.Context, connection
 
 func genAlbumSelectList(include repos.IncludeAlbumInfo) *bqb.Query {
 	q := bqb.New(`albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_mbid,
-		albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak`)
+		albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.disc_titles`)
 
 	if include.TrackInfo {
 		q.Comma(`COALESCE(tracks.count, 0) AS track_count, COALESCE(tracks.duration_ms, 0) AS duration_ms`)
