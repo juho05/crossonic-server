@@ -103,6 +103,20 @@ func paramOffset(w http.ResponseWriter, r *http.Request, name string) (int, bool
 	return offset, true
 }
 
+func paramBool(w http.ResponseWriter, r *http.Request, name string, def bool) (value bool, ok bool) {
+	q := getQuery(r)
+	boolStr := q.Get(name)
+	if boolStr == "" {
+		return def, true
+	}
+	value, err := strconv.ParseBool(boolStr)
+	if err != nil {
+		responses.EncodeError(w, q.Get("f"), fmt.Sprintf("invalid %s parameter", name), responses.SubsonicErrorGeneric)
+		return false, false
+	}
+	return value, true
+}
+
 func paramTimeUnixMillis(w http.ResponseWriter, r *http.Request, name string, def time.Time) (time.Time, bool) {
 	q := getQuery(r)
 	timeStr := q.Get(name)

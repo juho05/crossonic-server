@@ -15,7 +15,7 @@ import (
 var (
 	ServerName      = "crossonic-server"
 	Version         = "dev"
-	ProtocolVersion = "0.1.0"
+	ProtocolVersion = "0.2.0"
 )
 
 //go:embed all:repos/migrations

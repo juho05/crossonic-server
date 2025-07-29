@@ -19,8 +19,12 @@ type License struct {
 }
 
 type ScanStatus struct {
-	Scanning bool `xml:"scanning,attr" json:"scanning"`
-	Count    *int `xml:"count,attr,omitempty" json:"count,omitempty"`
+	Scanning bool       `xml:"scanning,attr" json:"scanning"`
+	Count    *int       `xml:"count,attr,omitempty" json:"count,omitempty"`
+	LastScan *time.Time `xml:"lastScan,attr,omitempty" json:"lastScan,omitempty"`
+	// full or quick
+	FullScan  bool       `xml:"fullScan,attr" json:"fullScan"`
+	StartTime *time.Time `xml:"startTime,attr,omitempty" json:"startTime,omitempty"`
 }
 
 type ArtistIndexes struct {

@@ -71,3 +71,11 @@ func (s *Scanner) Scanning() bool {
 func (s *Scanner) Count() int {
 	return int(s.counter.Load())
 }
+
+func (s *Scanner) IsFullScan() bool {
+	return s.fullScan
+}
+
+func (s *Scanner) ScanStart() time.Time {
+	return s.scanStart
+}
