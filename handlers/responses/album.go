@@ -33,6 +33,7 @@ type Album struct {
 	MediaType     string         `xml:"mediaType,attr" json:"mediaType"`
 	Played        *time.Time     `xml:"played,attr,omitempty" json:"played,omitempty"`
 	MusicBrainzID *string        `xml:"musicBrainzId,attr,omitempty" json:"musicBrainzId,omitempty"`
+	ReleaseMBID   *string        `xml:"releaseMbid,attr,omitempty" json:"releaseMbid,omitempty"`
 	RecordLabels  []*RecordLabel `xml:"recordLabels,omitempty" json:"recordLabels,omitempty"`
 	ReleaseTypes  []string       `xml:"releaseTypes,omitempty" json:"releaseTypes,omitempty"`
 	IsCompilation *bool          `xml:"isCompilation,attr,omitempty" json:"isCompilation,omitempty"`
@@ -55,6 +56,7 @@ func NewAlbum(a *repos.CompleteAlbum, conf config.Config) *Album {
 		Name:          a.Name,
 		Year:          a.Year,
 		MusicBrainzID: a.MusicBrainzID,
+		ReleaseMBID:   a.ReleaseMBID,
 		IsCompilation: a.IsCompilation,
 		ReleaseTypes:  a.ReleaseTypes,
 		RecordLabels: util.Map(a.RecordLabels, func(label string) *RecordLabel {
