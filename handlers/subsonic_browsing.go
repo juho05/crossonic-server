@@ -291,6 +291,7 @@ func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
 	res.AlbumInfo = &responses.AlbumInfo{
 		Notes:          info.Description,
 		MusicBrainzID:  mbid,
+		ReleaseMBID:    info.ReleaseMBID,
 		LastFMUrl:      info.LastFMURL,
 		SmallImageURL:  smallImageUrl,
 		MediumImageURL: mediumImageUrl,

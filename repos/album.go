@@ -59,6 +59,7 @@ type AlbumInfo struct {
 	LastFMURL     *string    `db:"lastfm_url"`
 	LastFMMBID    *string    `db:"lastfm_mbid"`
 	MusicBrainzID *string    `db:"music_brainz_id"`
+	ReleaseMBID   *string    `db:"release_mbid"`
 }
 
 type AlbumArtistConnection struct {

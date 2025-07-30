@@ -127,6 +127,7 @@ type SongsByGenre struct {
 type AlbumInfo struct {
 	Notes          *string `xml:"notes,omitempty" json:"notes,omitempty"`
 	MusicBrainzID  *string `xml:"musicBrainzId,omitempty" json:"musicBrainzId,omitempty"`
+	ReleaseMBID    *string `xml:"releaseMbid,omitempty" json:"releaseMbid,omitempty"`
 	LastFMUrl      *string `xml:"lastFmUrl,omitempty" json:"lastFmUrl,omitempty"`
 	SmallImageURL  *string `xml:"smallImageUrl,omitempty" json:"smallImageUrl,omitempty"`
 	MediumImageURL *string `xml:"mediumImageUrl,omitempty" json:"mediumImageUrl,omitempty"`

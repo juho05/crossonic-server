@@ -175,7 +175,7 @@ func (a albumRepository) RemoveRating(ctx context.Context, user, albumID string)
 }
 
 func (a albumRepository) GetInfo(ctx context.Context, albumID string) (*repos.AlbumInfo, error) {
-	q := bqb.New("SELECT albums.id, albums.info_updated, albums.description, albums.lastfm_url, albums.lastfm_mbid, albums.music_brainz_id FROM albums WHERE albums.id = ?", albumID)
+	q := bqb.New("SELECT albums.id, albums.info_updated, albums.description, albums.lastfm_url, albums.lastfm_mbid, albums.music_brainz_id, albums.release_mbid FROM albums WHERE albums.id = ?", albumID)
 	return getQuery[*repos.AlbumInfo](ctx, a.db, q)
 }
 
