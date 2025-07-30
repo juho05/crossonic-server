@@ -95,7 +95,10 @@ func run(conf config.Config) error {
 		lBrainz.StartPeriodicSync(3 * time.Hour)
 	}
 
-	lfm := lastfm.New(conf.LastFMApiKey)
+	var lfm *lastfm.LastFm
+	if conf.LastFMApiKey != "" {
+		lfm = lastfm.New(conf.LastFMApiKey)
+	}
 
 	handler := handlers.New(conf, db, mediaScanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
 

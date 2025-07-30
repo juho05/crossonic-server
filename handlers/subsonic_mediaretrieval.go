@@ -347,7 +347,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	fileFS := os.DirFS(dir)
 	file, err := fileFS.Open(id)
 	if errors.Is(err, fs.ErrNotExist) {
-		if h.Config.LastFMApiKey == "" {
+		if h.LastFM == nil {
 			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
 			return
 		}
