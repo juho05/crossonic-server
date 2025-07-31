@@ -24,7 +24,7 @@ func (s scrobbleRepository) CreateMultiple(ctx context.Context, params []repos.C
 	for _, p := range params {
 		valueList.Comma("(?,?,?,?,?,?,?,?)", p.User, p.SongID, p.AlbumID, p.Time, p.SongDuration, p.Duration, p.SubmittedToListenBrainz, p.NowPlaying)
 	}
-	return executeQuery(ctx, s.db, bqb.New("? VALUES ?", q, valueList))
+	return executeQuery(ctx, s.db, bqb.New("? VALUES ? ON CONFLICT (user_name,song_id,time,now_playing) DO UPDATE SET duration_ms = excluded.duration_ms, album_id = excluded.album_id, song_duration_ms = excluded.song_duration_ms, now_playing = excluded.now_playing", q, valueList))
 }
 
 func (s scrobbleRepository) FindPossibleConflicts(ctx context.Context, user string, songIDs []string, times []time.Time) ([]*repos.Scrobble, error) {
