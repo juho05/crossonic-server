@@ -23,6 +23,7 @@ import (
 const maxParallelDirs = 10
 const updateSongFilesWorkerCount = 10
 const setAlbumCoversWorkerCount = 10
+const saveArtistCoversWorkerCount = 10
 const songQueueBatchSize = 100
 const deleteOrphanedSongsByPathWorkerCount = 10
 const deleteOrphanedSongsByPathBatchSize = 300
@@ -110,6 +111,21 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	}
 
 	log.Infof("Scanning %s (full scan: %t)...", s.mediaDir, s.fullScan)
+
+	log.Tracef("finding artist images...")
+	var waitFindArtistImages sync.WaitGroup
+	var findArtistImagesErr error
+	var foundArtistImages map[string]string
+	waitFindArtistImages.Add(1)
+	go func() {
+		defer waitFindArtistImages.Done()
+		images, err := s.findArtistImages(ctx)
+		if err != nil {
+			findArtistImagesErr = err
+			return
+		}
+		foundArtistImages = images
+	}()
 
 	log.Tracef("loading artist map from db...")
 	s.artists, err = newArtistMapFromDB(ctx, s)
@@ -208,6 +224,16 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	err = s.tx.System().SetLastScan(ctx, time.Now())
 	if err != nil {
 		return fmt.Errorf("update last scan: %w", err)
+	}
+
+	waitFindArtistImages.Wait()
+	if findArtistImagesErr != nil {
+		return fmt.Errorf("find artist images: %w", findArtistImagesErr)
+	}
+	log.Tracef("saving artist images with %d workers...", saveArtistCoversWorkerCount)
+	err = s.saveArtistImages(ctx, foundArtistImages)
+	if err != nil {
+		return fmt.Errorf("save artist images: %w", err)
 	}
 
 	log.Tracef("committing changes...")
@@ -429,6 +455,9 @@ func (s *Scanner) processFile(path string, cover *string, parentDirChanged bool)
 	}
 
 	props := file.ReadAudioProperties()
+	if props == nil {
+		return fmt.Errorf("failed to read audio properties")
+	}
 	tags := file.ReadTags()
 
 	var songID *string

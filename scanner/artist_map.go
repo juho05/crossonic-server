@@ -16,7 +16,11 @@ type artist struct {
 }
 
 type artistMap struct {
+	// artist name -> artists
 	artists map[string][]*artist
+
+	// artist name -> image path
+	artistImages map[string]string
 }
 
 func newArtistMapFromDB(ctx context.Context, s *Scanner) (*artistMap, error) {

@@ -87,12 +87,6 @@ func (s *Scanner) runSetAlbumCoverLoop(ctx context.Context) error {
 }
 
 func (s *Scanner) createCoverDir() error {
-	// delete old cover dirs
-	_ = os.RemoveAll(filepath.Join(s.coverDir, "playlists"))
-	_ = os.RemoveAll(filepath.Join(s.coverDir, "artists"))
-	_ = os.RemoveAll(filepath.Join(s.coverDir, "albums"))
-	_ = os.RemoveAll(filepath.Join(s.coverDir, "songs"))
-
 	// create cover dir if it doesn't exist
 	err := os.MkdirAll(s.coverDir, 0755)
 	if err != nil {
