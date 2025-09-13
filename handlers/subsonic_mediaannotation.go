@@ -198,7 +198,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 					log.Errorf("failed to scrobble to listenbrainz: %s", err)
 				}
 			} else if !errors.Is(err, listenbrainz.ErrUnauthenticated) {
-				log.Errorf("failed to get listenbrainz connection for user %s: %s", user, err)
+				log.Errorf("failed to get listenbrainz connection for currentUser %s: %s", user, err)
 			}
 		}
 

@@ -151,10 +151,20 @@ func (a artistRepository) FindStarred(ctx context.Context, paginate repos.Pagina
 
 func (a artistRepository) GetAlbums(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
-	q.Space(`WHERE EXISTS (
-			SELECT album_artist.album_id, album_artist.artist_id FROM album_artist
-			WHERE album_artist.album_id = albums.id AND album_artist.artist_id = ?
-		)`, id)
+	q.Space("INNER JOIN album_artist ON album_artist.album_id = albums.id")
+	q.Space(`WHERE album_artist.artist_id = ?`, id)
+	q.Space("ORDER BY albums.year DESC, albums.name")
+	return execAlbumSelectMany(ctx, a.db, q, include)
+}
+
+func (a artistRepository) GetAppearsOnAlbums(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+	q := bqb.New("SELECT DISTINCT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
+	q.Space("LEFT JOIN album_artist ON album_artist.album_id = albums.id")
+	q.Space("INNER JOIN songs ON songs.album_id = albums.id")
+	q.Space("INNER JOIN song_artist ON song_artist.song_id = songs.id")
+	q.Space(`WHERE album_artist.artist_id != ? AND song_artist.artist_id = ? AND NOT EXISTS (
+		SELECT album_id FROM album_artist WHERE album_artist.artist_id = ? AND album_artist.album_id = albums.id
+	)`, id, id, id)
 	q.Space("ORDER BY albums.year DESC, albums.name")
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }

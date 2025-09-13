@@ -2,6 +2,7 @@ package mockdb
 
 import (
 	"context"
+
 	"github.com/juho05/crossonic-server/repos"
 )
 
@@ -23,6 +24,11 @@ type ArtistRepository struct {
 	RemoveRatingMock               func(ctx context.Context, user, artistID string) error
 	GetInfoMock                    func(ctx context.Context, artistID string) (*repos.ArtistInfo, error)
 	SetInfoMock                    func(ctx context.Context, artistID string, params repos.SetArtistInfo) error
+}
+
+func (a ArtistRepository) GetAppearsOnAlbums(ctx context.context.Context, id string, include repos.IncludeAlbumInfo)  ([]*CompleteAlbum, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (a ArtistRepository) Create(ctx context.Context, params repos.CreateArtistParams) (string, error) {

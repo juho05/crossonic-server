@@ -19,3 +19,7 @@ type TopSongsRecapSong struct {
 	*Song
 	TotalDurationMS int64 `xml:"totalDurationMs,attr" json:"totalDurationMs"`
 }
+
+type AppearsOn struct {
+	Albums []*Album `xml:"album" json:"album"`
+}

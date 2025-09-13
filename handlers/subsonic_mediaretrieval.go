@@ -86,7 +86,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		fileFormat.Mime = info.ContentType
 		fileFormat.Name = strings.TrimPrefix(filepath.Ext(info.Path), ".")
 		if timeOffset == 0 {
-			log.Tracef("Streaming %s raw (%s %dkbps) to %s (user: %s) (range: %s)...", id, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"), r.Header.Get("Range"))
+			log.Tracef("Streaming %s raw (%s %dkbps) to %s (currentUser: %s) (range: %s)...", id, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"), r.Header.Get("Range"))
 			http.ServeFile(w, r, info.Path)
 			return
 		}
@@ -108,12 +108,12 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			err = h.Transcoder.SeekRaw(info.Path, timeOffset, w, func() {
 				close(done)
 			})
-			log.Tracef("Streaming %s with offset (%s) (%s %dkbps) to %s (user: %s)...", id, timeOffset.String(), info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
+			log.Tracef("Streaming %s with offset (%s) (%s %dkbps) to %s (currentUser: %s)...", id, timeOffset.String(), info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
 		} else {
 			bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, timeOffset, w, func() {
 				close(done)
 			})
-			log.Tracef("Streaming %s with transcoded offset (%s) (%s %dkbps) to %s (user: %s)...", id, timeOffset.String(), fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
+			log.Tracef("Streaming %s with transcoded offset (%s) (%s %dkbps) to %s (currentUser: %s)...", id, timeOffset.String(), fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
 		}
 		if err != nil {
 			log.Errorf("stream: %s", err)
@@ -148,9 +148,9 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s) (new transcode)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
+		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (currentUser: %s) (new transcode)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
 	} else {
-		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s) (cached (complete: %t)) (range: %s)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"), cacheObj.IsComplete(), r.Header.Get("Range"))
+		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (currentUser: %s) (cached (complete: %t)) (range: %s)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"), cacheObj.IsComplete(), r.Header.Get("Range"))
 	}
 
 	cacheReader, err := cacheObj.Reader()

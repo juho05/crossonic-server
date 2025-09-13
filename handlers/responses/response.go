@@ -65,6 +65,7 @@ type Response struct {
 	ListenBrainzConfig *ListenBrainzConfig `xml:"listenBrainzConfig,omitempty" json:"listenBrainzConfig,omitempty"`
 	Recap              *Recap              `xml:"recap,omitempty" json:"recap,omitempty"`
 	TopSongsRecap      *TopSongsRecap      `xml:"topSongsRecap,omitempty" json:"topSongsRecap,omitempty"`
+	AppearsOn          *AppearsOn          `xml:"appearsOn,omitempty" json:"appearsOn,omitempty"`
 }
 
 func New() Response {

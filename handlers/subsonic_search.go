@@ -41,7 +41,7 @@ func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request) ([]*responses.Artist, bool) {
-	user := user(r)
+	user := currentUser(r)
 	format := format(r)
 	query := getQuery(r)
 
@@ -55,7 +55,12 @@ func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request) ([]*resp
 		return nil, false
 	}
 
-	artists, err := h.DB.Artist().FindBySearch(r.Context(), query.Get("query"), true, repos.Paginate{Offset: offset, Limit: &limit}, repos.IncludeArtistInfoFull(user))
+	onlyAlbumArtists, ok := paramBool(w, r, "onlyAlbumArtists", true)
+	if !ok {
+		return nil, false
+	}
+
+	artists, err := h.DB.Artist().FindBySearch(r.Context(), query.Get("query"), onlyAlbumArtists, repos.Paginate{Offset: offset, Limit: &limit}, repos.IncludeArtistInfoFull(user))
 	if err != nil {
 		respondInternalErr(w, format, fmt.Errorf("search3: artists: %w", err))
 		return nil, false
@@ -64,7 +69,7 @@ func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request) ([]*resp
 }
 
 func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request) ([]*responses.Album, bool) {
-	user := user(r)
+	user := currentUser(r)
 	format := format(r)
 	query := getQuery(r)
 
@@ -90,7 +95,7 @@ func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request) ([]*respo
 }
 
 func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request) ([]*responses.Song, bool) {
-	user := user(r)
+	user := currentUser(r)
 	format := format(r)
 	query := getQuery(r)
 

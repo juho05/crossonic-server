@@ -2,13 +2,14 @@ package handlers
 
 import (
 	"errors"
+	"net/http"
+	"time"
+
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/scanner"
 	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
-	"net/http"
-	"time"
 )
 
 // https://opensubsonic.netlify.app/docs/endpoints/startscan
@@ -49,9 +50,9 @@ func (h *Handler) handleStartScan(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		if fullScan {
-			log.Infof("manual full scan triggered by %s", user(r))
+			log.Infof("manual full scan triggered by %s", currentUser(r))
 		} else {
-			log.Infof("manual quick scan triggered by %s", user(r))
+			log.Infof("manual quick scan triggered by %s", currentUser(r))
 		}
 		err := h.Scanner.Scan(h.DB, fullScan)
 		if err != nil && !errors.Is(err, scanner.ErrAlreadyScanning) {

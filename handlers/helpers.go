@@ -37,7 +37,7 @@ func getQuery(r *http.Request) url.Values {
 	return query
 }
 
-func user(r *http.Request) string {
+func currentUser(r *http.Request) string {
 	return getQuery(r).Get("u")
 }
 

@@ -174,7 +174,7 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 
 func (h *Handler) handleGetStarred(version int) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user := user(r)
+		user := currentUser(r)
 		f := format(r)
 
 		songLimit, ok := paramLimitOpt(w, r, "songCount", nil)
@@ -266,7 +266,7 @@ func (h *Handler) handleGetSongsByGenre(w http.ResponseWriter, r *http.Request) 
 	songs, err := h.DB.Song().FindByGenre(r.Context(), genre, repos.Paginate{
 		Offset: offset,
 		Limit:  &limit,
-	}, repos.IncludeSongInfoFull(user(r)))
+	}, repos.IncludeSongInfoFull(currentUser(r)))
 	if err != nil {
 		respondInternalErr(w, format(r), fmt.Errorf("get songs by genre: find songs: %w", err))
 		return

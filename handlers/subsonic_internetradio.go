@@ -10,7 +10,7 @@ import (
 )
 
 func (h *Handler) handleGetInternetRadioStations(w http.ResponseWriter, r *http.Request) {
-	stations, err := h.DB.InternetRadioStation().FindAll(r.Context(), user(r))
+	stations, err := h.DB.InternetRadioStation().FindAll(r.Context(), currentUser(r))
 	if err != nil {
 		respondErr(w, format(r), fmt.Errorf("get internet radio stations: %w", err))
 		return
@@ -49,7 +49,7 @@ func (h *Handler) handleCreateInternetRadioStation(w http.ResponseWriter, r *htt
 		homepageURLPtr = &homepageURL
 	}
 
-	_, err := h.DB.InternetRadioStation().Create(r.Context(), user(r), repos.CreateInternetRadioStationParams{
+	_, err := h.DB.InternetRadioStation().Create(r.Context(), currentUser(r), repos.CreateInternetRadioStationParams{
 		Name:        name,
 		StreamURL:   streamURL,
 		HomepageURL: homepageURLPtr,
@@ -90,7 +90,7 @@ func (h *Handler) handleUpdateInternetRadioStation(w http.ResponseWriter, r *htt
 		}
 	}
 
-	err := h.DB.InternetRadioStation().Update(r.Context(), user(r), id, repos.UpdateInternetRadioStationParams{
+	err := h.DB.InternetRadioStation().Update(r.Context(), currentUser(r), id, repos.UpdateInternetRadioStationParams{
 		Name:        repos.NewOptionalFull(name),
 		StreamURL:   repos.NewOptionalFull(streamURL),
 		HomepageURL: homepageURLOpt,
@@ -109,7 +109,7 @@ func (h *Handler) handleDeleteInternetRadioStation(w http.ResponseWriter, r *htt
 		return
 	}
 
-	err := h.DB.InternetRadioStation().Delete(r.Context(), user(r), id)
+	err := h.DB.InternetRadioStation().Delete(r.Context(), currentUser(r), id)
 	if err != nil {
 		respondErr(w, format(r), fmt.Errorf("delete internet radio station: %w", err))
 		return

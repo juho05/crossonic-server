@@ -96,6 +96,7 @@ type ArtistRepository interface {
 	FindStarred(ctx context.Context, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
 
 	GetAlbums(ctx context.Context, id string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	GetAppearsOnAlbums(ctx context.Context, id string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 
 	Star(ctx context.Context, user, artistID string) error
 	UnStar(ctx context.Context, user, artistID string) error

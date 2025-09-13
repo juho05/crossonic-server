@@ -94,7 +94,7 @@ func (h *Handler) handleGetSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoFull(user(r)))
+	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoFull(currentUser(r)))
 	if err != nil {
 		respondErr(w, f, fmt.Errorf("get song: find song by id: %w", err))
 		return
@@ -420,7 +420,7 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 
 	if crossonic.IsIDType(id, crossonic.IDTypeAlbum) {
 		album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
-			User:        user(r),
+			User:        currentUser(r),
 			Annotations: true,
 			PlayInfo:    true,
 			Artists:     true,
@@ -429,7 +429,7 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 			respondErr(w, format(r), fmt.Errorf("get music directory: get album tracks: %w", err))
 			return
 		}
-		songs, err := h.DB.Album().GetTracks(r.Context(), id, repos.IncludeSongInfoFull(user(r)))
+		songs, err := h.DB.Album().GetTracks(r.Context(), id, repos.IncludeSongInfoFull(currentUser(r)))
 		if err != nil {
 			respondErr(w, format(r), fmt.Errorf("get music directory: get album tracks: %w", err))
 			return
@@ -457,14 +457,14 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 		return
 	} else if crossonic.IsIDType(id, crossonic.IDTypeArtist) {
 		artist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfo{
-			User:        user(r),
+			User:        currentUser(r),
 			Annotations: true,
 		})
 		if err != nil {
 			respondErr(w, format(r), fmt.Errorf("get music directory: get artist albums: %w", err))
 			return
 		}
-		albums, err := h.DB.Artist().GetAlbums(r.Context(), id, repos.IncludeAlbumInfoFull(user(r)))
+		albums, err := h.DB.Artist().GetAlbums(r.Context(), id, repos.IncludeAlbumInfoFull(currentUser(r)))
 		if err != nil {
 			respondErr(w, format(r), fmt.Errorf("get music directory: get artist albums: %w", err))
 			return
