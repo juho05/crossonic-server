@@ -10,12 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/disintegration/imaging"
-	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
@@ -24,54 +22,40 @@ import (
 )
 
 func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	id, ok := paramIDReq(w, r, "id")
+	q := getQuery(w, r)
+	id, ok := q.IDReq("id")
 	if !ok {
 		return
 	}
 
-	format := query.Get("format")
-	maxBitRateStr := query.Get("maxBitRate")
-	var maxBitRate int
-	var err error
-	if maxBitRateStr != "" {
-		maxBitRate, err = strconv.Atoi(maxBitRateStr)
-		if err != nil || maxBitRate < 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid maxBitRate parameter", responses.SubsonicErrorGeneric)
-			return
-		}
+	format := q.Str("format")
+
+	maxBitRate, ok := q.IntPositiveDef("maxBitRate", 0)
+	if !ok {
+		return
 	}
 
 	var timeOffset time.Duration
 
-	timeOffsetStr := query.Get("timeOffset")
-	if timeOffsetStr != "" {
-		offset, err := strconv.Atoi(timeOffsetStr)
-		if err != nil || timeOffset < 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid timeOffset parameter", responses.SubsonicErrorGeneric)
-			return
-		}
-		timeOffset = time.Duration(offset) * time.Second
+	timeOffsetInt, ok := q.Int64("timeOffset")
+	if !ok {
+		return
+	}
+	if timeOffsetInt != nil {
+		timeOffset = time.Duration(*timeOffsetInt) * time.Second
 	}
 
-	timeOffsetMsStr := query.Get("timeOffsetMs")
-	if timeOffsetMsStr != "" {
-		offset, err := strconv.Atoi(timeOffsetMsStr)
-		if err != nil || timeOffset < 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid timeOffsetMs parameter", responses.SubsonicErrorGeneric)
-			return
-		}
-		timeOffset = time.Duration(offset) * time.Millisecond
+	timeOffsetMsInt, ok := q.Int64("timeOffsetMs")
+	if !ok {
+		return
+	}
+	if timeOffsetMsInt != nil {
+		timeOffset = time.Duration(*timeOffsetMsInt) * time.Millisecond
 	}
 
 	info, err := h.DB.Song().GetStreamInfo(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repos.ErrNotFound) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		} else {
-			log.Errorf("stream: get info: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		}
+		respondErr(w, q.Format(), fmt.Errorf("stream: get info: %w", err))
 		return
 	}
 
@@ -86,16 +70,21 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		fileFormat.Mime = info.ContentType
 		fileFormat.Name = strings.TrimPrefix(filepath.Ext(info.Path), ".")
 		if timeOffset == 0 {
-			log.Tracef("Streaming %s raw (%s %dkbps) to %s (currentUser: %s) (range: %s)...", id, info.ContentType, info.BitRate, query.Get("c"), query.Get("u"), r.Header.Get("Range"))
+			log.Tracef("Streaming %s raw (%s %dkbps) to %s (user: %s) (range: %s)...", id, info.ContentType, info.BitRate, q.Client(), q.User(), r.Header.Get("Range"))
 			http.ServeFile(w, r, info.Path)
 			return
 		}
 	}
 	w.Header().Set("Content-Type", fileFormat.Mime)
 
-	if estimate, _ := strconv.ParseBool(query.Get("estimateContentLength")); estimate {
+	estimateContentLength, ok := q.Bool("estimateContentLength", false)
+	if !ok {
+		return
+	}
+	if estimateContentLength {
 		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.Duration.ToStd()-timeOffset)/float64(time.Second)*float64(bitRate)/8*1024)))
 	}
+
 	if r.Method == http.MethodHead {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -108,16 +97,15 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			err = h.Transcoder.SeekRaw(info.Path, timeOffset, w, func() {
 				close(done)
 			})
-			log.Tracef("Streaming %s with offset (%s) (%s %dkbps) to %s (currentUser: %s)...", id, timeOffset.String(), info.ContentType, info.BitRate, query.Get("c"), query.Get("u"))
+			log.Tracef("Streaming %s with offset (%s) (%s %dkbps) to %s (user: %s)...", id, timeOffset.String(), info.ContentType, info.BitRate, q.Client(), q.User())
 		} else {
 			bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, timeOffset, w, func() {
 				close(done)
 			})
-			log.Tracef("Streaming %s with transcoded offset (%s) (%s %dkbps) to %s (currentUser: %s)...", id, timeOffset.String(), fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
+			log.Tracef("Streaming %s with transcoded offset (%s) (%s %dkbps) to %s (user: %s)...", id, timeOffset.String(), fileFormat.Name, bitRate, q.Client(), q.User())
 		}
 		if err != nil {
-			log.Errorf("stream: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			respondInternalErr(w, q.Format(), fmt.Errorf("stream: %w", err))
 			return
 		}
 		<-done
@@ -130,7 +118,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	if !exists {
 		cacheObj, err = h.TranscodeCache.CreateObject(cacheKey)
 		if err != nil {
-			respondErr(w, query.Get("f"), fmt.Errorf("stream: %w", err))
+			respondErr(w, q.Format(), fmt.Errorf("stream: %w", err))
 			return
 		}
 		bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, 0, cacheObj, func() {
@@ -140,23 +128,21 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			}
 		})
 		if err != nil {
-			log.Errorf("stream: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			respondInternalErr(w, q.Format(), fmt.Errorf("stream: %w", err))
 			err = h.TranscodeCache.DeleteObject(cacheKey)
 			if err != nil {
 				log.Errorf("stream: %s", err)
 			}
 			return
 		}
-		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (currentUser: %s) (new transcode)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"))
+		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s) (new transcode)...", id, fileFormat.Name, bitRate, q.Client(), q.User())
 	} else {
-		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (currentUser: %s) (cached (complete: %t)) (range: %s)...", id, fileFormat.Name, bitRate, query.Get("c"), query.Get("u"), cacheObj.IsComplete(), r.Header.Get("Range"))
+		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s) (cached (complete: %t)) (range: %s)...", id, fileFormat.Name, bitRate, q.Client(), q.User(), cacheObj.IsComplete(), r.Header.Get("Range"))
 	}
 
 	cacheReader, err := cacheObj.Reader()
 	if err != nil {
-		log.Errorf("stream: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, q.Format(), fmt.Errorf("stream: %w", err))
 		return
 	}
 	defer func() {
@@ -175,19 +161,16 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	id, ok := paramIDReq(w, r, "id")
+	q := getQuery(w, r)
+
+	id, ok := q.IDReq("id")
 	if !ok {
 		return
 	}
+
 	info, err := h.DB.Song().GetStreamInfo(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repos.ErrNotFound) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		} else {
-			log.Errorf("stream: get info: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		}
+		respondErr(w, q.Format(), fmt.Errorf("download: get info: %w", err))
 		return
 	}
 	http.ServeFile(w, r, info.Path)
@@ -196,21 +179,20 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 var lyricsTimestampRegex = regexp.MustCompile(`^\[([0-9]+[:.]?)+]`)
 
 func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
+	q := getQuery(w, r)
 
-	title := query.Get("title")
-	artist := query.Get("artist")
-
-	if title == "" {
-		responses.EncodeError(w, format(r), "song not found", responses.SubsonicErrorNotFound)
+	title, ok := q.StrReq("title")
+	if !ok {
 		return
 	}
+
+	artist := q.Str("artist")
 
 	songs, err := h.DB.Song().FindByTitle(r.Context(), title, repos.IncludeSongInfo{
 		Lists: true,
 	})
 	if err != nil {
-		respondErr(w, format(r), fmt.Errorf("get lyrics: find songs by title: %w", err))
+		respondErr(w, q.Format(), fmt.Errorf("get lyrics: find songs by title: %w", err))
 		return
 	}
 
@@ -231,12 +213,12 @@ func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if song == nil {
-		responses.EncodeError(w, format(r), "song not found", responses.SubsonicErrorNotFound)
+		respondNotFoundErr(w, q.Format(), "song not found")
 		return
 	}
 
 	if song.Lyrics == nil {
-		responses.EncodeError(w, format(r), "no lyrics available", responses.SubsonicErrorNotFound)
+		respondNotFoundErr(w, q.Format(), "no lyrics available")
 		return
 	}
 
@@ -252,17 +234,20 @@ func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 		Artist: &artist,
 		Value:  strings.Join(lines, "\n"),
 	}
-	res.EncodeOrLog(w, format(r))
+	res.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request) {
-	id, ok := paramIDReq(w, r, "id")
+	q := getQuery(w, r)
+
+	id, ok := q.IDReq("id")
 	if !ok {
 		return
 	}
+
 	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoBare())
 	if err != nil {
-		responses.EncodeError(w, format(r), "song not found", responses.SubsonicErrorNotFound)
+		respondNotFoundErr(w, q.Format(), "song not found")
 		return
 	}
 
@@ -272,7 +257,7 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 		res.LyricsList = &responses.LyricsList{
 			StructuredLyrics: make([]*responses.StructuredLyrics, 0),
 		}
-		res.EncodeOrLog(w, format(r))
+		res.EncodeOrLog(w, q.Format())
 		return
 	}
 
@@ -291,30 +276,20 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 			},
 		},
 	}
-	res.EncodeOrLog(w, format(r))
+	res.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	id, ok := paramIDReq(w, r, "id")
+	q := getQuery(w, r)
+
+	id, ok := q.IDReq("id")
 	if !ok {
 		return
 	}
 
-	if !crossonic.IDRegex.MatchString(id) {
-		responses.EncodeError(w, query.Get("f"), "invalid id", responses.SubsonicErrorNotFound)
+	size, ok := q.IntPositiveDef("size", 2048)
+	if !ok {
 		return
-	}
-
-	size := 2048
-	var err error
-	sizeStr := query.Get("size")
-	if sizeStr != "" {
-		size, err = strconv.Atoi(sizeStr)
-		if err != nil || size < 0 {
-			responses.EncodeError(w, query.Get("f"), "invalid size parameter", responses.SubsonicErrorGeneric)
-			return
-		}
 	}
 
 	cacheKey := fmt.Sprintf("%s-%d", id, size)
@@ -323,8 +298,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	if exists {
 		cacheReader, err := cacheObj.Reader()
 		if err != nil {
-			log.Errorf("get cover art: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
 			return
 		}
 		defer func() {
@@ -348,23 +322,22 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	file, err := fileFS.Open(id)
 	if errors.Is(err, fs.ErrNotExist) {
 		if h.LastFM == nil {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			respondNotFoundErr(w, q.Format(), "")
 			return
 		}
 		err = h.loadArtistCoverFromLastFMByID(r.Context(), id)
 		if errors.Is(err, repos.ErrNotFound) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			respondNotFoundErr(w, q.Format(), "")
 			return
 		}
 		if errors.Is(err, lastfm.ErrNotFound) {
 			file, err := os.Create(filepath.Join(dir, id))
 			if err != nil {
-				log.Errorf("get cover art: create placeholder for %s: %s", id, err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+				respondErr(w, q.Format(), fmt.Errorf("get cover art: create placeholder for %s: %w", id, err))
 				return
 			}
 			file.Close()
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			respondNotFoundErr(w, q.Format(), "")
 			return
 		}
 		if err == nil {
@@ -372,27 +345,24 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		log.Errorf("get cover art: open %s: %s", id, err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondErr(w, q.Format(), fmt.Errorf("get cover art: open %s: %w", id, err))
 		return
 	}
 	stat, err := file.Stat()
 	if err != nil {
 		file.Close()
-		log.Errorf("get cover art: stat %s: %s", id, err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondErr(w, q.Format(), fmt.Errorf("get cover art: stat %s: %w", id, err))
 		return
 	}
 	if stat.Size() == 0 || stat.IsDir() {
 		file.Close()
-		responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+		respondNotFoundErr(w, q.Format(), "")
 		return
 	}
 	img, err := imaging.Decode(file, imaging.AutoOrientation(true))
 	file.Close()
 	if err != nil {
-		log.Errorf("get cover art: decode %s: %s", id, err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondErr(w, q.Format(), fmt.Errorf("get cover art: decode %s: %w", id, err))
 		return
 	}
 	size = min(size, min(img.Bounds().Dx(), img.Bounds().Dy()))
@@ -402,7 +372,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	cacheObj, err = h.CoverCache.CreateObject(cacheKey)
 	if err != nil {
-		respondErr(w, format(r), fmt.Errorf("get cover art: %w", err))
+		respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
 		return
 	}
 	go func() {
@@ -422,7 +392,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	}()
 	cacheReader, err := cacheObj.Reader()
 	if err != nil {
-		respondErr(w, format(r), fmt.Errorf("get cover art: %w", err))
+		respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
 		return
 	}
 	defer cacheObj.Close()

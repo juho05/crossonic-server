@@ -2,19 +2,17 @@ package mockdb
 
 import (
 	"context"
-	"github.com/juho05/crossonic-server/repos"
 	"time"
+
+	"github.com/juho05/crossonic-server/repos"
 )
 
 type SongRepository struct {
 	FindByIDMock                                        func(ctx context.Context, id string, include repos.IncludeSongInfo) (*repos.CompleteSong, error)
 	FindByIDsMock                                       func(ctx context.Context, ids []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
-	FindByMusicBrainzIDMock                             func(ctx context.Context, musicBrainzID string) ([]*repos.CompleteSong, error)
+	FindAllFilteredMock                                 func(ctx context.Context, filter repos.SongFindAllFilter, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
+	FindByMusicBrainzIDMock                             func(ctx context.Context, musicBrainzID string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
 	FindByPathMock                                      func(ctx context.Context, path string, include repos.IncludeSongInfo) (*repos.CompleteSong, error)
-	FindRandomMock                                      func(ctx context.Context, params repos.SongFindRandomParams, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
-	FindBySearchMock                                    func(ctx context.Context, params repos.SongFindBySearchParams, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
-	FindStarredMock                                     func(ctx context.Context, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
-	FindByGenreMock                                     func(ctx context.Context, genre string, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
 	FindByTitleMock                                     func(ctx context.Context, title string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
 	FindAllByPathOrMBIDMock                             func(ctx context.Context, paths []string, mbids []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
 	FindNonExistentIDsMock                              func(ctx context.Context, ids []string) ([]string, error)
@@ -49,6 +47,13 @@ func (s SongRepository) FindByID(ctx context.Context, id string, include repos.I
 	panic("not implemented")
 }
 
+func (s SongRepository) FindAllFiltered(ctx context.Context, filter repos.SongFindAllFilter, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+	if s.FindAllFilteredMock != nil {
+		return s.FindAllFilteredMock(ctx, filter, include)
+	}
+	panic("not implemented")
+}
+
 func (s SongRepository) FindByIDs(ctx context.Context, ids []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	if s.FindByIDsMock != nil {
 		return s.FindByIDsMock(ctx, ids, include)
@@ -58,7 +63,7 @@ func (s SongRepository) FindByIDs(ctx context.Context, ids []string, include rep
 
 func (s SongRepository) FindByMusicBrainzID(ctx context.Context, mbid string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	if s.FindByMusicBrainzIDMock != nil {
-		return s.FindByMusicBrainzIDMock(ctx, mbid)
+		return s.FindByMusicBrainzIDMock(ctx, mbid, include)
 	}
 	panic("not implemented")
 }
@@ -66,34 +71,6 @@ func (s SongRepository) FindByMusicBrainzID(ctx context.Context, mbid string, in
 func (s SongRepository) FindByPath(ctx context.Context, path string, include repos.IncludeSongInfo) (*repos.CompleteSong, error) {
 	if s.FindByPathMock != nil {
 		return s.FindByPathMock(ctx, path, include)
-	}
-	panic("not implemented")
-}
-
-func (s SongRepository) FindRandom(ctx context.Context, params repos.SongFindRandomParams, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	if s.FindRandomMock != nil {
-		return s.FindRandomMock(ctx, params, include)
-	}
-	panic("not implemented")
-}
-
-func (s SongRepository) FindBySearch(ctx context.Context, params repos.SongFindBySearchParams, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	if s.FindBySearchMock != nil {
-		return s.FindBySearchMock(ctx, params, include)
-	}
-	panic("not implemented")
-}
-
-func (s SongRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	if s.FindStarredMock != nil {
-		return s.FindStarredMock(ctx, paginate, include)
-	}
-	panic("not implemented")
-}
-
-func (s SongRepository) FindByGenre(ctx context.Context, genre string, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	if s.FindByGenreMock != nil {
-		return s.FindByGenreMock(ctx, genre, paginate, include)
 	}
 	panic("not implemented")
 }

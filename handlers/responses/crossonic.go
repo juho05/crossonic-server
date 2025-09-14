@@ -23,3 +23,7 @@ type TopSongsRecapSong struct {
 type AppearsOn struct {
 	Albums []*Album `xml:"album" json:"album"`
 }
+
+type Songs struct {
+	Songs []*Song `xml:"song" json:"song"`
+}

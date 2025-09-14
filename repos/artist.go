@@ -78,7 +78,7 @@ type SetArtistInfo struct {
 
 type FindArtistsParams struct {
 	OnlyAlbumArtists bool
-	UpdatedAfter     time.Time
+	UpdatedAfter     *time.Time
 }
 
 type ArtistRepository interface {

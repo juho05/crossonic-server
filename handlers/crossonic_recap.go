@@ -3,7 +3,6 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/juho05/crossonic-server/handlers/responses"
@@ -12,44 +11,37 @@ import (
 )
 
 func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
-	format := query.Get("f")
+	q := getQuery(w, r)
 
-	year := time.Now().Year()
-	if query.Get("year") != "" {
-		var err error
-		year, err = strconv.Atoi(query.Get("year"))
-		if err != nil {
-			responses.EncodeError(w, format, "invalid year parameter value", responses.SubsonicErrorGeneric)
-			return
-		}
+	year, ok := q.IntDef("year", time.Now().Year())
+	if !ok {
+		return
 	}
 
 	start := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-	totalDuration, err := h.DB.Scrobble().GetDurationSum(r.Context(), user, start, end)
+	totalDuration, err := h.DB.Scrobble().GetDurationSum(r.Context(), q.User(), start, end)
 	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get recap: get duration: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("get recap: get duration: %w", err))
 		return
 	}
 
-	songCount, err := h.DB.Scrobble().GetDistinctSongCount(r.Context(), user, start, end)
+	songCount, err := h.DB.Scrobble().GetDistinctSongCount(r.Context(), q.User(), start, end)
 	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get recap: get song count: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("get recap: get song count: %w", err))
 		return
 	}
 
-	albumCount, err := h.DB.Scrobble().GetDistinctAlbumCount(r.Context(), user, start, end)
+	albumCount, err := h.DB.Scrobble().GetDistinctAlbumCount(r.Context(), q.User(), start, end)
 	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get recap: get album count: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("get recap: get album count: %w", err))
 		return
 	}
 
-	artistCount, err := h.DB.Scrobble().GetDistinctArtistCount(r.Context(), user, start, end)
+	artistCount, err := h.DB.Scrobble().GetDistinctArtistCount(r.Context(), q.User(), start, end)
 	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get recap: get artist count: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("get recap: get artist count: %w", err))
 		return
 	}
 
@@ -60,50 +52,28 @@ func (h *Handler) handleGetRecap(w http.ResponseWriter, r *http.Request) {
 		AlbumCount:      albumCount,
 		ArtistCount:     artistCount,
 	}
-	res.EncodeOrLog(w, format)
+	res.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
-	format := query.Get("f")
+	q := getQuery(w, r)
 
-	year := time.Now().Year()
-	if query.Get("year") != "" {
-		var err error
-		year, err = strconv.Atoi(query.Get("year"))
-		if err != nil {
-			responses.EncodeError(w, format, "invalid year parameter value", responses.SubsonicErrorGeneric)
-			return
-		}
+	year, ok := q.IntDef("year", time.Now().Year())
+	if !ok {
+		return
 	}
 
-	limit := 10
-	if query.Get("limit") != "" {
-		var err error
-		limit, err = strconv.Atoi(query.Get("limit"))
-		if err != nil {
-			responses.EncodeError(w, format, "invalid limit parameter value", responses.SubsonicErrorGeneric)
-			return
-		}
-	}
-
-	offset := 0
-	if query.Get("offset") != "" {
-		var err error
-		offset, err = strconv.Atoi(query.Get("offset"))
-		if err != nil {
-			responses.EncodeError(w, format, "invalid offset parameter value", responses.SubsonicErrorGeneric)
-			return
-		}
+	paginate, ok := q.Paginate("limit", "offset", 10)
+	if !ok {
+		return
 	}
 
 	start := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-	dbSongs, err := h.DB.Scrobble().GetTopSongsByDuration(r.Context(), user, start, end, offset, limit, repos.IncludeSongInfoFull(user))
+	dbSongs, err := h.DB.Scrobble().GetTopSongsByDuration(r.Context(), q.User(), start, end, paginate, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("get top songs recap: get songs: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("get top songs recap: get songs: %w", err))
 		return
 	}
 
@@ -118,5 +88,5 @@ func (h *Handler) handleGetTopSongsRecap(w http.ResponseWriter, r *http.Request)
 	res.TopSongsRecap = &responses.TopSongsRecap{
 		Songs: songs,
 	}
-	res.EncodeOrLog(w, format)
+	res.EncodeOrLog(w, q.Format())
 }

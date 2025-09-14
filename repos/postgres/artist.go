@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
@@ -113,8 +112,8 @@ func (a artistRepository) FindAll(ctx context.Context, params repos.FindArtistsP
 		}
 		where.And("COALESCE(aa.count, 0) > 0")
 	}
-	if (params.UpdatedAfter != time.Time{}) {
-		where.And("artists.updated >= ?", params.UpdatedAfter)
+	if params.UpdatedAfter != nil {
+		where.And("artists.updated >= ?", *params.UpdatedAfter)
 	}
 	q = bqb.New("? ? ORDER BY lower(artists.name)", q, where)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)

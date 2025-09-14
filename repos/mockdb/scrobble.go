@@ -2,8 +2,9 @@ package mockdb
 
 import (
 	"context"
-	"github.com/juho05/crossonic-server/repos"
 	"time"
+
+	"github.com/juho05/crossonic-server/repos"
 )
 
 type ScrobbleRepository struct {
@@ -18,7 +19,7 @@ type ScrobbleRepository struct {
 	GetDistinctSongCountMock      func(ctx context.Context, user string, start, end time.Time) (int, error)
 	GetDistinctAlbumCountMock     func(ctx context.Context, user string, start, end time.Time) (int, error)
 	GetDistinctArtistCountMock    func(ctx context.Context, user string, start, end time.Time) (int, error)
-	GetTopSongsByDurationMock     func(ctx context.Context, user string, start, end time.Time, offset, limit int, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error)
+	GetTopSongsByDurationMock     func(ctx context.Context, user string, start, end time.Time, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error)
 }
 
 func (s ScrobbleRepository) CreateMultiple(ctx context.Context, params []repos.CreateScrobbleParams) error {
@@ -98,9 +99,9 @@ func (s ScrobbleRepository) GetDistinctArtistCount(ctx context.Context, user str
 	panic("not implemented")
 }
 
-func (s ScrobbleRepository) GetTopSongsByDuration(ctx context.Context, user string, start, end time.Time, offset, limit int, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error) {
+func (s ScrobbleRepository) GetTopSongsByDuration(ctx context.Context, user string, start, end time.Time, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error) {
 	if s.GetTopSongsByDurationMock != nil {
-		return s.GetTopSongsByDurationMock(ctx, user, start, end, offset, limit, include)
+		return s.GetTopSongsByDurationMock(ctx, user, start, end, paginate, include)
 	}
 	panic("not implemented")
 }

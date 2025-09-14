@@ -18,26 +18,20 @@ import (
 const maxPlaylistCoverBytes = 15e6 // 15 MB
 
 func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
+	q := getQuery(w, r)
 
 	if r.Body != nil {
 		defer r.Body.Close()
 	}
 
-	id, ok := paramIDReq(w, r, "id")
+	id, ok := q.IDReq("id")
 	if !ok {
 		return
 	}
 
-	_, err := h.DB.Playlist().FindByID(r.Context(), user, id, repos.IncludePlaylistInfoBare())
+	_, err := h.DB.Playlist().FindByID(r.Context(), q.User(), id, repos.IncludePlaylistInfoBare())
 	if err != nil {
-		if errors.Is(err, repos.ErrNotFound) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		} else {
-			log.Errorf("set playlist cover: get playlist: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		}
+		respondErr(w, q.Format(), fmt.Errorf("set playlist cover: get playlist: %w", err))
 		return
 	}
 
@@ -45,8 +39,7 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 	if r.Body == nil || r.ContentLength <= 0 {
 		err = os.Remove(path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Errorf("set playlist cover: delete cover: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			respondInternalErr(w, q.Format(), fmt.Errorf("set playlist cover: delete cover: %w", err))
 			return
 		}
 		for _, k := range h.CoverCache.Keys() {
@@ -59,12 +52,12 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 				}
 			}
 		}
-		responses.New().EncodeOrLog(w, query.Get("f"))
+		responses.New().EncodeOrLog(w, q.Format())
 		return
 	}
 
 	if r.ContentLength > maxPlaylistCoverBytes {
-		responses.EncodeError(w, query.Get("f"), "request body too large", responses.SubsonicErrorGeneric)
+		respondGenericErr(w, q.Format(), "request body too large")
 		return
 	}
 
@@ -73,12 +66,11 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		var maxBytesError *http.MaxBytesError
 		if errors.As(err, &maxBytesError) {
-			responses.EncodeError(w, query.Get("f"), "request body too large", responses.SubsonicErrorGeneric)
+			respondGenericErr(w, q.Format(), "request body too large")
 		} else if errors.Is(err, image.ErrFormat) || errors.Is(err, imaging.ErrUnsupportedFormat) {
-			responses.EncodeError(w, query.Get("f"), "unsupported image type", responses.SubsonicErrorGeneric)
+			respondGenericErr(w, q.Format(), "unsupported image type")
 		} else {
-			log.Errorf("set playlist cover: decode image: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+			respondInternalErr(w, q.Format(), fmt.Errorf("set playlist cover: decode image: %w", err))
 		}
 		return
 	}
@@ -87,16 +79,14 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 
 	file, err := os.Create(filepath.Join(h.Config.DataDir, "covers", id))
 	if err != nil {
-		log.Errorf("set playlist cover: save image: create file: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, q.Format(), fmt.Errorf("set playlist cover: save image: create file: %w", err))
 		return
 	}
 	err = imaging.Encode(file, img, imaging.JPEG)
 	file.Close()
 	if err != nil {
 		_ = os.Remove(path)
-		log.Errorf("set playlist cover: save image: encode: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
+		respondInternalErr(w, q.Format(), fmt.Errorf("set playlist cover: save image: encode: %w", err))
 		return
 	}
 
@@ -111,11 +101,11 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	err = h.DB.Playlist().Update(r.Context(), user, id, repos.UpdatePlaylistParams{})
+	err = h.DB.Playlist().Update(r.Context(), q.User(), id, repos.UpdatePlaylistParams{})
 	if err != nil {
-		respondErr(w, format(r), fmt.Errorf("set playlist cover: update playlist updated time: %w", err))
+		respondErr(w, q.Format(), fmt.Errorf("set playlist cover: update playlist updated time: %w", err))
 		return
 	}
 
-	responses.New().EncodeOrLog(w, query.Get("f"))
+	responses.New().EncodeOrLog(w, q.Format())
 }

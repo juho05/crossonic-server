@@ -66,6 +66,7 @@ type Response struct {
 	Recap              *Recap              `xml:"recap,omitempty" json:"recap,omitempty"`
 	TopSongsRecap      *TopSongsRecap      `xml:"topSongsRecap,omitempty" json:"topSongsRecap,omitempty"`
 	AppearsOn          *AppearsOn          `xml:"appearsOn,omitempty" json:"appearsOn,omitempty"`
+	Songs              *Songs              `xml:"songs,omitempty" json:"songs,omitempty"`
 }
 
 func New() Response {

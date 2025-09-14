@@ -57,5 +57,5 @@ type ScrobbleRepository interface {
 	GetDistinctSongCount(ctx context.Context, user string, start, end time.Time) (int, error)
 	GetDistinctAlbumCount(ctx context.Context, user string, start, end time.Time) (int, error)
 	GetDistinctArtistCount(ctx context.Context, user string, start, end time.Time) (int, error)
-	GetTopSongsByDuration(ctx context.Context, user string, start, end time.Time, offset, limit int, include IncludeSongInfo) ([]*ScrobbleTopSong, error)
+	GetTopSongsByDuration(ctx context.Context, user string, start, end time.Time, paginate Paginate, include IncludeSongInfo) ([]*ScrobbleTopSong, error)
 }

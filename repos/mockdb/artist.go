@@ -18,6 +18,7 @@ type ArtistRepository struct {
 	FindBySearchMock               func(ctx context.Context, query string, onlyAlbumArtists bool, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error)
 	FindStarredMock                func(ctx context.Context, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error)
 	GetAlbumsMock                  func(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
+	GetAppearsOnAlbumsMock         func(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
 	StarMock                       func(ctx context.Context, user, artistID string) error
 	UnStarMock                     func(ctx context.Context, user, artistID string) error
 	SetRatingMock                  func(ctx context.Context, user, artistID string, rating int) error
@@ -26,9 +27,11 @@ type ArtistRepository struct {
 	SetInfoMock                    func(ctx context.Context, artistID string, params repos.SetArtistInfo) error
 }
 
-func (a ArtistRepository) GetAppearsOnAlbums(ctx context.context.Context, id string, include repos.IncludeAlbumInfo)  ([]*CompleteAlbum, error) {
-	//TODO implement me
-	panic("implement me")
+func (a ArtistRepository) GetAppearsOnAlbums(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+	if a.GetAlbumsMock != nil {
+		return a.GetAlbumsMock(ctx, id, include)
+	}
+	panic("not implemented")
 }
 
 func (a ArtistRepository) Create(ctx context.Context, params repos.CreateArtistParams) (string, error) {

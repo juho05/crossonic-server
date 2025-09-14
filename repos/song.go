@@ -2,6 +2,7 @@ package repos
 
 import (
 	"context"
+	"slices"
 	"time"
 )
 
@@ -160,15 +161,52 @@ type UpdateSongAllParams struct {
 	ArtistNames    []string
 }
 
-type SongFindRandomParams struct {
-	FromYear *int
-	ToYear   *int
-	Genres   []string
-	Limit    int
+type SongOrder string
+
+const (
+	SongOrderTitle       SongOrder = "title"
+	SongOrderRandom      SongOrder = "random"
+	SongOrderReleaseDate SongOrder = "release"
+	SongOrderAdded       SongOrder = "added"
+	SongOrderLastPlayed  SongOrder = "last_played"
+	SongOrderPlayCount   SongOrder = "play_count"
+	SongOrderStarred     SongOrder = "starred"
+	SongOrderBPM         SongOrder = "bpm"
+)
+
+func (s SongOrder) Valid() bool {
+	return slices.Contains([]SongOrder{
+		SongOrderTitle,
+		SongOrderRandom,
+		SongOrderReleaseDate,
+		SongOrderAdded,
+		SongOrderLastPlayed,
+		SongOrderPlayCount,
+		SongOrderStarred,
+		SongOrderBPM,
+	}, s)
 }
 
-type SongFindBySearchParams struct {
-	Query    string
+type SongFindAllFilter struct {
+	Search string
+
+	OnlyStarred bool
+
+	MinBPM *int
+	MaxBPM *int
+
+	FromYear *int
+	ToYear   *int
+
+	Genres []string
+
+	ArtistIDs []string
+	AlbumIDs  []string
+
+	Order      *SongOrder
+	OrderDesc  bool
+	RandomSeed *string
+
 	Paginate Paginate
 }
 
@@ -183,12 +221,9 @@ type SongSetLBFeedbackUploadedParams struct {
 type SongRepository interface {
 	FindByID(ctx context.Context, id string, include IncludeSongInfo) (*CompleteSong, error)
 	FindByIDs(ctx context.Context, ids []string, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindAllFiltered(ctx context.Context, filter SongFindAllFilter, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByMusicBrainzID(ctx context.Context, mbid string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByPath(ctx context.Context, path string, include IncludeSongInfo) (*CompleteSong, error)
-	FindRandom(ctx context.Context, params SongFindRandomParams, include IncludeSongInfo) ([]*CompleteSong, error)
-	FindBySearch(ctx context.Context, params SongFindBySearchParams, include IncludeSongInfo) ([]*CompleteSong, error)
-	FindStarred(ctx context.Context, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
-	FindByGenre(ctx context.Context, genre string, paginate Paginate, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByTitle(ctx context.Context, title string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindAllByPathOrMBID(ctx context.Context, paths []string, mbids []string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindNonExistentIDs(ctx context.Context, ids []string) ([]string, error)

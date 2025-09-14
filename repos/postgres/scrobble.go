@@ -103,11 +103,13 @@ func (s scrobbleRepository) GetDistinctArtistCount(ctx context.Context, user str
 	return getQuery[int](ctx, s.db, q)
 }
 
-func (s scrobbleRepository) GetTopSongsByDuration(ctx context.Context, user string, start, end time.Time, offset, limit int, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error) {
+func (s scrobbleRepository) GetTopSongsByDuration(ctx context.Context, user string, start, end time.Time, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error) {
 	q := bqb.New("SELECT SUM(scrobbles.duration_ms) as total_duration_ms,? FROM scrobbles INNER JOIN songs ON scrobbles.song_id = songs.id ?", genSongSelectList(include), genSongJoins(include))
 	q.Space("WHERE scrobbles.user_name = ? AND scrobbles.now_playing = false AND scrobbles.time >= ? AND scrobbles.time < ?", user, start, end)
 	q.Space("GROUP BY songs.id, albums.id, song_stars.created, song_ratings.rating, avgr.rating")
-	q.Space("ORDER BY SUM(scrobbles.duration_ms) DESC OFFSET ? LIMIT ?", offset, limit)
+	q.Space("ORDER BY SUM(scrobbles.duration_ms) DESC")
+
+	paginate.Apply(q)
 
 	songs, err := selectQuery[*repos.ScrobbleTopSong](ctx, s.db, q)
 	if err != nil {

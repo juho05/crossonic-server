@@ -7,26 +7,24 @@ import (
 
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
-	"github.com/juho05/log"
 )
 
-var maxSearchResultCount = 500
-
 func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	query.Set("query", strings.Trim(query.Get("query"), `"`))
+	q := getQuery(w, r)
 
-	artists, ok := h.searchArtists(w, r)
+	search := strings.Trim(q.Str("query"), `"`)
+
+	artists, ok := h.searchArtists(w, r, search)
 	if !ok {
 		return
 	}
 
-	albums, ok := h.searchAlbums(w, r)
+	albums, ok := h.searchAlbums(w, r, search)
 	if !ok {
 		return
 	}
 
-	songs, ok := h.searchSongs(w, r)
+	songs, ok := h.searchSongs(w, r, search)
 	if !ok {
 		return
 	}
@@ -37,87 +35,61 @@ func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
 		Albums:  albums,
 		Artists: artists,
 	}
-	res.EncodeOrLog(w, query.Get("f"))
+	res.EncodeOrLog(w, q.Format())
 }
 
-func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request) ([]*responses.Artist, bool) {
-	user := currentUser(r)
-	format := format(r)
-	query := getQuery(r)
+func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request, searchQuery string) ([]*responses.Artist, bool) {
+	q := getQuery(w, r)
 
-	limit, ok := paramLimitReq(w, r, "artistCount", &maxSearchResultCount, 20)
+	paginate, ok := q.Paginate("artistCount", "artistOffset", 20)
 	if !ok {
 		return nil, false
 	}
 
-	offset, ok := paramOffset(w, r, "artistOffset")
+	onlyAlbumArtists, ok := q.Bool("onlyAlbumArtists", true)
 	if !ok {
 		return nil, false
 	}
 
-	onlyAlbumArtists, ok := paramBool(w, r, "onlyAlbumArtists", true)
-	if !ok {
-		return nil, false
-	}
-
-	artists, err := h.DB.Artist().FindBySearch(r.Context(), query.Get("query"), onlyAlbumArtists, repos.Paginate{Offset: offset, Limit: &limit}, repos.IncludeArtistInfoFull(user))
+	artists, err := h.DB.Artist().FindBySearch(r.Context(), searchQuery, onlyAlbumArtists, paginate, repos.IncludeArtistInfoFull(q.User()))
 	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("search3: artists: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("search3: artists: %w", err))
 		return nil, false
 	}
 	return responses.NewArtists(artists, h.Config), true
 }
 
-func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request) ([]*responses.Album, bool) {
-	user := currentUser(r)
-	format := format(r)
-	query := getQuery(r)
+func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request, searchQuery string) ([]*responses.Album, bool) {
+	q := getQuery(w, r)
 
-	limit, ok := paramLimitReq(w, r, "albumCount", &maxSearchResultCount, 20)
+	paginate, ok := q.Paginate("albumCount", "albumOffset", 20)
 	if !ok {
 		return nil, false
 	}
 
-	offset, ok := paramOffset(w, r, "albumOffset")
-	if !ok {
-		return nil, false
-	}
-
-	dbAlbums, err := h.DB.Album().FindBySearch(r.Context(), query.Get("query"), repos.Paginate{Offset: offset, Limit: &limit}, repos.IncludeAlbumInfoFull(user))
+	dbAlbums, err := h.DB.Album().FindBySearch(r.Context(), searchQuery, paginate, repos.IncludeAlbumInfoFull(q.User()))
 	if err != nil {
-		log.Errorf("search3: albums: %s", err)
-		responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		respondInternalErr(w, format, fmt.Errorf("search3: albums: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("search3: albums: %w", err))
 		return nil, false
 	}
 	albums := responses.NewAlbums(dbAlbums, h.Config)
 	return albums, true
 }
 
-func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request) ([]*responses.Song, bool) {
-	user := currentUser(r)
-	format := format(r)
-	query := getQuery(r)
+func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request, searchQuery string) ([]*responses.Song, bool) {
+	q := getQuery(w, r)
 
-	limit, ok := paramLimitReq(w, r, "songCount", &maxSearchResultCount, 20)
+	paginate, ok := q.Paginate("songCount", "songOffset", 20)
 	if !ok {
 		return nil, false
 	}
 
-	offset, ok := paramOffset(w, r, "songOffset")
-	if !ok {
-		return nil, false
-	}
-
-	dbSongs, err := h.DB.Song().FindBySearch(r.Context(), repos.SongFindBySearchParams{
-		Query: query.Get("query"),
-		Paginate: repos.Paginate{
-			Offset: offset,
-			Limit:  &limit,
-		},
-	}, repos.IncludeSongInfoFull(user))
+	dbSongs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
+		Search:   searchQuery,
+		Paginate: paginate,
+	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
-		respondInternalErr(w, format, fmt.Errorf("search3: songs: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("search3: songs: %w", err))
 		return nil, false
 	}
 	songs := responses.NewSongs(dbSongs, h.Config)

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/juho05/crossonic-server/handlers/responses"
@@ -8,16 +9,16 @@ import (
 )
 
 func (h *Handler) handleGetAppearsOn(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r)
+	q := getQuery(w, r)
 
-	artistId, ok := paramIDReq(w, r, "artistId")
+	artistId, ok := q.IDReq("artistId")
 	if !ok {
 		return
 	}
 
-	albums, err := h.DB.Artist().GetAppearsOnAlbums(r.Context(), artistId, repos.IncludeAlbumInfoFull(user))
+	albums, err := h.DB.Artist().GetAppearsOnAlbums(r.Context(), artistId, repos.IncludeAlbumInfoFull(q.User()))
 	if err != nil {
-		respondErr(w, format(r), err)
+		respondErr(w, q.Format(), fmt.Errorf("get appears on albums: %w", err))
 		return
 	}
 
@@ -25,5 +26,5 @@ func (h *Handler) handleGetAppearsOn(w http.ResponseWriter, r *http.Request) {
 	res.AppearsOn = &responses.AppearsOn{
 		Albums: responses.NewAlbums(albums, h.Config),
 	}
-	res.EncodeOrLog(w, format(r))
+	res.EncodeOrLog(w, q.Format())
 }

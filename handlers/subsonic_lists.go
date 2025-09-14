@@ -3,8 +3,6 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
@@ -12,52 +10,36 @@ import (
 )
 
 func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
+	q := getQuery(w, r)
 
-	limit, ok := paramLimitReq(w, r, "size", &maxListSize, 10)
+	limit, ok := q.IntRange("size", 0, maxListSize)
 	if !ok {
 		return
 	}
-
-	fromYearStr := query.Get("fromYear")
-	var fromYear *int
-	if fromYearStr != "" {
-		y, err := strconv.Atoi(fromYearStr)
-		if err != nil {
-			responses.EncodeError(w, query.Get("f"), "invalid fromYear value", responses.SubsonicErrorGeneric)
-			return
-		}
-		fromYear = &y
+	if limit == nil {
+		limit = util.ToPtr(10)
 	}
 
-	toYearStr := query.Get("toYear")
-	var toYear *int
-	if toYearStr != "" {
-		y, err := strconv.Atoi(toYearStr)
-		if err != nil {
-			responses.EncodeError(w, query.Get("f"), "invalid toYear value", responses.SubsonicErrorGeneric)
-			return
-		}
-		toYear = &y
-	}
+	fromYear, ok := q.Int("fromYear")
+	toYear, ok := q.Int("toYear")
 
 	if fromYear != nil && toYear != nil && *fromYear > *toYear {
 		*fromYear, *toYear = *toYear, *fromYear
 	}
 
-	genres := util.Map(query["genre"], func(g string) string {
-		return strings.ToLower(g)
-	})
+	genres := q.Strs("genre")
 
-	dbSongs, err := h.DB.Song().FindRandom(r.Context(), repos.SongFindRandomParams{
-		Limit:    limit,
+	dbSongs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
+		Order:    util.ToPtr(repos.SongOrderRandom),
 		FromYear: fromYear,
 		ToYear:   toYear,
 		Genres:   genres,
-	}, repos.IncludeSongInfoFull(user))
+		Paginate: repos.Paginate{
+			Limit: limit,
+		},
+	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("get random songs: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("get random songs: %w", err))
 		return
 	}
 
@@ -66,51 +48,38 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 	res.RandomSongs = &responses.RandomSongs{
 		Songs: songs,
 	}
-	res.EncodeOrLog(w, query.Get("f"))
+	res.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		query := getQuery(r)
-		user := query.Get("u")
+		q := getQuery(w, r)
 
-		listType := query.Get("type")
-
-		limit, ok := paramLimitReq(w, r, "size", &maxListSize, 10)
+		listType, ok := q.StrReq("type")
 		if !ok {
 			return
 		}
 
-		offset, ok := paramOffset(w, r, "offset")
+		paginate, ok := q.Paginate("size", "offset", 10)
 		if !ok {
 			return
 		}
 
-		fromYearStr := query.Get("fromYear")
-		var fromYear *int
-		if fromYearStr != "" {
-			y, err := strconv.Atoi(fromYearStr)
-			if err != nil {
-				responses.EncodeError(w, query.Get("f"), "invalid fromYear value", responses.SubsonicErrorGeneric)
-				return
-			}
-			fromYear = &y
-		} else if listType == "byYear" {
-			responses.EncodeError(w, query.Get("f"), "missing fromYear parameter", responses.SubsonicErrorRequiredParameterMissing)
+		fromYear, ok := q.Int("fromYear")
+		if !ok {
+			return
+		}
+		if listType == "byYear" && fromYear == nil {
+			responses.EncodeError(w, q.Format(), "missing fromYear parameter", responses.SubsonicErrorRequiredParameterMissing)
 			return
 		}
 
-		toYearStr := query.Get("toYear")
-		var toYear *int
-		if toYearStr != "" {
-			y, err := strconv.Atoi(toYearStr)
-			if err != nil {
-				responses.EncodeError(w, query.Get("f"), "invalid toYear value", responses.SubsonicErrorGeneric)
-				return
-			}
-			toYear = &y
-		} else if listType == "byYear" {
-			responses.EncodeError(w, query.Get("f"), "missing toYear parameter", responses.SubsonicErrorRequiredParameterMissing)
+		toYear, ok := q.Int("toYear")
+		if !ok {
+			return
+		}
+		if listType == "byYear" && toYear == nil {
+			responses.EncodeError(w, q.Format(), "missing toYear parameter", responses.SubsonicErrorRequiredParameterMissing)
 			return
 		}
 
@@ -118,9 +87,9 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 			*fromYear, *toYear = *toYear, *fromYear
 		}
 
-		genres := query["genre"]
+		genres := q.Strs("genre")
 		if listType == "byGenre" && len(genres) == 0 {
-			responses.EncodeError(w, query.Get("f"), "missing genre parameter", responses.SubsonicErrorRequiredParameterMissing)
+			responses.EncodeError(w, q.Format(), "missing genre parameter", responses.SubsonicErrorRequiredParameterMissing)
 			return
 		}
 
@@ -138,7 +107,7 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 
 		sortBy, ok := sortTypes[listType]
 		if !ok {
-			responses.EncodeError(w, query.Get("f"), "unsupported list type: "+listType, responses.SubsonicErrorGeneric)
+			responses.EncodeError(w, q.Format(), "unsupported list type: "+listType, responses.SubsonicErrorGeneric)
 			return
 		}
 
@@ -147,13 +116,10 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 			FromYear: fromYear,
 			ToYear:   toYear,
 			Genres:   genres,
-			Paginate: repos.Paginate{
-				Offset: offset,
-				Limit:  &limit,
-			},
-		}, repos.IncludeAlbumInfoFull(user))
+			Paginate: paginate,
+		}, repos.IncludeAlbumInfoFull(q.User()))
 		if err != nil {
-			respondInternalErr(w, query.Get("f"), fmt.Errorf("get album list 2: find all: %w", err))
+			respondInternalErr(w, q.Format(), fmt.Errorf("get album list 2: find all: %w", err))
 			return
 		}
 
@@ -168,66 +134,49 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 				Albums: albums,
 			}
 		}
-		res.EncodeOrLog(w, query.Get("f"))
+		res.EncodeOrLog(w, q.Format())
 	}
 }
 
 func (h *Handler) handleGetStarred(version int) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user := currentUser(r)
-		f := format(r)
+		q := getQuery(w, r)
 
-		songLimit, ok := paramLimitOpt(w, r, "songCount", nil)
-		if !ok {
-			return
-		}
-		songOffset, ok := paramOffset(w, r, "songOffset")
+		songPaginate, ok := q.PaginateUnlimited("songCount", "songOffset")
 		if !ok {
 			return
 		}
 
-		albumLimit, ok := paramLimitOpt(w, r, "albumCount", nil)
-		if !ok {
-			return
-		}
-		albumOffset, ok := paramOffset(w, r, "albumOffset")
+		albumPaginate, ok := q.PaginateUnlimited("albumCount", "albumOffset")
 		if !ok {
 			return
 		}
 
-		artistLimit, ok := paramLimitOpt(w, r, "artistCount", nil)
-		if !ok {
-			return
-		}
-		artistOffset, ok := paramOffset(w, r, "artistOffset")
+		artistPaginate, ok := q.PaginateUnlimited("artistCount", "artistOffset")
 		if !ok {
 			return
 		}
 
-		songs, err := h.DB.Song().FindStarred(r.Context(), repos.Paginate{
-			Offset: songOffset,
-			Limit:  songLimit,
-		}, repos.IncludeSongInfoFull(user))
+		songs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
+			Order:       util.ToPtr(repos.SongOrderStarred),
+			OrderDesc:   true,
+			OnlyStarred: true,
+			Paginate:    songPaginate,
+		}, repos.IncludeSongInfoFull(q.User()))
 		if err != nil {
-			respondInternalErr(w, f, fmt.Errorf("get starred2: find songs: %w", err))
+			respondInternalErr(w, q.Format(), fmt.Errorf("get starred2: find songs: %w", err))
 			return
 		}
 
-		albums, err := h.DB.Album().FindStarred(r.Context(), repos.Paginate{
-			Offset: albumOffset,
-			Limit:  albumLimit,
-		}, repos.IncludeAlbumInfoFull(user))
+		albums, err := h.DB.Album().FindStarred(r.Context(), albumPaginate, repos.IncludeAlbumInfoFull(q.User()))
 		if err != nil {
-			respondInternalErr(w, f, fmt.Errorf("get starred2: find albums: %w", err))
+			respondInternalErr(w, q.Format(), fmt.Errorf("get starred2: find albums: %w", err))
 			return
 		}
 
-		artists, err := h.DB.Artist().FindStarred(r.Context(), repos.Paginate{
-			Offset: artistOffset,
-			Limit:  artistLimit,
-		}, repos.IncludeArtistInfoFull(user))
+		artists, err := h.DB.Artist().FindStarred(r.Context(), artistPaginate, repos.IncludeArtistInfoFull(q.User()))
 		if err != nil {
-			respondInternalErr(w, f, fmt.Errorf("get starred2: find artists: %w", err))
+			respondInternalErr(w, q.Format(), fmt.Errorf("get starred2: find artists: %w", err))
 			return
 		}
 
@@ -245,30 +194,27 @@ func (h *Handler) handleGetStarred(version int) func(w http.ResponseWriter, r *h
 				Artists: responses.NewArtists(artists, h.Config),
 			}
 		}
-		res.EncodeOrLog(w, f)
+		res.EncodeOrLog(w, q.Format())
 	}
 }
 
 func (h *Handler) handleGetSongsByGenre(w http.ResponseWriter, r *http.Request) {
-	genre, ok := paramStrReq(w, r, "genre")
-	if !ok {
-		return
-	}
-	limit, ok := paramLimitReq(w, r, "count", &maxListSize, 10)
-	if !ok {
-		return
-	}
-	offset, ok := paramOffset(w, r, "offset")
+	q := getQuery(w, r)
+
+	genres, ok := q.StrsReq("genre")
 	if !ok {
 		return
 	}
 
-	songs, err := h.DB.Song().FindByGenre(r.Context(), genre, repos.Paginate{
-		Offset: offset,
-		Limit:  &limit,
-	}, repos.IncludeSongInfoFull(currentUser(r)))
+	paginate, ok := q.Paginate("count", "offset", 10)
+
+	songs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
+		Order:    util.ToPtr(repos.SongOrderTitle),
+		Genres:   genres,
+		Paginate: paginate,
+	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
-		respondInternalErr(w, format(r), fmt.Errorf("get songs by genre: find songs: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("get songs by genre: find songs: %w", err))
 		return
 	}
 
@@ -276,5 +222,5 @@ func (h *Handler) handleGetSongsByGenre(w http.ResponseWriter, r *http.Request) 
 	res.SongsByGenre = &responses.SongsByGenre{
 		Songs: responses.NewSongs(songs, h.Config),
 	}
-	res.EncodeOrLog(w, format(r))
+	res.EncodeOrLog(w, q.Format())
 }

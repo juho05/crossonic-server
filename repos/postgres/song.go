@@ -40,60 +40,105 @@ func (s songRepository) FindByPath(ctx context.Context, path string, include rep
 	return execSongSelectOne(ctx, s.db, q, include)
 }
 
-func (s songRepository) FindRandom(ctx context.Context, params repos.SongFindRandomParams, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFindAllFilter, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
 
 	where := bqb.Optional("WHERE")
-	if params.FromYear != nil {
-		where.And("songs.year IS NOT NULL AND songs.year >= ?", *params.FromYear)
+
+	if len(filter.Genres) > 0 {
+		genres := util.Map(filter.Genres, func(g string) string { return strings.ToLower(g) })
+		where.And(`(songs.id IN (
+				SELECT songs.id FROM songs
+				JOIN song_genre ON songs.id = song_genre.song_id
+				WHERE lower(song_genre.genre_name) IN (?)
+			))`, genres)
 	}
-	if params.ToYear != nil {
-		where.And("songs.year IS NOT NULL AND songs.year <= ?", *params.ToYear)
-	}
-	if len(params.Genres) > 0 {
-		lowerGenres := util.Map(params.Genres, func(g string) string {
-			return strings.ToLower(g)
-		})
-		where.And(`EXISTS (
-				SELECT song_genre.song_id, genres.name FROM song_genre
-				JOIN genres ON song_genre.genre_name = genres.name
-				WHERE song_genre.song_id = songs.id AND lower(song_genre.genre_name) IN (?)
-			)`, lowerGenres)
+	if len(filter.ArtistIDs) > 0 {
+		where.And(`(songs.id IN (
+				SELECT songs.id FROM songs
+				JOIN song_artist ON songs.id = song_artist.song_id
+				WHERE song_artist.artist_id IN (?)
+			))`, filter.ArtistIDs)
 	}
 
-	q = bqb.New("? ? ORDER BY random() LIMIT ?", q, where, params.Limit)
-
-	return execSongSelectMany(ctx, s.db, q, include)
-}
-
-func (s songRepository) FindBySearch(ctx context.Context, params repos.SongFindBySearchParams, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	params.Query = strings.ToLower(params.Query)
-	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
-
-	conditions, orderBy := genSearch(params.Query, "songs.search_text", "songs.title")
-
-	q = bqb.New("? WHERE ? ORDER BY ?", q, conditions, orderBy)
-	params.Paginate.Apply(q)
-	return execSongSelectMany(ctx, s.db, q, include)
-}
-
-func (s songRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	if !include.Annotations || include.User == "" {
-		return nil, repos.NewError("include.Annotations and include.User required", repos.ErrInvalidParams, nil)
+	if filter.OnlyStarred {
+		if !include.Annotations || include.User == "" {
+			return nil, repos.NewError("find all songs filtered by starred requires include.Annotations and include.User to be set", repos.ErrInvalidParams, nil)
+		}
+		where.And("(song_stars.created IS NOT NULL)")
 	}
-	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
-	q.Space("WHERE song_stars.created IS NOT NULL")
-	q.Space("ORDER BY song_stars.created DESC")
-	paginate.Apply(q)
-	return execSongSelectMany(ctx, s.db, q, include)
-}
 
-func (s songRepository) FindByGenre(ctx context.Context, genre string, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
-	q.Space("JOIN song_genre ON song_genre.song_id = songs.id")
-	q.Space("WHERE lower(song_genre.genre_name) = ?", strings.ToLower(genre))
-	q.Space("ORDER BY lower(songs.title)")
-	paginate.Apply(q)
+	if filter.MinBPM != nil {
+		where.And("(songs.bpm IS NOT NULL AND songs.bpm >= ?)", *filter.MinBPM)
+	}
+	if filter.MaxBPM != nil {
+		where.And("(songs.bpm IS NOT NULL AND songs.bpm <= ?)", *filter.MaxBPM)
+	}
+
+	if filter.FromYear != nil {
+		where.And("(songs.year IS NOT NULL AND songs.year >= ?)", *filter.FromYear)
+	}
+	if filter.ToYear != nil {
+		where.And("(songs.year IS NOT NULL AND songs.year <= ?)", *filter.ToYear)
+	}
+
+	if len(filter.AlbumIDs) > 0 {
+		where.And("(songs.album_id IN (?))", filter.AlbumIDs)
+	}
+
+	orderBy := bqb.Optional("ORDER BY")
+
+	if filter.Order != nil {
+		if (!include.PlayInfo || include.User == "") && (*filter.Order == repos.SongOrderLastPlayed || *filter.Order == repos.SongOrderPlayCount) {
+			return nil, repos.NewError("find all songs ordered by play count/time requires include.PlayInfo and include.User to be set", repos.ErrInvalidParams, nil)
+		}
+
+		switch *filter.Order {
+		case repos.SongOrderTitle:
+			orderBy.Comma("songs.title")
+		case repos.SongOrderRandom:
+			if filter.RandomSeed != nil {
+				orderBy.Comma("md5(songs.id||?)", *filter.RandomSeed)
+			} else {
+				orderBy.Comma("RANDOM()")
+			}
+		case repos.SongOrderReleaseDate:
+			orderBy.Comma("songs.year")
+		case repos.SongOrderAdded:
+			orderBy.Comma("songs.created")
+		case repos.SongOrderLastPlayed:
+			orderBy.Comma("plays.last_played")
+		case repos.SongOrderPlayCount:
+			orderBy.Comma("COALESCE(plays.count, 0)")
+		case repos.SongOrderStarred:
+			if !include.Annotations || include.User == "" {
+				return nil, repos.NewError("find all songs ordered by starred requires include.Annotations and include.User to be set", repos.ErrInvalidParams, nil)
+			}
+			orderBy.Comma("song_stars.created")
+		case repos.SongOrderBPM:
+			orderBy.Comma("songs.bpm")
+		}
+
+		if *filter.Order != repos.SongOrderRandom {
+			if filter.OrderDesc {
+				orderBy.Space("DESC")
+			} else {
+				orderBy.Space("ASC")
+			}
+			orderBy.Space("NULLS LAST")
+		}
+	}
+
+	if filter.Search != "" {
+		conditions, searchOrder := genSearch(filter.Search, "songs.search_text", "songs.title")
+		where.And("(?)", conditions)
+		orderBy.Comma("?", searchOrder)
+	}
+
+	q.Space("? ?", where, orderBy)
+
+	filter.Paginate.Apply(q)
+
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 

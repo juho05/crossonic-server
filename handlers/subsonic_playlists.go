@@ -7,20 +7,21 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
 )
 
 func (h *Handler) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
-	dbPlaylists, err := h.DB.Playlist().FindAll(r.Context(), user, repos.IncludePlaylistInfoFull())
+	q := getQuery(w, r)
+
+	dbPlaylists, err := h.DB.Playlist().FindAll(r.Context(), q.User(), repos.IncludePlaylistInfoFull())
 	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("find all playlists: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("find all playlists: %w", err))
 		return
 	}
 	playlists := responses.NewPlaylists(dbPlaylists, h.Config)
@@ -28,41 +29,39 @@ func (h *Handler) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
 	response.Playlists = &responses.Playlists{
 		Playlists: playlists,
 	}
-	response.EncodeOrLog(w, query.Get("f"))
+	response.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
+	q := getQuery(w, r)
 
-	id, ok := paramIDReq(w, r, "id")
+	id, ok := q.IDReq("id")
 	if !ok {
 		return
 	}
 
-	playlist, err := h.getPlaylistById(r.Context(), id, user)
+	playlist, err := h.getPlaylistById(r.Context(), id, q.User())
 	if err != nil {
-		if errors.Is(err, repos.ErrNotFound) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		} else {
-			log.Errorf("get playlist: %s", err)
-			responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-		}
+		respondErr(w, q.Format(), fmt.Errorf("get playlist: %w", err))
 		return
 	}
 	response := responses.New()
 	response.Playlist = playlist
-	response.EncodeOrLog(w, query.Get("f"))
+	response.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
+	q := getQuery(w, r)
 
-	id := query.Get("playlistId")
-	name := query.Get("name")
+	id := q.Str("playlistId")
+	name := q.Str("name")
 	if id == "" && name == "" {
-		responses.EncodeError(w, query.Get("f"), "missing name parameter", responses.SubsonicErrorRequiredParameterMissing)
+		responses.EncodeError(w, q.Format(), "missing name parameter", responses.SubsonicErrorRequiredParameterMissing)
+		return
+	}
+
+	songIds, ok := q.IDsTypeReq("songId", []crossonic.IDType{crossonic.IDTypeSong})
+	if !ok {
 		return
 	}
 
@@ -70,7 +69,7 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 		if id == "" {
 			p, err := tx.Playlist().Create(r.Context(), repos.CreatePlaylistParams{
 				Name:   name,
-				Owner:  user,
+				Owner:  q.User(),
 				Public: false,
 			})
 			if err != nil {
@@ -78,14 +77,14 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 			}
 			id = p.ID
 		} else if name != "" {
-			err := tx.Playlist().Update(r.Context(), user, id, repos.UpdatePlaylistParams{
+			err := tx.Playlist().Update(r.Context(), q.User(), id, repos.UpdatePlaylistParams{
 				Name: repos.NewOptionalFull(name),
 			})
 			if err != nil {
 				return fmt.Errorf("update name: %w", err)
 			}
 		} else {
-			err := tx.Playlist().Update(r.Context(), user, id, repos.UpdatePlaylistParams{})
+			err := tx.Playlist().Update(r.Context(), q.User(), id, repos.UpdatePlaylistParams{})
 			if err != nil {
 				return fmt.Errorf("update: %w", err)
 			}
@@ -96,8 +95,8 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 			return fmt.Errorf("remove old tracks: %w", err)
 		}
 
-		if query.Has("songId") {
-			err = tx.Playlist().AddTracks(r.Context(), id, query["songId"])
+		if len(songIds) > 0 {
+			err = tx.Playlist().AddTracks(r.Context(), id, songIds)
 			if err != nil {
 				return fmt.Errorf("add new tracks: %w", err)
 			}
@@ -105,62 +104,56 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("create playlist: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("create playlist: %w", err))
 		return
 	}
 
-	playlist, err := h.getPlaylistById(r.Context(), id, user)
+	playlist, err := h.getPlaylistById(r.Context(), id, q.User())
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			responses.EncodeError(w, q.Format(), "not found", responses.SubsonicErrorNotFound)
 		} else {
-			respondInternalErr(w, query.Get("f"), fmt.Errorf("create playlist: get playlist by id: %w", err))
+			respondInternalErr(w, q.Format(), fmt.Errorf("create playlist: get playlist by id: %w", err))
 		}
 		return
 	}
 	response := responses.New()
 	response.Playlist = playlist
-	response.EncodeOrLog(w, query.Get("f"))
+	response.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
+	q := getQuery(w, r)
 
-	id, ok := paramIDReq(w, r, "playlistId")
+	id, ok := q.IDReq("playlistId")
+	if !ok {
+		return
+	}
+
+	name := q.Str("name")
+
+	comment := util.NilIfEmpty(q.Str("comment"))
+	updateComment := q.Has("comment")
+
+	removeIndices, ok := q.Ints("songIndexToRemove")
+	if !ok {
+		return
+	}
+
+	songIdsToAdd, ok := q.IDsTypeReq("songIdToAdd", []crossonic.IDType{crossonic.IDTypeSong})
 	if !ok {
 		return
 	}
 
 	err := h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
-		playlist, err := tx.Playlist().FindByID(r.Context(), user, id, repos.IncludePlaylistInfo{
+		playlist, err := tx.Playlist().FindByID(r.Context(), q.User(), id, repos.IncludePlaylistInfo{
 			TrackInfo: true,
 		})
 		if err != nil {
-			if errors.Is(err, repos.ErrNotFound) {
-				responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-			} else {
-				log.Errorf("update playlist: find playlist: %s", err)
-				responses.EncodeError(w, query.Get("f"), "internal server error", responses.SubsonicErrorGeneric)
-			}
 			return fmt.Errorf("find playlist: %w", err)
 		}
 
-		name := query.Get("name")
-
-		var comment *string
-		var updateComment bool
-		if query.Has("comment") {
-			updateComment = true
-			qComment := query.Get("comment")
-			if qComment == "" {
-				comment = nil
-			} else {
-				comment = &qComment
-			}
-		}
-
-		err = tx.Playlist().Update(r.Context(), user, id, repos.UpdatePlaylistParams{
+		err = tx.Playlist().Update(r.Context(), q.User(), id, repos.UpdatePlaylistParams{
 			Name:    repos.NewOptional(name, name != ""),
 			Comment: repos.NewOptional(comment, updateComment),
 		})
@@ -168,23 +161,20 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 			return fmt.Errorf("update playlist: %w", err)
 		}
 
-		if query.Has("songIndexToRemove") {
-			tracks := make([]int, 0, len(query["songIndexToRemove"]))
-			for _, iStr := range query["songIndexToRemove"] {
-				i, err := strconv.Atoi(iStr)
-				if err != nil || i < 0 || i >= playlist.TrackCount {
-					return fmt.Errorf("invalid song index: %s", iStr)
+		if len(removeIndices) > 0 {
+			for _, i := range removeIndices {
+				if i < 0 || i >= playlist.TrackCount {
+					return fmt.Errorf("invalid remove index: %d, track count: %d", i, playlist.TrackCount)
 				}
-				tracks = append(tracks, i)
 			}
-			err = tx.Playlist().RemoveTracks(r.Context(), id, tracks)
+			err = tx.Playlist().RemoveTracks(r.Context(), id, removeIndices)
 			if err != nil {
 				return fmt.Errorf("remove tracks: %w", err)
 			}
 		}
 
-		if query.Has("songIdToAdd") {
-			err = tx.Playlist().AddTracks(r.Context(), id, query["songIdToAdd"])
+		if len(songIdsToAdd) > 0 {
+			err = tx.Playlist().AddTracks(r.Context(), id, songIdsToAdd)
 			if err != nil {
 				return fmt.Errorf("add tracks: %w", err)
 			}
@@ -192,33 +182,28 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, repos.ErrNotFound) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
-		} else {
-			respondInternalErr(w, query.Get("f"), fmt.Errorf("update playlist: %w", err))
-		}
+		respondErr(w, q.Format(), fmt.Errorf("update playlist: %w", err))
 		return
 	}
 
 	response := responses.New()
-	response.EncodeOrLog(w, query.Get("f"))
+	response.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	user := query.Get("u")
+	q := getQuery(w, r)
 
-	id, ok := paramIDReq(w, r, "id")
+	id, ok := q.IDReq("id")
 	if !ok {
 		return
 	}
 
-	err := h.DB.Playlist().Delete(r.Context(), user, id)
+	err := h.DB.Playlist().Delete(r.Context(), q.User(), id)
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
-			responses.EncodeError(w, query.Get("f"), "not found", responses.SubsonicErrorNotFound)
+			responses.EncodeError(w, q.Format(), "not found", responses.SubsonicErrorNotFound)
 		} else {
-			respondInternalErr(w, query.Get("f"), fmt.Errorf("delete playlist: %w", err))
+			respondInternalErr(w, q.Format(), fmt.Errorf("delete playlist: %w", err))
 		}
 		return
 	}
@@ -239,7 +224,7 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := responses.New()
-	response.EncodeOrLog(w, query.Get("f"))
+	response.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*responses.Playlist, error) {

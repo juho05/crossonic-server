@@ -14,10 +14,11 @@ import (
 
 // https://opensubsonic.netlify.app/docs/endpoints/startscan
 func (h *Handler) handleStartScan(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
+	q := getQuery(w, r)
+
 	res := responses.New()
 
-	fullScan, ok := paramBool(w, r, "fullScan", false)
+	fullScan, ok := q.Bool("fullScan", false)
 	if !ok {
 		return
 	}
@@ -28,7 +29,7 @@ func (h *Handler) handleStartScan(w http.ResponseWriter, r *http.Request) {
 	ls, err := h.DB.System().LastScan(r.Context())
 	if err != nil {
 		if !errors.Is(err, repos.ErrNotFound) {
-			respondErr(w, format(r), err)
+			respondErr(w, q.Format(), err)
 			return
 		}
 		lastScan = nil
@@ -44,15 +45,15 @@ func (h *Handler) handleStartScan(w http.ResponseWriter, r *http.Request) {
 			FullScan:  h.Scanner.IsFullScan(),
 			StartTime: util.ToPtr(h.Scanner.ScanStart()),
 		}
-		res.EncodeOrLog(w, query.Get("f"))
+		res.EncodeOrLog(w, q.Format())
 		return
 	}
 
 	go func() {
 		if fullScan {
-			log.Infof("manual full scan triggered by %s", currentUser(r))
+			log.Infof("manual full scan triggered by %s", q.User())
 		} else {
-			log.Infof("manual quick scan triggered by %s", currentUser(r))
+			log.Infof("manual quick scan triggered by %s", q.User())
 		}
 		err := h.Scanner.Scan(h.DB, fullScan)
 		if err != nil && !errors.Is(err, scanner.ErrAlreadyScanning) {
@@ -67,19 +68,19 @@ func (h *Handler) handleStartScan(w http.ResponseWriter, r *http.Request) {
 		FullScan:  fullScan,
 		StartTime: &startTime,
 	}
-	res.EncodeOrLog(w, query.Get("f"))
+	res.EncodeOrLog(w, q.Format())
 }
 
 // https://opensubsonic.netlify.app/docs/endpoints/getscanstatus
 func (h *Handler) handleGetScanStatus(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
+	q := getQuery(w, r)
 	res := responses.New()
 
 	var lastScan *time.Time
 	ls, err := h.DB.System().LastScan(r.Context())
 	if err != nil {
 		if !errors.Is(err, repos.ErrNotFound) {
-			respondErr(w, format(r), err)
+			respondErr(w, q.Format(), err)
 			return
 		}
 		lastScan = nil
@@ -103,5 +104,5 @@ func (h *Handler) handleGetScanStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	res.EncodeOrLog(w, query.Get("f"))
+	res.EncodeOrLog(w, q.Format())
 }

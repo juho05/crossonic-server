@@ -11,31 +11,31 @@ import (
 )
 
 func (h *Handler) handleConnectListenbrainz(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	username := query.Get("u")
-	token := query.Get("token")
-	if !query.Has("token") {
-		responses.EncodeError(w, query.Get("f"), "missing token parameter", responses.SubsonicErrorRequiredParameterMissing)
+	q := getQuery(w, r)
+
+	token, ok := q.StrReq("token")
+	if !ok {
 		return
 	}
+
 	var lbUsername *string
 	var lbToken *string
 	if token != "" {
 		con, err := h.ListenBrainz.CheckToken(r.Context(), token)
 		if err != nil {
 			if errors.Is(err, listenbrainz.ErrUnauthenticated) {
-				responses.EncodeError(w, query.Get("f"), "invalid token", responses.SubsonicErrorGeneric)
+				respondGenericErr(w, q.Format(), "invalid token")
 			} else {
-				respondInternalErr(w, query.Get("f"), fmt.Errorf("connect listenbrainz: %w", err))
+				respondInternalErr(w, q.Format(), fmt.Errorf("connect listenbrainz: %w", err))
 			}
 			return
 		}
 		lbUsername = &con.LBUsername
 		lbToken = &token
 	}
-	err := h.DB.User().UpdateListenBrainzConnection(r.Context(), username, lbUsername, lbToken)
+	err := h.DB.User().UpdateListenBrainzConnection(r.Context(), q.User(), lbUsername, lbToken)
 	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("connect listenbrainz: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("connect listenbrainz: %w", err))
 		return
 	}
 
@@ -53,20 +53,19 @@ func (h *Handler) handleConnectListenbrainz(w http.ResponseWriter, r *http.Reque
 	res.ListenBrainzConfig = &responses.ListenBrainzConfig{
 		ListenBrainzUsername: lbUsername,
 	}
-	res.EncodeOrLog(w, query.Get("f"))
+	res.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) handleGetListenbrainzConfig(w http.ResponseWriter, r *http.Request) {
-	query := getQuery(r)
-	username := query.Get("u")
-	user, err := h.DB.User().FindByName(r.Context(), username)
+	q := getQuery(w, r)
+	user, err := h.DB.User().FindByName(r.Context(), q.User())
 	if err != nil {
-		respondInternalErr(w, query.Get("f"), fmt.Errorf("get listenbrainz config: %w", err))
+		respondInternalErr(w, q.Format(), fmt.Errorf("get listenbrainz config: %w", err))
 		return
 	}
 	res := responses.New()
 	res.ListenBrainzConfig = &responses.ListenBrainzConfig{
 		ListenBrainzUsername: user.ListenBrainzUsername,
 	}
-	res.EncodeOrLog(w, query.Get("f"))
+	res.EncodeOrLog(w, q.Format())
 }
