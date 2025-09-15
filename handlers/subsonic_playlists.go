@@ -60,7 +60,7 @@ func (h *Handler) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	songIds, ok := q.IDsTypeReq("songId", []crossonic.IDType{crossonic.IDTypeSong})
+	songIds, ok := q.IDsType("songId", []crossonic.IDType{crossonic.IDTypeSong})
 	if !ok {
 		return
 	}
@@ -140,7 +140,7 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	songIdsToAdd, ok := q.IDsTypeReq("songIdToAdd", []crossonic.IDType{crossonic.IDTypeSong})
+	songIdsToAdd, ok := q.IDsType("songIdToAdd", []crossonic.IDType{crossonic.IDTypeSong})
 	if !ok {
 		return
 	}
