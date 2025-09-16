@@ -102,7 +102,12 @@ func (nt *StringList) Scan(value interface{}) error {
 	if !ok {
 		return fmt.Errorf("cannot scan %T into StringList; expected string value", value)
 	}
-	*nt = strings.Split(raw, "\003")
+	strs := strings.Split(raw, "\003")
+	if len(strs) == 1 && strs[0] == "" {
+		*nt = nil
+		return nil
+	}
+	*nt = strs
 	return nil
 }
 
