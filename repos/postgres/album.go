@@ -195,15 +195,16 @@ func (a albumRepository) RemoveAllArtistConnections(ctx context.Context) error {
 }
 
 func (a albumRepository) CreateArtistConnections(ctx context.Context, connections []repos.AlbumArtistConnection) error {
-	if len(connections) == 0 {
-		return nil
-	}
-	valueList := bqb.Optional("")
-	for _, c := range connections {
-		valueList.Comma("(?,?,?)", c.AlbumID, c.ArtistID, c.Index)
-	}
-	q := bqb.New("INSERT INTO album_artist (album_id,artist_id,index) VALUES ? ON CONFLICT (album_id,artist_id) DO NOTHING", valueList)
-	return executeQuery(ctx, a.db, q)
+	return a.tx(ctx, func(a albumRepository) error {
+		return execBatch(connections, func(connections []repos.AlbumArtistConnection) error {
+			valueList := bqb.Optional("")
+			for _, c := range connections {
+				valueList.Comma("(?,?,?)", c.AlbumID, c.ArtistID, c.Index)
+			}
+			q := bqb.New("INSERT INTO album_artist (album_id,artist_id,index) VALUES ? ON CONFLICT (album_id,artist_id) DO NOTHING", valueList)
+			return executeQuery(ctx, a.db, q)
+		})
+	})
 }
 
 // helpers

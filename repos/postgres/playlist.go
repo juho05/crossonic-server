@@ -54,31 +54,33 @@ func (p playlistRepository) AddTracks(ctx context.Context, id string, songIDs []
 	if len(songIDs) == 0 {
 		return nil
 	}
-	return wrapErr("", p.tx(ctx, func(p playlistRepository) error {
+	return p.tx(ctx, func(p playlistRepository) error {
 		maxTrackNr, err := p.getMaxTrackNr(ctx, id)
 		if err != nil {
 			return fmt.Errorf("get max track number: %w", err)
 		}
-		q := bqb.New("INSERT INTO playlist_song (playlist_id,song_id,track) VALUES")
-		valueList := bqb.Optional("")
-		for _, sID := range songIDs {
-			maxTrackNr++
-			valueList.Comma("(?,?,?)", id, sID, maxTrackNr)
-		}
-		q = bqb.New("? ?", q, valueList)
-		err = executeQuery(ctx, p.db, q)
+		err = execBatch(songIDs, func(songIDs []string) error {
+			q := bqb.New("INSERT INTO playlist_song (playlist_id,song_id,track) VALUES")
+			valueList := bqb.Optional("")
+			for _, sID := range songIDs {
+				maxTrackNr++
+				valueList.Comma("(?,?,?)", id, sID, maxTrackNr)
+			}
+			q = bqb.New("? ?", q, valueList)
+			return executeQuery(ctx, p.db, q)
+		})
 		if err != nil {
 			return fmt.Errorf("insert playlist_songs: %w", err)
 		}
 		return nil
-	}))
+	})
 }
 
 func (p playlistRepository) RemoveTracks(ctx context.Context, id string, trackNumbers []int) error {
 	if len(trackNumbers) == 0 {
 		return nil
 	}
-	return wrapErr("", p.tx(ctx, func(p playlistRepository) error {
+	return p.tx(ctx, func(p playlistRepository) error {
 		q := bqb.New("DELETE FROM playlist_song WHERE playlist_id = ? AND track IN (?)", id, trackNumbers)
 		count, err := executeQueryCountAffectedRows(ctx, p.db, q)
 		if err != nil {
@@ -115,7 +117,7 @@ func (p playlistRepository) RemoveTracks(ctx context.Context, id string, trackNu
 			return fmt.Errorf("update track numbers: %w", err)
 		}
 		return nil
-	}))
+	})
 }
 
 func (p playlistRepository) ClearTracks(ctx context.Context, id string) error {

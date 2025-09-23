@@ -9,18 +9,20 @@ import (
 
 type genreRepository struct {
 	db executer
+	tx func(ctx context.Context, fn func(g genreRepository) error) error
 }
 
 func (g genreRepository) CreateIfNotExists(ctx context.Context, names []string) error {
-	if len(names) == 0 {
-		return nil
-	}
-	valueList := bqb.Optional("")
-	for _, n := range names {
-		valueList.Comma("(?)", n)
-	}
-	q := bqb.New("INSERT INTO genres (name) VALUES ? ON CONFLICT DO NOTHING", valueList)
-	return executeQuery(ctx, g.db, q)
+	return g.tx(ctx, func(g genreRepository) error {
+		return execBatch(names, func(names []string) error {
+			valueList := bqb.Optional("")
+			for _, n := range names {
+				valueList.Comma("(?)", n)
+			}
+			q := bqb.New("INSERT INTO genres (name) VALUES ? ON CONFLICT DO NOTHING", valueList)
+			return executeQuery(ctx, g.db, q)
+		})
+	})
 }
 
 func (g genreRepository) DeleteIfNoSongs(ctx context.Context) error {

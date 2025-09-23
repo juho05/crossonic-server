@@ -157,6 +157,11 @@ func (d *DB) Genre() repos.GenreRepository {
 	}
 	return genreRepository{
 		db: exec,
+		tx: newTransactionFn(d, func(tx executer) genreRepository {
+			return genreRepository{
+				db: tx,
+			}
+		}),
 	}
 }
 
@@ -218,7 +223,7 @@ func newTransactionFn[R any](db *DB, newRepo func(tx executer) R) func(ctx conte
 		}
 		tx, err := db.db.BeginTxx(ctx, nil)
 		if err != nil {
-			return fmt.Errorf("begin transaction: %w", err)
+			return wrapErr("", fmt.Errorf("begin transaction: %w", err))
 		}
 		defer func() {
 			err = tx.Rollback()
@@ -231,11 +236,11 @@ func newTransactionFn[R any](db *DB, newRepo func(tx executer) R) func(ctx conte
 		}()
 		err = fn(newRepo(tx))
 		if err != nil {
-			return err
+			return wrapErr("", err)
 		}
 		err = tx.Commit()
 		if err != nil {
-			return fmt.Errorf("commit transaction: %w", err)
+			return wrapErr("", fmt.Errorf("commit transaction: %w", err))
 		}
 		return nil
 	}

@@ -16,15 +16,16 @@ type scrobbleRepository struct {
 }
 
 func (s scrobbleRepository) CreateMultiple(ctx context.Context, params []repos.CreateScrobbleParams) error {
-	if len(params) == 0 {
-		return nil
-	}
-	q := bqb.New("INSERT INTO scrobbles (user_name,song_id,album_id,time,song_duration_ms,duration_ms,submitted_to_listenbrainz,now_playing)")
-	valueList := bqb.Optional("")
-	for _, p := range params {
-		valueList.Comma("(?,?,?,?,?,?,?,?)", p.User, p.SongID, p.AlbumID, p.Time, p.SongDuration, p.Duration, p.SubmittedToListenBrainz, p.NowPlaying)
-	}
-	return executeQuery(ctx, s.db, bqb.New("? VALUES ? ON CONFLICT (user_name,song_id,time,now_playing) DO UPDATE SET duration_ms = excluded.duration_ms, album_id = excluded.album_id, song_duration_ms = excluded.song_duration_ms, now_playing = excluded.now_playing", q, valueList))
+	return s.tx(ctx, func(s scrobbleRepository) error {
+		return execBatch(params, func(params []repos.CreateScrobbleParams) error {
+			q := bqb.New("INSERT INTO scrobbles (user_name,song_id,album_id,time,song_duration_ms,duration_ms,submitted_to_listenbrainz,now_playing)")
+			valueList := bqb.Optional("")
+			for _, p := range params {
+				valueList.Comma("(?,?,?,?,?,?,?,?)", p.User, p.SongID, p.AlbumID, p.Time, p.SongDuration, p.Duration, p.SubmittedToListenBrainz, p.NowPlaying)
+			}
+			return executeQuery(ctx, s.db, bqb.New("? VALUES ? ON CONFLICT (user_name,song_id,time,now_playing) DO UPDATE SET duration_ms = excluded.duration_ms, album_id = excluded.album_id, song_duration_ms = excluded.song_duration_ms, now_playing = excluded.now_playing", q, valueList))
+		})
+	})
 }
 
 func (s scrobbleRepository) FindPossibleConflicts(ctx context.Context, user string, songIDs []string, times []time.Time) ([]*repos.Scrobble, error) {
@@ -34,8 +35,19 @@ func (s scrobbleRepository) FindPossibleConflicts(ctx context.Context, user stri
 	if len(songIDs) == 0 {
 		return []*repos.Scrobble{}, nil
 	}
-	q := bqb.New("SELECT scrobbles.* FROM scrobbles WHERE user_name = ? AND now_playing = false AND song_id IN (?) AND time = any(?)", user, songIDs, times)
-	return selectQuery[*repos.Scrobble](ctx, s.db, q)
+	var scrobbles []*repos.Scrobble
+	err := s.tx(ctx, func(s scrobbleRepository) error {
+		var err error
+		scrobbles, err = selectBatch2(songIDs, times, func(songIDs []string, times []time.Time) ([]*repos.Scrobble, error) {
+			q := bqb.New("SELECT scrobbles.* FROM scrobbles WHERE user_name = ? AND now_playing = false AND song_id IN (?) AND time = any(?)", user, songIDs, times)
+			return selectQuery[*repos.Scrobble](ctx, s.db, q)
+		})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return scrobbles, nil
 }
 
 func (s scrobbleRepository) DeleteNowPlaying(ctx context.Context, user string) error {
@@ -73,12 +85,13 @@ func (s scrobbleRepository) FindUnsubmittedLBScrobbles(ctx context.Context) ([]*
 }
 
 func (s scrobbleRepository) SetLBSubmittedByUsers(ctx context.Context, users []string) error {
-	if len(users) == 0 {
-		return nil
-	}
-	q := bqb.New(`UPDATE scrobbles SET submitted_to_listenbrainz = true
+	return s.tx(ctx, func(s scrobbleRepository) error {
+		return execBatch(users, func(users []string) error {
+			q := bqb.New(`UPDATE scrobbles SET submitted_to_listenbrainz = true
 		WHERE user_name IN (?) AND now_playing = false AND (duration_ms >= 4*60*1000 OR duration_ms >= song_duration_ms*0.5)`, users)
-	return executeQuery(ctx, s.db, q)
+			return executeQuery(ctx, s.db, q)
+		})
+	})
 }
 
 func (s scrobbleRepository) GetDurationSum(ctx context.Context, user string, start, end time.Time) (repos.DurationMS, error) {

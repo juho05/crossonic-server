@@ -24,12 +24,16 @@ func (a artistRepository) Create(ctx context.Context, params repos.CreateArtistP
 }
 
 func (a artistRepository) CreateIfNotExistsByName(ctx context.Context, params []repos.CreateArtistParams) error {
-	valueList := bqb.Optional("")
-	for _, p := range params {
-		valueList.Comma("(?, ?, NOW(), NOW(), ?, ?)", crossonic.GenIDArtist(), p.Name, p.MusicBrainzID, " "+util.NormalizeText(p.Name)+" ")
-	}
-	q := bqb.New("INSERT INTO artists (id, name, created, updated, music_brainz_id, search_text) VALUES ? ON CONFLICT (name) DO NOTHING", valueList)
-	return executeQuery(ctx, a.db, q)
+	return a.tx(ctx, func(a artistRepository) error {
+		return execBatch(params, func(params []repos.CreateArtistParams) error {
+			valueList := bqb.Optional("")
+			for _, p := range params {
+				valueList.Comma("(?, ?, NOW(), NOW(), ?, ?)", crossonic.GenIDArtist(), p.Name, p.MusicBrainzID, " "+util.NormalizeText(p.Name)+" ")
+			}
+			q := bqb.New("INSERT INTO artists (id, name, created, updated, music_brainz_id, search_text) VALUES ? ON CONFLICT (name) DO NOTHING", valueList)
+			return executeQuery(ctx, a.db, q)
+		})
+	})
 }
 
 func (a artistRepository) Update(ctx context.Context, id string, params repos.UpdateArtistParams) error {
@@ -85,7 +89,7 @@ func (a artistRepository) FindOrCreateIDsByNames(ctx context.Context, names []st
 		return nil
 	})
 	if err != nil {
-		return nil, wrapErr("", err)
+		return nil, err
 	}
 	return ids, nil
 }

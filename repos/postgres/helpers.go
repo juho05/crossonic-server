@@ -12,6 +12,69 @@ import (
 	"github.com/nullism/bqb"
 )
 
+const execBatchSize = 512
+const selectBatchSize = 4096
+
+func execBatch[T any](data []T, fn func(data []T) error) error {
+	if len(data) == 0 {
+		return nil
+	}
+	for i := 0; i < len(data); i += execBatchSize {
+		err := fn(data[i:min(i+execBatchSize, len(data))])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func selectBatch[T, U any](data []T, fn func(data []T) ([]U, error)) ([]U, error) {
+	if len(data) == 0 {
+		return make([]U, 0), nil
+	}
+	var result []U
+	for i := 0; i < len(data); i += selectBatchSize {
+		slice, err := fn(data[i:min(i+selectBatchSize, len(data))])
+		if err != nil {
+			return nil, err
+		}
+		if result == nil {
+			result = slice
+		} else {
+			result = append(result, slice...)
+		}
+	}
+	return result, nil
+}
+
+func selectBatch2[T, U, V any](data1 []T, data2 []U, fn func(data1 []T, data2 []U) ([]V, error)) ([]V, error) {
+	if len(data1) == 0 && len(data2) == 0 {
+		return make([]V, 0), nil
+	}
+	var result []V
+	for i := 0; i < max(len(data1), len(data2)); i += selectBatchSize {
+		d1 := make([]T, 0)
+		if i < len(data1) {
+			d1 = data1[i:min(i+selectBatchSize, len(data1))]
+		}
+		d2 := make([]U, 0)
+		if i < len(data2) {
+			d2 = data2[i:min(i+selectBatchSize, len(data2))]
+		}
+
+		slice, err := fn(d1, d2)
+		if err != nil {
+			return nil, err
+		}
+		if result == nil {
+			result = slice
+		} else {
+			result = append(result, slice...)
+		}
+	}
+	return result, nil
+}
+
 func executeQuery(ctx context.Context, db executer, query *bqb.Query) error {
 	sql, args, err := query.ToPgsql()
 	if err != nil {

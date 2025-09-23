@@ -23,11 +23,16 @@ func (s songRepository) FindByID(ctx context.Context, id string, include repos.I
 }
 
 func (s songRepository) FindByIDs(ctx context.Context, ids []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	if len(ids) == 0 {
-		return []*repos.CompleteSong{}, nil
-	}
-	q := bqb.New("SELECT ? FROM songs ? WHERE songs.id IN (?)", genSongSelectList(include), genSongJoins(include), ids)
-	return execSongSelectMany(ctx, s.db, q, include)
+	var result []*repos.CompleteSong
+	err := s.tx(ctx, func(s songRepository) error {
+		var err error
+		result, err = selectBatch(ids, func(ids []string) ([]*repos.CompleteSong, error) {
+			q := bqb.New("SELECT ? FROM songs ? WHERE songs.id IN (?)", genSongSelectList(include), genSongJoins(include), ids)
+			return execSongSelectMany(ctx, s.db, q, include)
+		})
+		return err
+	})
+	return result, err
 }
 
 func (s songRepository) FindByMusicBrainzID(ctx context.Context, mbid string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
@@ -148,30 +153,40 @@ func (s songRepository) FindByTitle(ctx context.Context, title string, include r
 }
 
 func (s songRepository) FindAllByPathOrMBID(ctx context.Context, paths []string, mbids []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	if len(paths) == 0 && len(mbids) == 0 {
-		return []*repos.CompleteSong{}, nil
-	}
-	condition := bqb.New("WHERE false")
-	if len(paths) > 0 {
-		condition.Or("songs.path IN (?)", paths)
-	}
-	if len(mbids) > 0 {
-		condition.Or("(songs.music_brainz_id IS NOT NULL AND songs.music_brainz_id IN (?))", paths)
-	}
-	q := bqb.New("SELECT ? FROM songs ? ?", genSongSelectList(include), genSongJoins(include), condition)
-	return execSongSelectMany(ctx, s.db, q, include)
+	var songs []*repos.CompleteSong
+	err := s.tx(ctx, func(s songRepository) error {
+		var err error
+		songs, err = selectBatch2(paths, mbids, func(paths []string, mbids []string) ([]*repos.CompleteSong, error) {
+			condition := bqb.New("WHERE false")
+			if len(paths) > 0 {
+				condition.Or("songs.path IN (?)", paths)
+			}
+			if len(mbids) > 0 {
+				condition.Or("(songs.music_brainz_id IS NOT NULL AND songs.music_brainz_id IN (?))", mbids)
+			}
+			q := bqb.New("SELECT ? FROM songs ? ?", genSongSelectList(include), genSongJoins(include), condition)
+			return execSongSelectMany(ctx, s.db, q, include)
+		})
+		return err
+	})
+	return songs, err
 }
 
 func (s songRepository) FindNonExistentIDs(ctx context.Context, ids []string) ([]string, error) {
-	if len(ids) == 0 {
-		return []string{}, nil
-	}
-	valueList := bqb.Optional("")
-	for _, id := range ids {
-		valueList.Comma("(?)", id)
-	}
-	q := bqb.New("SELECT ids.id FROM (VALUES ?) AS ids(id) LEFT JOIN songs ON songs.id = ids.id WHERE songs.id IS NULL", valueList)
-	return selectQuery[string](ctx, s.db, q)
+	var result []string
+	err := s.tx(ctx, func(s songRepository) error {
+		var err error
+		result, err = selectBatch(ids, func(ids []string) ([]string, error) {
+			valueList := bqb.Optional("")
+			for _, id := range ids {
+				valueList.Comma("(?)", id)
+			}
+			q := bqb.New("SELECT ids.id FROM (VALUES ?) AS ids(id) LEFT JOIN songs ON songs.id = ids.id WHERE songs.id IS NULL", valueList)
+			return selectQuery[string](ctx, s.db, q)
+		})
+		return err
+	})
+	return result, err
 }
 
 func (s songRepository) FindPaths(ctx context.Context, updatedBefore time.Time, paginate repos.Paginate) ([]string, error) {
@@ -181,11 +196,12 @@ func (s songRepository) FindPaths(ctx context.Context, updatedBefore time.Time, 
 }
 
 func (s songRepository) DeleteByPaths(ctx context.Context, paths []string) error {
-	if len(paths) == 0 {
-		return nil
-	}
-	q := bqb.New("DELETE FROM songs WHERE songs.path IN (?)", paths)
-	return executeQuery(ctx, s.db, q)
+	return s.tx(ctx, func(s songRepository) error {
+		return execBatch(paths, func(paths []string) error {
+			q := bqb.New("DELETE FROM songs WHERE songs.path IN (?)", paths)
+			return executeQuery(ctx, s.db, q)
+		})
+	})
 }
 
 func (s songRepository) GetStreamInfo(ctx context.Context, id string) (*repos.SongStreamInfo, error) {
@@ -194,35 +210,35 @@ func (s songRepository) GetStreamInfo(ctx context.Context, id string) (*repos.So
 }
 
 func (s songRepository) CreateAll(ctx context.Context, params []repos.CreateSongParams) error {
-	if len(params) == 0 {
-		return nil
-	}
+	return s.tx(ctx, func(s songRepository) error {
+		return execBatch(params, func(params []repos.CreateSongParams) error {
+			valueList := bqb.Optional("")
+			for _, p := range params {
+				var id string
+				if p.ID != nil {
+					id = *p.ID
+				} else {
+					id = crossonic.GenIDSong()
+				}
 
-	valueList := bqb.Optional("")
-	for _, p := range params {
-		var id string
-		if p.ID != nil {
-			id = *p.ID
-		} else {
-			id = crossonic.GenIDSong()
-		}
+				searchFields := []string{p.Title}
+				if p.AlbumName != nil {
+					searchFields = append(searchFields, *p.AlbumName)
+				}
+				searchFields = append(searchFields, p.ArtistNames...)
+				searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
 
-		searchFields := []string{p.Title}
-		if p.AlbumName != nil {
-			searchFields = append(searchFields, *p.AlbumName)
-		}
-		searchFields = append(searchFields, p.ArtistNames...)
-		searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
-
-		valueList.Comma("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?)", id, p.Path, p.AlbumID, p.Title, p.Track, p.Year, p.Size, p.ContentType, p.Duration,
-			p.BitRate, p.SamplingRate, p.ChannelCount, p.Disc, p.BPM, p.MusicBrainzID, p.ReplayGain, p.ReplayGainPeak,
-			p.Lyrics, searchText)
-	}
-	q := bqb.New(`INSERT INTO songs
+				valueList.Comma("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?)", id, p.Path, p.AlbumID, p.Title, p.Track, p.Year, p.Size, p.ContentType, p.Duration,
+					p.BitRate, p.SamplingRate, p.ChannelCount, p.Disc, p.BPM, p.MusicBrainzID, p.ReplayGain, p.ReplayGainPeak,
+					p.Lyrics, searchText)
+			}
+			q := bqb.New(`INSERT INTO songs
 		(id, path, album_id, title, track, year, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated,
 		bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics, search_text)
 		VALUES ?`, valueList)
-	return executeQuery(ctx, s.db, q)
+			return executeQuery(ctx, s.db, q)
+		})
+	})
 }
 
 func (s songRepository) TryUpdateAll(ctx context.Context, params []repos.UpdateSongAllParams) (int, error) {
@@ -232,8 +248,7 @@ func (s songRepository) TryUpdateAll(ctx context.Context, params []repos.UpdateS
 
 	var count int
 	err := s.tx(ctx, func(s songRepository) error {
-		for i := 0; i < len(params); i += 50 {
-			params := params[i:min(len(params), i+50)]
+		return execBatch(params, func(params []repos.UpdateSongAllParams) error {
 			valueList := bqb.Optional("")
 			for _, p := range params {
 				searchFields := []string{p.Title}
@@ -274,8 +289,8 @@ func (s songRepository) TryUpdateAll(ctx context.Context, params []repos.UpdateS
 				return err
 			}
 			count += c
-		}
-		return nil
+			return nil
+		})
 	})
 	return count, err
 }
@@ -293,32 +308,38 @@ func (s songRepository) DeleteArtistConnections(ctx context.Context, songIDs []s
 }
 
 func (s songRepository) CreateArtistConnections(ctx context.Context, connections []repos.SongArtistConnection) error {
-	if len(connections) == 0 {
-		return nil
-	}
-	valueList := bqb.Optional("")
-	for _, c := range connections {
-		valueList.Comma("(?,?,?)", c.SongID, c.ArtistID, c.Index)
-	}
-	q := bqb.New("INSERT INTO song_artist (song_id,artist_id,index) VALUES ? ON CONFLICT (song_id,artist_id) DO NOTHING", valueList)
-	return executeQuery(ctx, s.db, q)
+	return s.tx(ctx, func(s songRepository) error {
+		return execBatch(connections, func(connections []repos.SongArtistConnection) error {
+			valueList := bqb.Optional("")
+			for _, c := range connections {
+				valueList.Comma("(?,?,?)", c.SongID, c.ArtistID, c.Index)
+			}
+			q := bqb.New("INSERT INTO song_artist (song_id,artist_id,index) VALUES ? ON CONFLICT (song_id,artist_id) DO NOTHING", valueList)
+			return executeQuery(ctx, s.db, q)
+		})
+	})
 }
 
 func (s songRepository) DeleteGenreConnections(ctx context.Context, songIDs []string) error {
-	q := bqb.New("DELETE FROM song_genre WHERE song_id IN (?)", songIDs)
-	return executeQuery(ctx, s.db, q)
+	return s.tx(ctx, func(s songRepository) error {
+		return execBatch(songIDs, func(songIDs []string) error {
+			q := bqb.New("DELETE FROM song_genre WHERE song_id IN (?)", songIDs)
+			return executeQuery(ctx, s.db, q)
+		})
+	})
 }
 
 func (s songRepository) CreateGenreConnections(ctx context.Context, connections []repos.SongGenreConnection) error {
-	if len(connections) == 0 {
-		return nil
-	}
-	valueList := bqb.Optional("")
-	for _, c := range connections {
-		valueList.Comma("(?,?)", c.SongID, c.Genre)
-	}
-	q := bqb.New("INSERT INTO song_genre (song_id,genre_name) VALUES ? ON CONFLICT (song_id,genre_name) DO NOTHING", valueList)
-	return executeQuery(ctx, s.db, q)
+	return s.tx(ctx, func(s songRepository) error {
+		return execBatch(connections, func(connections []repos.SongGenreConnection) error {
+			valueList := bqb.Optional("")
+			for _, c := range connections {
+				valueList.Comma("(?,?)", c.SongID, c.Genre)
+			}
+			q := bqb.New("INSERT INTO song_genre (song_id,genre_name) VALUES ? ON CONFLICT (song_id,genre_name) DO NOTHING", valueList)
+			return executeQuery(ctx, s.db, q)
+		})
+	})
 }
 
 func (s songRepository) Star(ctx context.Context, user, songID string) error {
@@ -327,15 +348,20 @@ func (s songRepository) Star(ctx context.Context, user, songID string) error {
 }
 
 func (s songRepository) StarMultiple(ctx context.Context, user string, songIDs []string) (int, error) {
-	if len(songIDs) == 0 {
-		return 0, nil
-	}
-	valueList := bqb.Optional("")
-	for _, s := range songIDs {
-		valueList.Comma("(?, ?, NOW())", s, user)
-	}
-	q := bqb.New("INSERT INTO song_stars (song_id, user_name, created) VALUES ? ON CONFLICT(song_id,user_name) DO NOTHING", valueList)
-	return executeQueryCountAffectedRows(ctx, s.db, q)
+	var count int
+	err := s.tx(ctx, func(s songRepository) error {
+		return execBatch(songIDs, func(songIDs []string) error {
+			valueList := bqb.Optional("")
+			for _, s := range songIDs {
+				valueList.Comma("(?, ?, NOW())", s, user)
+			}
+			q := bqb.New("INSERT INTO song_stars (song_id, user_name, created) VALUES ? ON CONFLICT(song_id,user_name) DO NOTHING", valueList)
+			c, err := executeQueryCountAffectedRows(ctx, s.db, q)
+			count += c
+			return err
+		})
+	})
+	return count, err
 }
 
 func (s songRepository) UnStar(ctx context.Context, user, songID string) error {
@@ -344,11 +370,16 @@ func (s songRepository) UnStar(ctx context.Context, user, songID string) error {
 }
 
 func (s songRepository) UnStarMultiple(ctx context.Context, user string, songIDs []string) (int, error) {
-	if len(songIDs) == 0 {
-		return 0, nil
-	}
-	q := bqb.New("DELETE FROM song_stars WHERE user_name = ? AND song_id IN (?)", user, songIDs)
-	return executeQueryCountAffectedRows(ctx, s.db, q)
+	var count int
+	err := s.tx(ctx, func(s songRepository) error {
+		return execBatch(songIDs, func(songIDs []string) error {
+			q := bqb.New("DELETE FROM song_stars WHERE user_name = ? AND song_id IN (?)", user, songIDs)
+			c, err := executeQueryCountAffectedRows(ctx, s.db, q)
+			count += c
+			return err
+		})
+	})
+	return count, err
 }
 
 func (s songRepository) SetRating(ctx context.Context, user, songID string, rating int) error {
@@ -404,18 +435,19 @@ func (s songRepository) FindLocalOutdatedFeedbackByLB(ctx context.Context, user 
 }
 
 func (s songRepository) SetLBFeedbackUploaded(ctx context.Context, user string, params []repos.SongSetLBFeedbackUploadedParams, updateRemoteMBIDs bool) error {
-	if len(params) == 0 {
-		return nil
-	}
-	valueList := bqb.Optional("")
-	for _, p := range params {
-		valueList.Comma("(?,?,?,?)", p.SongID, user, p.RemoteMBID, p.Uploaded)
-	}
-	q := bqb.New("INSERT INTO lb_feedback_status (song_id,user_name,remote_mbid,uploaded) VALUES ? ON CONFLICT (song_id,user_name) DO UPDATE SET uploaded = excluded.uploaded", valueList)
-	if updateRemoteMBIDs {
-		q.Comma("remote_mbid = excluded.remote_mbid")
-	}
-	return executeQuery(ctx, s.db, q)
+	return s.tx(ctx, func(s songRepository) error {
+		return execBatch(params, func(params []repos.SongSetLBFeedbackUploadedParams) error {
+			valueList := bqb.Optional("")
+			for _, p := range params {
+				valueList.Comma("(?,?,?,?)", p.SongID, user, p.RemoteMBID, p.Uploaded)
+			}
+			q := bqb.New("INSERT INTO lb_feedback_status (song_id,user_name,remote_mbid,uploaded) VALUES ? ON CONFLICT (song_id,user_name) DO UPDATE SET uploaded = excluded.uploaded", valueList)
+			if updateRemoteMBIDs {
+				q.Comma("remote_mbid = excluded.remote_mbid")
+			}
+			return executeQuery(ctx, s.db, q)
+		})
+	})
 }
 
 func (s songRepository) SetLBFeedbackUploadedForAllMatchingStarredSongs(ctx context.Context, user string, lbLovedMBIDs []string) error {
