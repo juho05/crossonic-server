@@ -73,6 +73,9 @@ func (h *Handler) registerRoutes() {
 		log.Infof("Serving frontend files in %s", h.Config.FrontendDir)
 	} else {
 		log.Trace("Frontend hosting disabled")
+		r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("crossonic-server is ready to accept connections"))
+		})
 	}
 
 	h.router = r
