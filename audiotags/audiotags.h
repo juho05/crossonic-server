@@ -51,6 +51,7 @@ int audiotags_audioproperties_bitrate(const TagLib_AudioProperties *audioPropert
 int audiotags_audioproperties_samplerate(const TagLib_AudioProperties *audioProperties);
 int audiotags_audioproperties_channels(const TagLib_AudioProperties *audioProperties);
 
+bool audiotags_has_picture(TagLib_FileRefRef *fileRefRef);
 void audiotags_read_picture(TagLib_FileRefRef *fileRefRef, int id);
 bool audiotags_write_picture(TagLib_FileRefRef *file, const char *data, unsigned int length, int w, int h, int type);
 bool audiotags_remove_pictures(TagLib_FileRefRef *file);

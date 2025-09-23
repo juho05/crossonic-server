@@ -262,6 +262,80 @@ enum img_type
   // to be continued...
 };
 
+bool audiotags_has_picture(TagLib_FileRefRef *fileRefRef)
+{
+  const TagLib::FileRef *fileRef = reinterpret_cast<const TagLib::FileRef *>(fileRefRef->fileRef);
+
+  TagLib::ByteVector imageData;
+  if (TagLib::FLAC::File *flac = dynamic_cast<TagLib::FLAC::File *>(fileRef->file()))
+  {
+    auto pictures = flac->pictureList();
+    for (auto it = pictures.begin(); it != pictures.end(); ++it)
+    {
+      if ((*it)->type() == TagLib::FLAC::Picture::Type::FrontCover)
+      {
+        return true;
+      }
+    }
+  }
+  else if (TagLib::APE::File *ape = dynamic_cast<TagLib::APE::File *>(fileRef->file()))
+  {
+    if (auto apeTag = ape->APETag(false))
+    {
+      printf("\nape tag !!\n");
+    }
+  }
+  else if (TagLib::MPEG::File *mpeg = dynamic_cast<TagLib::MPEG::File *>(fileRef->file()))
+  {
+    if (auto id3v2Tag = mpeg->ID3v2Tag(false))
+    {
+      auto frames = id3v2Tag->frameList();
+      for (auto it = frames.begin(); it != frames.end(); ++it)
+      {
+        if (auto *pFrame = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(*it))
+        {
+          return true;
+        }
+      }
+    }
+  }
+  else
+  {
+    auto tags = fileRef->file()->tag();
+    if (auto mp4Tag = dynamic_cast<TagLib::MP4::Tag *>(tags))
+    {
+      TagLib::MP4::CoverArtList covers = mp4Tag->item("covr").toCoverArtList();
+      if (!covers.isEmpty())
+      {
+        return true;
+      }
+    }
+    else if (auto oggTag = dynamic_cast<TagLib::Ogg::XiphComment *>(tags))
+    {
+      auto pictures = oggTag->pictureList();
+      for (auto it = pictures.begin(); it != pictures.end(); ++it)
+      {
+        if ((*it)->type() == TagLib::FLAC::Picture::Type::FrontCover)
+        {
+          return true;
+        }
+      }
+    }
+    else if (auto id3Tag = dynamic_cast<TagLib::ID3v2::Tag *>(tags))
+    {
+      auto frames = id3Tag->frameList();
+      for (auto it = frames.begin(); it != frames.end(); ++it)
+      {
+        if (auto *pFrame = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(*it))
+        {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 void audiotags_read_picture(TagLib_FileRefRef *fileRefRef, int id)
 {
   const TagLib::FileRef *fileRef = reinterpret_cast<const TagLib::FileRef *>(fileRefRef->fileRef);

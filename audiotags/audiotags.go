@@ -51,11 +51,10 @@ type AudioProperties struct {
 	Length, LengthMs, Bitrate, Samplerate, Channels int
 }
 
-func (f *File) HasMedia() bool {
-	return !f.ReadAudioProperties().isEmpty()
-}
-
-func (props *AudioProperties) isEmpty() bool {
+func (props *AudioProperties) IsEmpty() bool {
+	if props == nil {
+		return true
+	}
 	return props.Bitrate == 0 && props.LengthMs == 0 && props.Length == 0 && props.Samplerate == 0 && props.Channels == 0
 }
 
@@ -121,6 +120,10 @@ func (f *File) ReadAudioProperties() *AudioProperties {
 	p.Samplerate = int(C.audiotags_audioproperties_samplerate(ap))
 	p.Channels = int(C.audiotags_audioproperties_channels(ap))
 	return &p
+}
+
+func (f *File) HasImage() bool {
+	return bool(C.audiotags_has_picture((*C.TagLib_FileRefRef)(f)))
 }
 
 func (f *File) ReadImage() (image.Image, error) {

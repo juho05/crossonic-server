@@ -8,10 +8,10 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
@@ -20,12 +20,16 @@ import (
 type artistImageScanner struct {
 	lastScan time.Time
 	images   map[string]string
+	conf     config.Config
+	fullScan bool
 }
 
 func (s *Scanner) findArtistImages(ctx context.Context) (map[string]string, error) {
 	scanner := &artistImageScanner{
 		lastScan: s.lastScan,
 		images:   make(map[string]string),
+		conf:     s.conf,
+		fullScan: s.fullScan,
 	}
 
 	err := scanner.scanDir(ctx, s.mediaDir)
@@ -55,14 +59,23 @@ func (a *artistImageScanner) scanDir(ctx context.Context, mediaDir string) error
 		ext := filepath.Ext(fileName)
 		fileType := mime.TypeByExtension(ext)
 		if fileType == "image/jpeg" || fileType == "image/png" {
-			info, err := os.Stat(path)
-			if err != nil {
-				return fmt.Errorf("stat: %w", err)
-			}
-			if info.ModTime().Before(a.lastScan) {
-				return nil
-			}
-			if strings.ToLower(strings.TrimSuffix(fileName, ext)) == "artist" {
+			for _, pattern := range a.conf.ArtistImagePriority {
+				match, err := filepath.Match(pattern, fileName)
+				if err != nil {
+					return fmt.Errorf("invalid artist image priority pattern %s: %w", pattern, err)
+				}
+				if !match {
+					continue
+				}
+				if !a.fullScan {
+					info, err := os.Stat(path)
+					if err != nil {
+						return fmt.Errorf("stat: %w", err)
+					}
+					if info.ModTime().Before(a.lastScan) {
+						return nil
+					}
+				}
 				dirName := filepath.Base(filepath.Dir(path))
 				if dirName == "." || dirName == string(filepath.Separator) {
 					log.Warnf("found artist image but could not determine parent directory name: %s", path)

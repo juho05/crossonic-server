@@ -24,26 +24,30 @@ func (s StartupScanOption) Valid() bool {
 	return s == StartupScanDisabled || s == StartupScanQuick || s == StartupScanFull
 }
 
+const CoverArtPriorityEmbedded = "embedded"
+
 type Config struct {
-	BaseURL         string
-	DBUser          string
-	DBPassword      string
-	DBName          string
-	DBHost          string
-	DBPort          int
-	MusicDir        string
-	DataDir         string
-	CacheDir        string
-	EncryptionKey   []byte
-	ListenAddr      string
-	AutoMigrate     bool
-	LogLevel        log.Severity
-	LogFile         *os.File
-	StartupScan     StartupScanOption
-	ListenBrainzURL string
-	LastFMApiKey    string
-	ScanHidden      bool
-	FrontendDir     string
+	BaseURL             string
+	DBUser              string
+	DBPassword          string
+	DBName              string
+	DBHost              string
+	DBPort              int
+	MusicDir            string
+	DataDir             string
+	CacheDir            string
+	EncryptionKey       []byte
+	ListenAddr          string
+	AutoMigrate         bool
+	LogLevel            log.Severity
+	LogFile             *os.File
+	StartupScan         StartupScanOption
+	ListenBrainzURL     string
+	LastFMApiKey        string
+	ScanHidden          bool
+	FrontendDir         string
+	CoverArtPriority    []string
+	ArtistImagePriority []string
 }
 
 // Load loads the configuration from environment variables into Options.
@@ -144,6 +148,10 @@ func Load(environ []string) (Config, []error) {
 	}
 
 	config.FrontendDir = loadFrontendDir(env)
+
+	config.CoverArtPriority = loadCoverArtPriority(env)
+
+	config.ArtistImagePriority = loadArtistImagePriority(env)
 
 	return config, errors
 }
@@ -277,12 +285,47 @@ func loadFrontendDir(env environment) string {
 	return optionalString(env, "FRONTEND_DIR", "")
 }
 
+func loadCoverArtPriority(env environment) []string {
+	list := optionalStringList(env, "COVER_ART_PRIORITY", []string{"cover.*", "folder.*", "front.*", CoverArtPriorityEmbedded})
+	for i := range list {
+		list[i] = strings.ToLower(list[i])
+	}
+	return list
+}
+
+func loadArtistImagePriority(env environment) []string {
+	list := optionalStringList(env, "ARTIST_IMAGE_PRIORITY", []string{"artist.*"})
+	for i := range list {
+		list[i] = strings.ToLower(list[i])
+	}
+	return list
+}
+
 func optionalString(env environment, key, def string) string {
 	str := env[key]
 	if str == "" {
 		return def
 	}
 	return str
+}
+
+func optionalStringList(env environment, key string, def []string) []string {
+	str, ok := env[key]
+	if !ok {
+		return def
+	}
+	if str == "" {
+		return make([]string, 0)
+	}
+	list := strings.Split(str, ",")
+	newList := make([]string, 0, len(list))
+	for _, pattern := range list {
+		pattern = strings.TrimSpace(pattern)
+		if pattern != "" {
+			newList = append(newList, pattern)
+		}
+	}
+	return newList
 }
 
 func requiredString(env environment, key string) (string, error) {

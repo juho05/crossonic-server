@@ -8,11 +8,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/juho05/crossonic-server/audiotags"
+	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/log"
 )
 
@@ -29,6 +31,9 @@ func (s *Scanner) runSetAlbumCoverLoop(ctx context.Context) error {
 	}
 	var waitGroup sync.WaitGroup
 	var setCoverErr error
+
+	embeddedEnabled := slices.Contains(s.conf.CoverArtPriority, config.CoverArtPriorityEmbedded)
+
 	for range setAlbumCoversWorkerCount {
 		waitGroup.Add(1)
 		go func() {
@@ -48,6 +53,17 @@ func (s *Scanner) runSetAlbumCoverLoop(ctx context.Context) error {
 					if err != nil {
 						if setCoverErr == nil {
 							setCoverErr = fmt.Errorf("save cover from path: %w", err)
+						}
+						return
+					}
+					continue
+				}
+
+				if !embeddedEnabled {
+					err = s.removeCover(album.id)
+					if err != nil {
+						if setCoverErr == nil {
+							setCoverErr = fmt.Errorf("remove cover: %w", err)
 						}
 						return
 					}
@@ -96,17 +112,19 @@ func (s *Scanner) createCoverDir() error {
 }
 
 func (s *Scanner) saveCoverFromPath(originalPath, id string) error {
-	originalStat, err := os.Stat(originalPath)
-	if err != nil {
-		return fmt.Errorf("stat original path: %w", err)
-	}
-	coverStat, err := os.Stat(s.idToCoverPath(id))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("stat existing cover: %w", err)
-	}
-	// abort if file was not modified
-	if !errors.Is(err, os.ErrNotExist) && !originalStat.ModTime().After(coverStat.ModTime()) {
-		return nil
+	if !s.fullScan {
+		originalStat, err := os.Stat(originalPath)
+		if err != nil {
+			return fmt.Errorf("stat original path: %w", err)
+		}
+		coverStat, err := os.Stat(s.idToCoverPath(id))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("stat existing cover: %w", err)
+		}
+		// abort if file was not modified
+		if !errors.Is(err, os.ErrNotExist) && !originalStat.ModTime().After(coverStat.ModTime()) {
+			return nil
+		}
 	}
 
 	old, err := os.Open(originalPath)
@@ -134,13 +152,15 @@ func (s *Scanner) saveCoverFromPath(originalPath, id string) error {
 var errNoEmbeddedCover = errors.New("no embedded cover")
 
 func (s *Scanner) saveCoverFromEmbeddedCover(lastModified time.Time, songPath, id string) error {
-	coverStat, err := os.Stat(s.idToCoverPath(id))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("stat existing cover: %w", err)
-	}
-	// abort if file was not modified
-	if !errors.Is(err, os.ErrNotExist) && !lastModified.After(coverStat.ModTime()) {
-		return nil
+	if !s.fullScan {
+		coverStat, err := os.Stat(s.idToCoverPath(id))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("stat existing cover: %w", err)
+		}
+		// abort if file was not modified
+		if !errors.Is(err, os.ErrNotExist) && !lastModified.After(coverStat.ModTime()) {
+			return nil
+		}
 	}
 
 	newFile, err := os.Create(s.idToCoverPath(id))

@@ -1,14 +1,15 @@
 package config
 
 import (
-	"github.com/juho05/log"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/juho05/log"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -29,14 +30,16 @@ func TestLoad(t *testing.T) {
 		CacheDir:   "/test/cache",
 		EncryptionKey: []byte{0xdd, 0xd5, 0xc1, 0xd3, 0x0c, 0xf8, 0x99, 0x1f, 0xdf, 0x7f, 0xe2,
 			0x58, 0x13, 0x8e, 0xda, 0xb0, 0xc0, 0x37, 0xa1, 0x4a, 0xa2, 0x54, 0x5b, 0x86, 0xe6, 0xe4, 0x86, 0x7f, 0x68, 0x27, 0xf4, 0xad},
-		ListenAddr:      "test:4321",
-		AutoMigrate:     false,
-		LogLevel:        log.TRACE,
-		StartupScan:     StartupScanFull,
-		ListenBrainzURL: "https://listenbrainz.example.com",
-		LastFMApiKey:    "lastfmkeytest",
-		ScanHidden:      true,
-		FrontendDir:     "/test/frontend",
+		ListenAddr:          "test:4321",
+		AutoMigrate:         false,
+		LogLevel:            log.TRACE,
+		StartupScan:         StartupScanFull,
+		ListenBrainzURL:     "https://listenbrainz.example.com",
+		LastFMApiKey:        "lastfmkeytest",
+		ScanHidden:          true,
+		FrontendDir:         "/test/frontend",
+		CoverArtPriority:    []string{"embedded", "test.*", "bla.jpg"},
+		ArtistImagePriority: []string{"lastfm", "test.*", "bla.jpg"},
 	}
 
 	defaultConfig := Config{
@@ -51,14 +54,16 @@ func TestLoad(t *testing.T) {
 		CacheDir:   "/test/cache",
 		EncryptionKey: []byte{0xdd, 0xd5, 0xc1, 0xd3, 0x0c, 0xf8, 0x99, 0x1f, 0xdf, 0x7f, 0xe2,
 			0x58, 0x13, 0x8e, 0xda, 0xb0, 0xc0, 0x37, 0xa1, 0x4a, 0xa2, 0x54, 0x5b, 0x86, 0xe6, 0xe4, 0x86, 0x7f, 0x68, 0x27, 0xf4, 0xad},
-		ListenAddr:      "0.0.0.0:8080",
-		AutoMigrate:     true,
-		LogLevel:        log.INFO,
-		StartupScan:     StartupScanQuick,
-		ListenBrainzURL: "https://api.listenbrainz.org",
-		LastFMApiKey:    "",
-		ScanHidden:      false,
-		FrontendDir:     "",
+		ListenAddr:          "0.0.0.0:8080",
+		AutoMigrate:         true,
+		LogLevel:            log.INFO,
+		StartupScan:         StartupScanQuick,
+		ListenBrainzURL:     "https://api.listenbrainz.org",
+		LastFMApiKey:        "",
+		ScanHidden:          false,
+		FrontendDir:         "",
+		CoverArtPriority:    []string{"cover.*", "folder.*", "front.*", "embedded"},
+		ArtistImagePriority: []string{"artist.*"},
 	}
 
 	logFileName := filepath.Join(t.TempDir(), "test.log")
@@ -83,6 +88,8 @@ func TestLoad(t *testing.T) {
 		"LASTFM_API_KEY=" + fullConfig.LastFMApiKey,
 		"SCAN_HIDDEN=" + strconv.FormatBool(fullConfig.ScanHidden),
 		"FRONTEND_DIR=" + fullConfig.FrontendDir,
+		"COVER_ART_PRIORITY=" + strings.Join(fullConfig.CoverArtPriority, ","),
+		"ARTIST_IMAGE_PRIORITY=" + strings.Join(fullConfig.ArtistImagePriority, ","),
 	}
 
 	envRequired := []string{
@@ -135,6 +142,8 @@ func TestLoad(t *testing.T) {
 			assert.Equal(t, tt.config.LastFMApiKey, conf.LastFMApiKey)
 			assert.Equal(t, tt.config.ScanHidden, conf.ScanHidden)
 			assert.Equal(t, tt.config.FrontendDir, conf.FrontendDir)
+			assert.Equal(t, tt.config.CoverArtPriority, conf.CoverArtPriority)
+			assert.Equal(t, tt.config.ArtistImagePriority, conf.ArtistImagePriority)
 			if tt.hasLogFile {
 				assert.Equal(t, logFileName, conf.LogFile.Name())
 				conf.LogFile.Close()
@@ -213,6 +222,36 @@ func Test_optionalString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, optionalString(env, tt.key, tt.def))
+		})
+	}
+}
+
+func Test_optionalStringList(t *testing.T) {
+	env := map[string]string{
+		"KEY_empty":                 "",
+		"KEY_asdf":                  "asdf",
+		"KEY_asdf_1234":             "asdf,1234",
+		"KEY_asdf_1234_ASDF":        "asdf,1234,ASDF",
+		"KEY_asdf_1234_ASDF_spaces": "  asdf  , 1234  ,  ASDF ",
+		"KEY_doublecomma":           ",asdf,,1234,",
+	}
+	tests := []struct {
+		name string
+		key  string
+		def  []string
+		want []string
+	}{
+		{"missing key", "does not exist", []string{"default"}, []string{"default"}},
+		{"empty value", "KEY_empty", []string{"default"}, []string{}},
+		{"single value", "KEY_asdf", []string{"default"}, []string{"asdf"}},
+		{"two values", "KEY_asdf_1234", []string{"default"}, []string{"asdf", "1234"}},
+		{"three values", "KEY_asdf_1234_ASDF", []string{"default"}, []string{"asdf", "1234", "ASDF"}},
+		{"three values with spaces", "KEY_asdf_1234_ASDF_spaces", []string{"default"}, []string{"asdf", "1234", "ASDF"}},
+		{"double camma", "KEY_doublecomma", []string{"default"}, []string{"asdf", "1234"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, optionalStringList(env, tt.key, tt.def))
 		})
 	}
 }

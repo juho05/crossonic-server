@@ -16,6 +16,7 @@ import (
 
 	"github.com/djherbis/times"
 	"github.com/juho05/crossonic-server/audiotags"
+	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
 )
@@ -28,8 +29,6 @@ const songQueueBatchSize = 100
 const deleteOrphanedSongsByPathWorkerCount = 10
 const deleteOrphanedSongsByPathBatchSize = 300
 
-var coverImageNames = []string{"front", "folder", "cover"}
-
 func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	if !s.lock.TryLock() {
 		return ErrAlreadyScanning
@@ -39,16 +38,16 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	defer s.lock.Unlock()
 	defer func() {
 		if !s.songQueueClosed {
+			s.songQueueClosed = true
 			close(s.songQueue)
 		}
 		if !s.setAlbumCoverClosed {
+			s.setAlbumCoverClosed = true
 			close(s.setAlbumCover)
 		}
 		s.scanning = false
 		s.albums = nil
 		s.artists = nil
-		s.songQueueClosed = true
-		s.setAlbumCoverClosed = true
 	}()
 
 	s.scanStart = time.Now()
@@ -149,8 +148,10 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	go func() {
 		err := s.runSaveSongsLoop(ctx)
 		saveSongsDone <- err
-		close(s.setAlbumCover)
-		s.setAlbumCoverClosed = true
+		if !s.setAlbumCoverClosed {
+			s.setAlbumCoverClosed = true
+			close(s.setAlbumCover)
+		}
 		if err != nil {
 			log.Errorf("scan: run save songs loop: %s", err)
 			cancelCtx()
@@ -161,6 +162,10 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	log.Tracef("starting set album covers loop with %d workers...", setAlbumCoversWorkerCount)
 	go func() {
 		err := s.runSetAlbumCoverLoop(ctx)
+		if !s.setAlbumCoverClosed {
+			s.setAlbumCoverClosed = true
+			close(s.setAlbumCover)
+		}
 		setAlbumCovers <- err
 		if err != nil {
 			log.Errorf("scan: set album covers loop: %s", err)
@@ -367,6 +372,7 @@ func (s *Scanner) scanMediaFilesInDir(ctx context.Context, dir string, changed b
 	}
 
 	var cover *string
+	prioritizeEmbedded := false
 findCoverLoop:
 	for _, e := range entries {
 		if !e.Type().IsRegular() {
@@ -380,13 +386,23 @@ findCoverLoop:
 		ext := filepath.Ext(e.Name())
 		fileType := mime.TypeByExtension(ext)
 		if fileType == "image/jpeg" || fileType == "image/png" {
-			base := strings.ToLower(strings.TrimSuffix(e.Name(), ext))
-			for i := 0; i < len(coverImageNames); i++ {
-				if base == coverImageNames[i] {
-					c := filepath.Join(dir, e.Name())
-					cover = &c
-					break findCoverLoop
+			coverImagePatterns := s.conf.CoverArtPriority
+			for i := 0; i < len(coverImagePatterns); i++ {
+				if coverImagePatterns[i] == config.CoverArtPriorityEmbedded {
+					prioritizeEmbedded = true
+					continue
 				}
+				match, err := filepath.Match(coverImagePatterns[i], e.Name())
+				if err != nil {
+					log.Errorf("invalid cover art priority pattern %s: %v", coverImagePatterns[i], err)
+					continue
+				}
+				if !match {
+					continue
+				}
+				c := filepath.Join(dir, e.Name())
+				cover = &c
+				break findCoverLoop
 			}
 		}
 	}
@@ -402,7 +418,7 @@ findCoverLoop:
 		default:
 		}
 
-		err := s.processFile(filepath.Join(dir, e.Name()), cover, changed)
+		err := s.processFile(filepath.Join(dir, e.Name()), cover, prioritizeEmbedded, changed)
 		if errors.Is(err, errNotAMediaFile) {
 			continue
 		}
@@ -415,7 +431,7 @@ findCoverLoop:
 
 var errNotAMediaFile = errors.New("not a media file")
 
-func (s *Scanner) processFile(path string, cover *string, parentDirChanged bool) error {
+func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCover, parentDirChanged bool) error {
 	ext := filepath.Ext(path)
 	if !strings.HasPrefix(mime.TypeByExtension(ext), "audio/") {
 		return errNotAMediaFile
@@ -450,15 +466,16 @@ func (s *Scanner) processFile(path string, cover *string, parentDirChanged bool)
 		return fmt.Errorf("read tags: %w", err)
 	}
 	defer file.Close()
-	if !file.HasMedia() {
-		return errNotAMediaFile
-	}
 
 	props := file.ReadAudioProperties()
-	if props == nil {
-		return fmt.Errorf("failed to read audio properties")
+	if props.IsEmpty() {
+		return errNotAMediaFile
 	}
 	tags := file.ReadTags()
+
+	if prioritizeEmbeddedCover && cover != nil && file.HasImage() {
+		cover = nil
+	}
 
 	var songID *string
 	idTag, ok := readSingleTag(tags, "crossonic_id_"+s.instanceID)

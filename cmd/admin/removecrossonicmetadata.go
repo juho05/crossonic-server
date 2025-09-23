@@ -60,7 +60,7 @@ func removeCrossonicMetadata(args []string, db repos.DB, conf config.Config) err
 			return nil
 		}
 		defer file.Close()
-		if !file.HasMedia() {
+		if file.ReadAudioProperties().IsEmpty() {
 			log.Errorf("remove crossonic id in %s: unsupported format", path)
 			return nil
 		}

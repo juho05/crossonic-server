@@ -530,9 +530,6 @@ func (s *Scanner) setCrossonicID(path, id string) error {
 		return fmt.Errorf("read tags: %w", err)
 	}
 	defer file.Close()
-	if !file.HasMedia() {
-		return fmt.Errorf("unsupported format")
-	}
 	tags := file.ReadTags()
 	tags["crossonic_id_"+s.instanceID] = []string{id}
 	if !file.WriteTags(tags) {
