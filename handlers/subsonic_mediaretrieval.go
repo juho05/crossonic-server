@@ -292,6 +292,8 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	coverDir := filepath.Join(h.Config.DataDir, "covers")
+
 	cacheKey := fmt.Sprintf("%s-%d", id, size)
 
 	cacheObj, exists := h.CoverCache.GetObject(cacheKey)
@@ -309,16 +311,27 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		}()
 		w.Header().Set("Cache-Control", "max-age=10080") // 3h
 		w.Header().Set("Content-Type", "image/jpeg")
-		if cacheObj.IsComplete() {
-			http.ServeContent(w, r, id+".jpg", time.Now(), cacheReader)
+
+		var lastModified time.Time
+		coverFileInfo, err := os.Stat(filepath.Join(coverDir, id))
+		if err == nil {
+			lastModified = coverFileInfo.ModTime()
 		} else {
+			log.Errorf("Failed to get cover art file info: %v", err)
+		}
+
+		if cacheObj.IsComplete() {
+			http.ServeContent(w, r, id+".jpg", lastModified, cacheReader)
+		} else {
+			if !lastModified.IsZero() {
+				w.Header().Set("Last-Modified", lastModified.UTC().Format(http.TimeFormat))
+			}
 			_, _ = io.Copy(w, cacheReader)
 		}
 		return
 	}
 
-	dir := filepath.Join(h.Config.DataDir, "covers")
-	fileFS := os.DirFS(dir)
+	fileFS := os.DirFS(coverDir)
 	file, err := fileFS.Open(id)
 	if errors.Is(err, fs.ErrNotExist) {
 		if h.LastFM == nil {
@@ -331,7 +344,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, lastfm.ErrNotFound) {
-			file, err := os.Create(filepath.Join(dir, id))
+			file, err := os.Create(filepath.Join(coverDir, id))
 			if err != nil {
 				respondErr(w, q.Format(), fmt.Errorf("get cover art: create placeholder for %s: %w", id, err))
 				return
@@ -396,6 +409,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cacheObj.Close()
+	w.Header().Set("Last-Modified", stat.ModTime().UTC().Format(http.TimeFormat))
 	_, _ = io.Copy(w, cacheReader)
 }
 
