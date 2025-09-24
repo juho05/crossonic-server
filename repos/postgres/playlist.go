@@ -21,11 +21,14 @@ func (p playlistRepository) Create(ctx context.Context, params repos.CreatePlayl
 }
 
 func (p playlistRepository) Update(ctx context.Context, user, id string, params repos.UpdatePlaylistParams) error {
-	updateList := genUpdateList(map[string]repos.OptionalGetter{
+	updateList, empty := genUpdateList(map[string]repos.OptionalGetter{
 		"name":    params.Name,
 		"public":  params.Public,
 		"comment": params.Comment,
 	}, true)
+	if empty {
+		return nil
+	}
 	q := bqb.New("UPDATE playlists SET ? WHERE id = ? AND owner = ?", updateList, id, user)
 	return executeQueryExpectAffectedRows(ctx, p.db, q)
 }

@@ -39,7 +39,7 @@ func (a albumRepository) Update(ctx context.Context, id string, params repos.Upd
 		searchFields = append(searchFields, params.ArtistNames.Get().([]string)...)
 		searchText = repos.NewOptionalFull(util.NormalizeText(" " + strings.Join(searchFields, " ") + " "))
 	}
-	updateList := genUpdateList(map[string]repos.OptionalGetter{
+	updateList, empty := genUpdateList(map[string]repos.OptionalGetter{
 		"name":             params.Name,
 		"year":             params.Year,
 		"record_labels":    params.RecordLabels,
@@ -52,6 +52,9 @@ func (a albumRepository) Update(ctx context.Context, id string, params repos.Upd
 		"search_text":      searchText,
 		"disc_titles":      params.DiscTitles,
 	}, true)
+	if empty {
+		return nil
+	}
 	q := bqb.New("UPDATE albums SET ? WHERE id = ?", updateList, id)
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
 }

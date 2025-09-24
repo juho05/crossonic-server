@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,16 +17,13 @@ import (
 	"github.com/juho05/log"
 )
 
-var (
-	ErrUnexpectedResponseCode = errors.New("unexpected response code")
-	ErrUnexpectedResponseBody = errors.New("unexpected response body")
-	ErrUnauthenticated        = errors.New("unauthenticated")
-)
-
 type ListenBrainz struct {
 	db     repos.DB
 	cancel context.CancelFunc
 	config config.Config
+
+	submittingMissingListens bool
+	syncingFavorites         bool
 }
 
 type Listen struct {
@@ -63,9 +59,11 @@ type Feedback struct {
 }
 
 type Connection struct {
-	User       string
-	LBUsername string
-	Token      string
+	User         string
+	LBUsername   string
+	Token        string
+	Scrobble     bool
+	SyncFeedback bool
 }
 
 func New(db repos.DB, conf config.Config) *ListenBrainz {
@@ -105,6 +103,9 @@ type body struct {
 }
 
 func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, listen *Listen, mediaPlayer string) error {
+	if !con.Scrobble {
+		return ErrDisabled
+	}
 	durationMs := listen.Duration.ToStd().Milliseconds()
 	_, err := listenBrainzRequest[any](ctx, l.config.ListenBrainzURL, "/1/submit-listens", http.MethodPost, con.Token, body{
 		ListenType: "playing_now",
@@ -136,6 +137,9 @@ func (l *ListenBrainz) SubmitPlayingNow(ctx context.Context, con Connection, lis
 }
 
 func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen *Listen, mediaPlayer string) error {
+	if !con.Scrobble {
+		return ErrDisabled
+	}
 	durationMs := listen.Duration.ToStd().Milliseconds()
 	_, err := listenBrainzRequest[any](ctx, l.config.ListenBrainzURL, "/1/submit-listens", http.MethodPost, con.Token, body{
 		ListenType: "single",
@@ -168,6 +172,9 @@ func (l *ListenBrainz) SubmitSingle(ctx context.Context, con Connection, listen 
 }
 
 func (l *ListenBrainz) SubmitImport(ctx context.Context, con Connection, listens []*Listen, mediaPlayer string) error {
+	if !con.Scrobble {
+		return ErrDisabled
+	}
 	payloads := make([]payload, 0, len(listens))
 	for _, listen := range listens {
 		durationMs := listen.Duration.ToStd().Milliseconds()
@@ -205,7 +212,7 @@ func (l *ListenBrainz) SubmitImport(ctx context.Context, con Connection, listens
 	return nil
 }
 
-func (l *ListenBrainz) CheckToken(ctx context.Context, token string) (Connection, error) {
+func (l *ListenBrainz) CheckToken(ctx context.Context, token string) (string, error) {
 	type response struct {
 		Code     int    `json:"code"`
 		Message  string `json:"message"`
@@ -214,15 +221,12 @@ func (l *ListenBrainz) CheckToken(ctx context.Context, token string) (Connection
 	}
 	res, err := listenBrainzRequest[response](ctx, l.config.ListenBrainzURL, "/1/validate-token", http.MethodGet, token, nil)
 	if err != nil {
-		return Connection{}, fmt.Errorf("check listenbrainz token: %s", err)
+		return "", fmt.Errorf("check listenbrainz token: %s", err)
 	}
 	if !res.Valid {
-		return Connection{}, fmt.Errorf("check listenbrainz token: %w: %s", ErrUnauthenticated, res.Message)
+		return "", fmt.Errorf("check listenbrainz token: %w: %s", ErrUnauthenticated, res.Message)
 	}
-	return Connection{
-		LBUsername: res.UserName,
-		Token:      token,
-	}, nil
+	return res.UserName, nil
 }
 
 func (l *ListenBrainz) GetListenbrainzConnection(ctx context.Context, user string) (Connection, error) {
@@ -238,13 +242,21 @@ func (l *ListenBrainz) GetListenbrainzConnection(ctx context.Context, user strin
 		return Connection{}, fmt.Errorf("get listenbrainz token: %w", err)
 	}
 	return Connection{
-		User:       user,
-		LBUsername: *u.ListenBrainzUsername,
-		Token:      token,
+		User:         user,
+		LBUsername:   *u.ListenBrainzUsername,
+		Token:        token,
+		Scrobble:     u.ListenBrainzScrobble,
+		SyncFeedback: u.ListenBrainzSyncFeedback,
 	}, nil
 }
 
 func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
+	if l.submittingMissingListens {
+		return nil
+	}
+	l.submittingMissingListens = true
+	defer func() { l.submittingMissingListens = false }()
+
 	scrobbles, err := l.db.Scrobble().FindUnsubmittedLBScrobbles(ctx)
 	if err != nil {
 		return fmt.Errorf("submit missing listenbrainz scrobbles: find unsubmitted scrobbles: %w", err)
@@ -328,6 +340,9 @@ func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
 		con, err := l.GetListenbrainzConnection(ctx, user)
 		if err != nil {
 			return fmt.Errorf("submit missing listenbrainz scrobbles: get listenbrainz connection for user %s: %w", user, err)
+		}
+		if !con.Scrobble {
+			continue
 		}
 		err = l.SubmitImport(ctx, con, listens, "")
 		if err != nil {
@@ -473,6 +488,12 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 // if upload status is uploaded:     global favorite <- remote is favorite
 // if upload status is not uploaded: global favorite <- local is favorite
 func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
+	if l.syncingFavorites {
+		return nil
+	}
+	l.syncingFavorites = true
+	defer func() { l.syncingFavorites = false }()
+
 	users, err := l.db.User().FindAll(ctx)
 	if err != nil {
 		return fmt.Errorf("sync song feedback: %w", err)
@@ -481,7 +502,7 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 	var createdLocal int
 	var uploadedLocal int
 	for _, u := range users {
-		if u.ListenBrainzUsername == nil {
+		if u.ListenBrainzUsername == nil || !u.ListenBrainzSyncFeedback {
 			continue
 		}
 		token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken, l.config.EncryptionKey)

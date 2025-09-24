@@ -14,7 +14,7 @@ func (h *Handler) handleGetSongs(w http.ResponseWriter, r *http.Request) {
 
 	search := q.Str("search")
 
-	onlyStarred, ok := q.Bool("starred", false)
+	onlyStarred, ok := q.BoolDef("starred", false)
 	if !ok {
 		return
 	}
@@ -54,7 +54,7 @@ func (h *Handler) handleGetSongs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderDesc, ok := q.Bool("orderByDesc", false)
+	orderDesc, ok := q.BoolDef("orderByDesc", false)
 	if !ok {
 		return
 	}

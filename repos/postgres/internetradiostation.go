@@ -24,11 +24,14 @@ func (i internetRadioStationRepository) Create(ctx context.Context, user string,
 }
 
 func (i internetRadioStationRepository) Update(ctx context.Context, user, id string, params repos.UpdateInternetRadioStationParams) error {
-	updateList := genUpdateList(map[string]repos.OptionalGetter{
+	updateList, empty := genUpdateList(map[string]repos.OptionalGetter{
 		"name":         params.Name,
 		"stream_url":   params.StreamURL,
 		"homepage_url": params.HomepageURL,
 	}, true)
+	if empty {
+		return nil
+	}
 	q := bqb.New("UPDATE internet_radio_stations SET ? WHERE user_name = ? AND id = ?", updateList, user, id)
 	return executeQueryExpectAffectedRows(ctx, i.db, q)
 }

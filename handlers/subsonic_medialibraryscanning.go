@@ -18,7 +18,7 @@ func (h *Handler) handleStartScan(w http.ResponseWriter, r *http.Request) {
 
 	res := responses.New()
 
-	fullScan, ok := q.Bool("fullScan", false)
+	fullScan, ok := q.BoolDef("fullScan", false)
 	if !ok {
 		return
 	}

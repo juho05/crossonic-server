@@ -54,7 +54,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	submission, ok := q.Bool("submission", true)
+	submission, ok := q.BoolDef("submission", true)
 	if !ok {
 		return
 	}
@@ -64,7 +64,15 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
+	user, err := h.DB.User().FindByName(r.Context(), q.User())
+	if err != nil {
+		respondInternalErr(w, q.Format(), fmt.Errorf("scrobble: find user: %w", err))
+		return
+	}
+
+	submitToListenBrainz := user.ListenBrainzUsername != nil && user.ListenBrainzScrobble
+
+	err = h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
 		if submission {
 			possibleConflicts, err := h.DB.Scrobble().FindPossibleConflicts(r.Context(), q.User(), ids, times)
 			if err != nil {
@@ -111,7 +119,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 				return fmt.Errorf("get song: %w", err)
 			}
 
-			shouldSubmit := !submission || durationsMs[i] == nil || *durationsMs[i] > 4*60*1000 || float64(*durationsMs[i]) > float64(song.Duration.ToStd().Milliseconds())*0.5
+			shouldSubmit := submitToListenBrainz && (!submission || durationsMs[i] == nil || *durationsMs[i] > 4*60*1000 || float64(*durationsMs[i]) > float64(song.Duration.ToStd().Milliseconds())*0.5)
 
 			var duration repos.NullDurationMS
 			if durationsMs[i] != nil {
@@ -362,7 +370,13 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 			return
 		}
 
-		if len(songIDs) > 0 {
+		user, err := h.DB.User().FindByName(r.Context(), q.User())
+		if err != nil {
+			respondInternalErr(w, q.Format(), fmt.Errorf("(un)star: find user: %w", err))
+			return
+		}
+
+		if user.ListenBrainzUsername != nil && user.ListenBrainzSyncFeedback && len(songIDs) > 0 {
 			songs, err := h.DB.Song().FindByIDs(r.Context(), songIDs, repos.IncludeSongInfo{
 				Album: true,
 				Lists: true,

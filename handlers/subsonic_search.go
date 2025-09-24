@@ -46,7 +46,7 @@ func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request, searchQu
 		return nil, false
 	}
 
-	onlyAlbumArtists, ok := q.Bool("onlyAlbumArtists", true)
+	onlyAlbumArtists, ok := q.BoolDef("onlyAlbumArtists", true)
 	if !ok {
 		return nil, false
 	}

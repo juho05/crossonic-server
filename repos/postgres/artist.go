@@ -41,11 +41,14 @@ func (a artistRepository) Update(ctx context.Context, id string, params repos.Up
 	if params.Name.HasValue() {
 		searchText = repos.NewOptionalFull(" " + util.NormalizeText(params.Name.Get().(string)) + " ")
 	}
-	updateList := genUpdateList(map[string]repos.OptionalGetter{
+	updateList, empty := genUpdateList(map[string]repos.OptionalGetter{
 		"name":            params.Name,
 		"music_brainz_id": params.MusicBrainzID,
 		"search_text":     searchText,
 	}, true)
+	if empty {
+		return nil
+	}
 	q := bqb.New("UPDATE artists SET ? WHERE artists.id = ?", updateList, id)
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
 }

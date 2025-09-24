@@ -147,17 +147,20 @@ func printQueryOnErr(query string, err error) {
 	}
 }
 
-func genUpdateList(values map[string]repos.OptionalGetter, updatedField bool) *bqb.Query {
+func genUpdateList(values map[string]repos.OptionalGetter, updatedField bool) (query *bqb.Query, empty bool) {
 	q := bqb.Optional("")
+	empty = true
 	for name, value := range values {
 		if value.HasValue() {
+			empty = false
 			q.Comma(fmt.Sprintf("%s=?", name), value.Get())
 		}
 	}
 	if updatedField {
 		q.Comma("updated=NOW()")
+		empty = false
 	}
-	return q
+	return q, empty
 }
 
 func genSearch(query, searchColumn, titleCol string) (conditions *bqb.Query, orderBy *bqb.Query) {

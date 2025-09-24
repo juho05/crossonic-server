@@ -60,10 +60,24 @@ func (q UrlQuery) StrsReq(name string) ([]string, bool) {
 	return v, true
 }
 
-func (q UrlQuery) Bool(name string, def bool) (value bool, ok bool) {
+func (q UrlQuery) BoolDef(name string, def bool) (value bool, ok bool) {
 	boolStr := q.Str(name)
 	if boolStr == "" {
 		return def, true
+	}
+	value, err := strconv.ParseBool(boolStr)
+	if err != nil {
+		q.invalidParameter(name)
+		return false, false
+	}
+	return value, true
+}
+
+func (q UrlQuery) Bool(name string) (value bool, ok bool) {
+	boolStr := q.Str(name)
+	if boolStr == "" {
+		q.invalidParameter(name)
+		return false, false
 	}
 	value, err := strconv.ParseBool(boolStr)
 	if err != nil {

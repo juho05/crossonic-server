@@ -2,6 +2,8 @@ package responses
 
 type ListenBrainzConfig struct {
 	ListenBrainzUsername *string `xml:"listenBrainzUsername,attr" json:"listenBrainzUsername"`
+	SyncFeedback         *bool   `xml:"syncFeedback,attr" json:"syncFeedback"`
+	Scrobble             *bool   `xml:"scrobble,attr" json:"scrobble"`
 }
 
 type Recap struct {

@@ -8,6 +8,13 @@ type User struct {
 
 	ListenBrainzUsername       *string `db:"listenbrainz_username"`
 	EncryptedListenBrainzToken []byte  `db:"encrypted_listenbrainz_token"`
+	ListenBrainzScrobble       bool    `db:"listenbrainz_scrobble"`
+	ListenBrainzSyncFeedback   bool    `db:"listenbrainz_sync_feedback"`
+}
+
+type UpdateListenBrainzSettingsParams struct {
+	Scrobble     Optional[bool]
+	SyncFeedback Optional[bool]
 }
 
 // UserRepository is an interface to manipulate user data in a database.
@@ -19,8 +26,14 @@ type UserRepository interface {
 
 	// UpdateListenBrainzConnection updates the ListenBrainz username and token of the user.
 	// The token is automatically encrypted.
+	// lbUsername and lbToken must either both be nil or not nil. If they are nil, the ListenBrainz settings
+	// will be reset to their default values.
 	// Returns ErrNotFound if the user could not be found.
 	UpdateListenBrainzConnection(ctx context.Context, user string, lbUsername, lbToken *string) error
+
+	// UpdateListenBrainzSettings is used to enable/disable specific ListenBrainz sync features such as scrobbling
+	// and syncing love feedback.
+	UpdateListenBrainzSettings(ctx context.Context, user string, params UpdateListenBrainzSettingsParams) error
 
 	// FindAll returns all users.
 	FindAll(ctx context.Context) ([]*User, error)

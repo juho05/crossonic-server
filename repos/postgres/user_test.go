@@ -3,12 +3,13 @@ package postgres
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/google/uuid"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestUserRepository(t *testing.T) {
@@ -45,6 +46,8 @@ func TestUserRepository(t *testing.T) {
 
 			assert.Nil(t, u.ListenBrainzUsername, "listenbrainz username should be nil")
 			assert.Nil(t, u.EncryptedListenBrainzToken, "listenbrainz token should be nil")
+			assert.True(t, u.ListenBrainzScrobble, "listenbrainz scrobble should be true")
+			assert.False(t, u.ListenBrainzSyncFeedback, "listenbrainz sync feedback should be false")
 		})
 
 		t.Run("trying to create existing user should return error", func(t *testing.T) {
@@ -56,6 +59,7 @@ func TestUserRepository(t *testing.T) {
 
 	t.Run("UpdateListenBrainzConnection", func(t *testing.T) {
 		user := thCreateUser(t, db)
+		user2 := thCreateUser(t, db)
 
 		t.Run("add listenbrainz connection", func(t *testing.T) {
 			err := repo.UpdateListenBrainzConnection(ctx, user, util.ToPtr("lbtestuser"), util.ToPtr("lbtesttoken"))
@@ -71,16 +75,58 @@ func TestUserRepository(t *testing.T) {
 			token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken, encKey)
 			assert.NoErrorf(t, err, "decrypt listenbrainz token: %v", err)
 			assert.Equal(t, "lbtesttoken", token)
+
+			assert.True(t, u.ListenBrainzScrobble)
+			assert.False(t, u.ListenBrainzSyncFeedback)
+
+			u2 := getUser(user2, false)
+			assert.Nil(t, u2.ListenBrainzUsername, "updating one user should not affect another")
+			assert.Nil(t, u2.EncryptedListenBrainzToken, "updating one user should not affect another")
+		})
+
+		t.Run("partial listenbrainz connection", func(t *testing.T) {
+			err := repo.UpdateListenBrainzConnection(ctx, user, util.ToPtr("lbtestuser"), nil)
+			assert.Error(t, err, "expected error setting lbToken to nil but not lbUsername updating listenbrainz connection")
+
+			u := getUser(user, false)
+
+			assert.NotNil(t, u.ListenBrainzUsername)
+			assert.NotNil(t, u.EncryptedListenBrainzToken)
+			assert.Equal(t, "lbtestuser", *u.ListenBrainzUsername)
+			token, err := repos.DecryptPassword(u.EncryptedListenBrainzToken, encKey)
+			assert.NoErrorf(t, err, "decrypt listenbrainz token: %v", err)
+			assert.Equal(t, "lbtesttoken", token)
+
+			err = repo.UpdateListenBrainzConnection(ctx, user, nil, util.ToPtr("lbtesttoken"))
+			assert.Error(t, err, "expected error setting lbUsername to nil but not lbToken updating listenbrainz connection")
+
+			assert.NotNil(t, u.ListenBrainzUsername)
+			assert.NotNil(t, u.EncryptedListenBrainzToken)
+			assert.Equal(t, "lbtestuser", *u.ListenBrainzUsername)
+			token, err = repos.DecryptPassword(u.EncryptedListenBrainzToken, encKey)
+			assert.NoErrorf(t, err, "decrypt listenbrainz token: %v", err)
+			assert.Equal(t, "lbtesttoken", token)
 		})
 
 		t.Run("remove listenbrainz connection", func(t *testing.T) {
-			err := repo.UpdateListenBrainzConnection(ctx, user, nil, nil)
+			err := repo.UpdateListenBrainzConnection(ctx, user, util.ToPtr("lbtestuser"), util.ToPtr("lbtesttoken"))
+			require.NoErrorf(t, err, "update listenbrainz connection: %v", err)
+
+			err = repo.UpdateListenBrainzSettings(ctx, user, repos.UpdateListenBrainzSettingsParams{
+				Scrobble:     repos.NewOptionalFull(false),
+				SyncFeedback: repos.NewOptionalFull(true),
+			})
+			require.NoErrorf(t, err, "update listenbrainz settings: %v", err)
+
+			err = repo.UpdateListenBrainzConnection(ctx, user, nil, nil)
 			assert.NoErrorf(t, err, "update listenbrainz connection: %v", err)
 
 			u := getUser(user, false)
 
 			assert.Nil(t, u.ListenBrainzUsername)
 			assert.Nil(t, u.EncryptedListenBrainzToken)
+			assert.True(t, u.ListenBrainzScrobble)
+			assert.False(t, u.ListenBrainzSyncFeedback)
 		})
 
 		t.Run("user does not exist", func(t *testing.T) {
@@ -89,6 +135,68 @@ func TestUserRepository(t *testing.T) {
 		})
 
 		// TODO test that lb_feedback_status is reset after changing ListenBrainz connection
+	})
+
+	t.Run("UpdateListenBrainzSettings", func(t *testing.T) {
+		user := thCreateUser(t, db)
+
+		user2 := thCreateUser(t, db)
+
+		err := repo.UpdateListenBrainzConnection(ctx, user, util.ToPtr("lbtestuser"), util.ToPtr("lbtesttoken"))
+		require.NoErrorf(t, err, "update listenbrainz settings: %v", err)
+
+		t.Run("user with listenbrainz connection exists", func(t *testing.T) {
+			err := repo.UpdateListenBrainzSettings(ctx, user, repos.UpdateListenBrainzSettingsParams{
+				Scrobble:     repos.NewOptionalFull(false),
+				SyncFeedback: repos.NewOptionalFull(true),
+			})
+			assert.NoErrorf(t, err, "update listenbrainz settings: %v", err)
+
+			u := getUser(user, false)
+
+			assert.False(t, u.ListenBrainzScrobble)
+			assert.True(t, u.ListenBrainzSyncFeedback)
+
+			u2 := getUser(user2, false)
+
+			assert.True(t, u2.ListenBrainzScrobble, "updating one user should affect another one")
+			assert.False(t, u2.ListenBrainzSyncFeedback, "updating one user should not affect another one")
+		})
+
+		t.Run("user does not exist", func(t *testing.T) {
+			err := repo.UpdateListenBrainzSettings(ctx, "doesnotexist", repos.UpdateListenBrainzSettingsParams{
+				Scrobble:     repos.NewOptionalFull(false),
+				SyncFeedback: repos.NewOptionalFull(true),
+			})
+			assert.ErrorIs(t, err, repos.ErrNotFound, "expected error %v, got %v", repos.ErrNotFound, err)
+		})
+
+		t.Run("user does not have a listenbrainz connection", func(t *testing.T) {
+			err := repo.UpdateListenBrainzSettings(ctx, user2, repos.UpdateListenBrainzSettingsParams{
+				Scrobble:     repos.NewOptionalFull(false),
+				SyncFeedback: repos.NewOptionalFull(true),
+			})
+			assert.ErrorIs(t, err, repos.ErrNotFound, "expected error %v, got %v", repos.ErrNotFound, err)
+		})
+
+		t.Run("empty update", func(t *testing.T) {
+			err := repo.UpdateListenBrainzSettings(ctx, user, repos.UpdateListenBrainzSettingsParams{
+				Scrobble:     repos.NewOptionalFull(false),
+				SyncFeedback: repos.NewOptionalFull(true),
+			})
+			require.NoErrorf(t, err, "update listenbrainz settings: %v", err)
+
+			err = repo.UpdateListenBrainzSettings(ctx, user, repos.UpdateListenBrainzSettingsParams{
+				Scrobble:     repos.NewOptionalEmpty[bool](),
+				SyncFeedback: repos.NewOptionalEmpty[bool](),
+			})
+			assert.NoErrorf(t, err, "update listenbrainz settings: %v", err)
+
+			u := getUser(user, false)
+
+			assert.False(t, u.ListenBrainzScrobble)
+			assert.True(t, u.ListenBrainzSyncFeedback)
+		})
 	})
 
 	t.Run("FindAll", func(t *testing.T) {

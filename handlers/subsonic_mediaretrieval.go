@@ -77,7 +77,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", fileFormat.Mime)
 
-	estimateContentLength, ok := q.Bool("estimateContentLength", false)
+	estimateContentLength, ok := q.BoolDef("estimateContentLength", false)
 	if !ok {
 		return
 	}
