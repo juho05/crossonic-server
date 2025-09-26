@@ -7,6 +7,7 @@ import (
 
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 )
 
 func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
@@ -84,9 +85,15 @@ func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request, searchQuer
 		return nil, false
 	}
 
+	var order *repos.SongOrder
+	if searchQuery == "" {
+		order = util.ToPtr(repos.SongOrderTitle)
+	}
+
 	dbSongs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
 		Search:   searchQuery,
 		Paginate: paginate,
+		Order:    order,
 	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("search3: songs: %w", err))
