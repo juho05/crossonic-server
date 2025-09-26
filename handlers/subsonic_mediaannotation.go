@@ -295,15 +295,15 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := getQuery(w, r)
 
-		ids, ok := q.IDsTypeReq("id", []crossonic.IDType{crossonic.IDTypeSong, crossonic.IDTypeAlbum, crossonic.IDTypeArtist})
+		ids, ok := q.IDsType("id", []crossonic.IDType{crossonic.IDTypeSong, crossonic.IDTypeAlbum, crossonic.IDTypeArtist})
 		if !ok {
 			return
 		}
-		albumIDs, ok := q.IDsTypeReq("albumId", []crossonic.IDType{crossonic.IDTypeAlbum})
+		albumIDs, ok := q.IDsType("albumId", []crossonic.IDType{crossonic.IDTypeAlbum})
 		if !ok {
 			return
 		}
-		artistIDs, ok := q.IDsTypeReq("artistId", []crossonic.IDType{crossonic.IDTypeArtist})
+		artistIDs, ok := q.IDsType("artistId", []crossonic.IDType{crossonic.IDTypeArtist})
 		if !ok {
 			return
 		}
@@ -312,6 +312,12 @@ func (h *Handler) handleStarUnstar(star bool) func(w http.ResponseWriter, r *htt
 		allIDs = append(allIDs, ids...)
 		allIDs = append(allIDs, albumIDs...)
 		allIDs = append(allIDs, artistIDs...)
+
+		if len(allIDs) == 0 {
+			res := responses.New()
+			res.EncodeOrLog(w, q.Format())
+			return
+		}
 
 		songIDs := make([]string, 0, len(allIDs))
 		err := h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
