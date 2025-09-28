@@ -168,8 +168,8 @@ const (
 	SongOrderRandom      SongOrder = "random"
 	SongOrderReleaseDate SongOrder = "release"
 	SongOrderAdded       SongOrder = "added"
-	SongOrderLastPlayed  SongOrder = "last_played"
-	SongOrderPlayCount   SongOrder = "play_count"
+	SongOrderLastPlayed  SongOrder = "lastPlayed"
+	SongOrderPlayCount   SongOrder = "playCount"
 	SongOrderStarred     SongOrder = "starred"
 	SongOrderBPM         SongOrder = "bpm"
 )
