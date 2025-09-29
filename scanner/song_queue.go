@@ -37,7 +37,8 @@ type mediaFile struct {
 	albumArtistNames    []string
 	albumArtistMBIDs    []string
 	bpm                 *int
-	year                *int
+	originalDate        *repos.Date
+	releaseDate         *repos.Date
 	track               *int
 	disc                *int
 	discTitle           *string
@@ -52,6 +53,8 @@ type mediaFile struct {
 	recordLabels  []string
 	releaseTypes  []string
 	isCompilation bool
+
+	albumVersion *string
 }
 
 type song struct {
@@ -73,7 +76,8 @@ type song struct {
 	artistNames               []string
 	artistIDs                 []string
 	bpm                       *int
-	year                      *int
+	originalDate              *repos.Date
+	releaseDate               *repos.Date
 	track                     *int
 	disc                      *int
 	genres                    []string
@@ -168,7 +172,8 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			lengthMS:                  media.lengthMS,
 			title:                     media.title,
 			bpm:                       media.bpm,
-			year:                      media.year,
+			releaseDate:               media.releaseDate,
+			originalDate:              media.originalDate,
 			track:                     media.track,
 			disc:                      media.disc,
 			genres:                    media.genres,
@@ -213,7 +218,8 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			alb, err := s.albums.findOrCreate(ctx, s, *media.albumName, findOrCreateAlbumParams{
 				mbid:           media.albumMBID,
 				releaseMBID:    media.albumReleaseMBID,
-				year:           media.year,
+				originalDate:   media.originalDate,
+				releaseDate:    media.releaseDate,
 				recordLabels:   media.recordLabels,
 				releaseTypes:   media.releaseTypes,
 				isCompilation:  &media.isCompilation,
@@ -222,6 +228,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 				artists:        albumArtists,
 				cover:          media.cover,
 				songPath:       media.path,
+				version:        media.albumVersion,
 			})
 			if err != nil {
 				return fmt.Errorf("find or create album: %w", err)
@@ -348,7 +355,8 @@ func (s *Scanner) updateSongs(ctx context.Context, songs []*song) ([]*song, erro
 			AlbumID:        s.albumID,
 			Title:          s.title,
 			Track:          s.track,
-			Year:           s.year,
+			OriginalDate:   s.originalDate,
+			ReleaseDate:    s.releaseDate,
 			Size:           s.size,
 			ContentType:    s.contentType,
 			Duration:       repos.NewDurationMS(int64(s.lengthMS)),
@@ -501,7 +509,8 @@ func (s *Scanner) createSongsInDB(ctx context.Context, songs []*song) error {
 			AlbumID:        s.albumID,
 			Title:          s.title,
 			Track:          s.track,
-			Year:           s.year,
+			OriginalDate:   s.originalDate,
+			ReleaseDate:    s.releaseDate,
 			Size:           s.size,
 			ContentType:    s.contentType,
 			Duration:       repos.NewDurationMS(int64(s.lengthMS)),

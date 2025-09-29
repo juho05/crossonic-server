@@ -12,7 +12,8 @@ type Album struct {
 	Name           string           `db:"name"`
 	Created        time.Time        `db:"created"`
 	Updated        time.Time        `db:"updated"`
-	Year           *int             `db:"year"`
+	ReleaseDate    *Date            `db:"release_date"`
+	OriginalDate   *Date            `db:"original_date"`
 	RecordLabels   StringList       `db:"record_labels"`
 	MusicBrainzID  *string          `db:"music_brainz_id"`
 	ReleaseMBID    *string          `db:"release_mbid"`
@@ -21,6 +22,7 @@ type Album struct {
 	ReplayGain     *float64         `db:"replay_gain"`
 	ReplayGainPeak *float64         `db:"replay_gain_peak"`
 	DiscTitles     Map[int, string] `db:"disc_titles"`
+	Version        *string          `db:"version"`
 }
 
 type AlbumTrackInfo struct {
@@ -99,7 +101,8 @@ func IncludeAlbumInfoFull(user string) IncludeAlbumInfo {
 
 type CreateAlbumParams struct {
 	Name           string
-	Year           *int
+	ReleaseDate    *Date
+	OriginalDate   *Date
 	RecordLabels   StringList
 	MusicBrainzID  *string
 	ReleaseMBID    *string
@@ -109,13 +112,15 @@ type CreateAlbumParams struct {
 	ReplayGainPeak *float64
 	ArtistNames    []string
 	DiscTitles     Map[int, string]
+	Version        *string
 }
 
 // Name and ArtistNames must always be specified together
 type UpdateAlbumParams struct {
 	Name           Optional[string]
 	ArtistNames    Optional[[]string]
-	Year           Optional[*int]
+	ReleaseDate    Optional[*Date]
+	OriginalDate   Optional[*Date]
 	RecordLabels   Optional[StringList]
 	MusicBrainzID  Optional[*string]
 	ReleaseMBID    Optional[*string]
@@ -124,6 +129,7 @@ type UpdateAlbumParams struct {
 	ReplayGain     Optional[*float64]
 	ReplayGainPeak Optional[*float64]
 	DiscTitles     Optional[Map[int, string]]
+	Version        Optional[*string]
 }
 
 type FindAlbumSortBy int
@@ -134,7 +140,8 @@ const (
 	FindAlbumSortByRating
 	FindAlbumSortByStarred
 	FindAlbumSortRandom
-	FindAlbumSortByYear
+	FindAlbumSortByOriginalDate
+	FindAlbumSortByReleaseDate
 	FindAlbumSortByFrequent
 	FindAlbumSortByRecent
 )

@@ -1,9 +1,10 @@
 package responses
 
 import (
-	"github.com/juho05/crossonic-server/config"
 	"path/filepath"
 	"time"
+
+	"github.com/juho05/crossonic-server/config"
 
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
@@ -54,12 +55,18 @@ func NewSong(s *repos.CompleteSong, conf config.Config) *Song {
 	if s.AlbumID != nil && HasCoverArt(*s.AlbumID, conf) {
 		coverArt = s.AlbumID
 	}
+
+	var year *int
+	if s.OriginalDate != nil {
+		year = util.ToPtr(s.OriginalDate.Year())
+	}
+
 	song := &Song{
 		ID:            s.ID,
 		IsDir:         false,
 		Title:         s.Title,
 		Track:         s.Track,
-		Year:          s.Year,
+		Year:          year,
 		CoverArt:      coverArt,
 		Size:          s.Size,
 		ContentType:   s.ContentType,

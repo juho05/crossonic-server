@@ -1,43 +1,47 @@
 package responses
 
 import (
-	"github.com/juho05/crossonic-server/config"
 	"slices"
 	"time"
+
+	"github.com/juho05/crossonic-server/config"
 
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
 )
 
 type Album struct {
-	ID            string         `xml:"id,attr,omitempty"       json:"id"`
-	Created       time.Time      `xml:"created,attr,omitempty"  json:"created,omitempty"`
-	ArtistID      *string        `xml:"artistId,attr,omitempty" json:"artistId,omitempty"`
-	Artist        *string        `xml:"artist,attr,omitempty"             json:"artist,omitempty"`
-	Artists       []*ArtistRef   `xml:"artists,omitempty"           json:"artists,omitempty"`
-	CoverArt      *string        `xml:"coverArt,attr,omitempty" json:"coverArt,omitempty"`
-	Title         string         `xml:"title,attr"  json:"title"`
-	Name          string         `xml:"name,attr"              json:"name"`
-	SongCount     int            `xml:"songCount,attr"         json:"songCount"`
-	Duration      int            `xml:"duration,attr"          json:"duration"`
-	PlayCount     *int           `xml:"playCount,attr,omitempty" json:"playCount,omitempty"`
-	Genre         *string        `xml:"genre,attr,omitempty"   json:"genre,omitempty"`
-	Genres        []*GenreRef    `xml:"genres,omitempty"       json:"genres,omitempty"`
-	Year          *int           `xml:"year,attr,omitempty"    json:"year,omitempty"`
-	Starred       *time.Time     `xml:"starred,attr,omitempty"         json:"starred,omitempty"`
-	UserRating    *int           `xml:"userRating,attr,omitempty"      json:"userRating,omitempty"`
-	AverageRating *float64       `xml:"averageRating,attr,omitempty"   json:"averageRating,omitempty"`
-	Parent        *string        `xml:"parent,attr" json:"parent"`
-	IsDir         bool           `xml:"isDir,attr" json:"isDir"`
-	Type          string         `xml:"type,attr" json:"type"`
-	MediaType     string         `xml:"mediaType,attr" json:"mediaType"`
-	Played        *time.Time     `xml:"played,attr,omitempty" json:"played,omitempty"`
-	MusicBrainzID *string        `xml:"musicBrainzId,attr,omitempty" json:"musicBrainzId,omitempty"`
-	ReleaseMBID   *string        `xml:"releaseMbid,attr,omitempty" json:"releaseMbid,omitempty"`
-	RecordLabels  []*RecordLabel `xml:"recordLabels,omitempty" json:"recordLabels,omitempty"`
-	ReleaseTypes  []string       `xml:"releaseTypes,omitempty" json:"releaseTypes,omitempty"`
-	IsCompilation *bool          `xml:"isCompilation,attr,omitempty" json:"isCompilation,omitempty"`
-	DiscTitles    []DiscTitle    `xml:"discTitles,omitempty" json:"discTitles,omitempty"`
+	ID                  string         `xml:"id,attr,omitempty"       json:"id"`
+	Created             time.Time      `xml:"created,attr,omitempty"  json:"created,omitempty"`
+	ArtistID            *string        `xml:"artistId,attr,omitempty" json:"artistId,omitempty"`
+	Artist              *string        `xml:"artist,attr,omitempty"             json:"artist,omitempty"`
+	Artists             []*ArtistRef   `xml:"artists,omitempty"           json:"artists,omitempty"`
+	CoverArt            *string        `xml:"coverArt,attr,omitempty" json:"coverArt,omitempty"`
+	Title               string         `xml:"title,attr"  json:"title"`
+	Name                string         `xml:"name,attr"              json:"name"`
+	SongCount           int            `xml:"songCount,attr"         json:"songCount"`
+	Duration            int            `xml:"duration,attr"          json:"duration"`
+	PlayCount           *int           `xml:"playCount,attr,omitempty" json:"playCount,omitempty"`
+	Genre               *string        `xml:"genre,attr,omitempty"   json:"genre,omitempty"`
+	Genres              []*GenreRef    `xml:"genres,omitempty"       json:"genres,omitempty"`
+	Year                *int           `xml:"year,attr,omitempty"    json:"year,omitempty"`
+	Starred             *time.Time     `xml:"starred,attr,omitempty"         json:"starred,omitempty"`
+	UserRating          *int           `xml:"userRating,attr,omitempty"      json:"userRating,omitempty"`
+	AverageRating       *float64       `xml:"averageRating,attr,omitempty"   json:"averageRating,omitempty"`
+	Parent              *string        `xml:"parent,attr" json:"parent"`
+	IsDir               bool           `xml:"isDir,attr" json:"isDir"`
+	Type                string         `xml:"type,attr" json:"type"`
+	MediaType           string         `xml:"mediaType,attr" json:"mediaType"`
+	Played              *time.Time     `xml:"played,attr,omitempty" json:"played,omitempty"`
+	MusicBrainzID       *string        `xml:"musicBrainzId,attr,omitempty" json:"musicBrainzId,omitempty"`
+	ReleaseMBID         *string        `xml:"releaseMbid,attr,omitempty" json:"releaseMbid,omitempty"`
+	RecordLabels        []*RecordLabel `xml:"recordLabels,omitempty" json:"recordLabels,omitempty"`
+	ReleaseTypes        []string       `xml:"releaseTypes,omitempty" json:"releaseTypes,omitempty"`
+	IsCompilation       *bool          `xml:"isCompilation,attr,omitempty" json:"isCompilation,omitempty"`
+	DiscTitles          []DiscTitle    `xml:"discTitles,omitempty" json:"discTitles,omitempty"`
+	OriginalReleaseDate *Date          `xml:"originalReleaseDate,omitempty" json:"originalReleaseDate,omitempty"`
+	ReleaseDate         *Date          `xml:"releaseDate,omitempty" json:"releaseDate,omitempty"`
+	Version             *string        `xml:"version,attr,omitempty" json:"version,omitempty"`
 }
 
 type DiscTitle struct {
@@ -49,12 +53,18 @@ func NewAlbum(a *repos.CompleteAlbum, conf config.Config) *Album {
 	if a == nil {
 		return nil
 	}
+
+	var year *int
+	if a.OriginalDate != nil {
+		year = util.ToPtr(a.OriginalDate.Year())
+	}
+
 	album := &Album{
 		ID:            a.ID,
 		Created:       a.Created,
 		Title:         a.Name,
 		Name:          a.Name,
-		Year:          a.Year,
+		Year:          year,
 		MusicBrainzID: a.MusicBrainzID,
 		ReleaseMBID:   a.ReleaseMBID,
 		IsCompilation: a.IsCompilation,
@@ -64,9 +74,12 @@ func NewAlbum(a *repos.CompleteAlbum, conf config.Config) *Album {
 				Name: label,
 			}
 		}),
-		IsDir:     true,
-		Type:      "music",
-		MediaType: "album",
+		IsDir:               true,
+		Type:                "music",
+		MediaType:           "album",
+		OriginalReleaseDate: NewDate(a.OriginalDate),
+		ReleaseDate:         NewDate(a.ReleaseDate),
+		Version:             a.Version,
 	}
 
 	if a.AlbumTrackInfo != nil {

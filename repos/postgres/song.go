@@ -81,10 +81,10 @@ func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFi
 	}
 
 	if filter.FromYear != nil {
-		where.And("(songs.year IS NOT NULL AND songs.year >= ?)", *filter.FromYear)
+		where.And("(songs.original_date IS NOT NULL AND SPLIT_PART(songs.original_date, '-', 1)::int >= ?)", *filter.FromYear)
 	}
 	if filter.ToYear != nil {
-		where.And("(songs.year IS NOT NULL AND songs.year <= ?)", *filter.ToYear)
+		where.And("(songs.original_date IS NOT NULL AND SPLIT_PART(songs.original_date, '-', 1)::int <= ?)", *filter.ToYear)
 	}
 
 	if len(filter.AlbumIDs) > 0 {
@@ -107,8 +107,10 @@ func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFi
 			} else {
 				orderBy.Comma("RANDOM()")
 			}
+		case repos.SongOrderOriginalDate:
+			orderBy.Comma("songs.original_date, songs.release_date")
 		case repos.SongOrderReleaseDate:
-			orderBy.Comma("songs.year")
+			orderBy.Comma("songs.release_date")
 		case repos.SongOrderAdded:
 			orderBy.Comma("songs.created")
 		case repos.SongOrderLastPlayed:
@@ -228,12 +230,12 @@ func (s songRepository) CreateAll(ctx context.Context, params []repos.CreateSong
 				searchFields = append(searchFields, p.ArtistNames...)
 				searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
 
-				valueList.Comma("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?)", id, p.Path, p.AlbumID, p.Title, p.Track, p.Year, p.Size, p.ContentType, p.Duration,
+				valueList.Comma("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?)", id, p.Path, p.AlbumID, p.Title, p.Track, p.OriginalDate, p.ReleaseDate, p.Size, p.ContentType, p.Duration,
 					p.BitRate, p.SamplingRate, p.ChannelCount, p.Disc, p.BPM, p.MusicBrainzID, p.ReplayGain, p.ReplayGainPeak,
 					p.Lyrics, searchText)
 			}
 			q := bqb.New(`INSERT INTO songs
-		(id, path, album_id, title, track, year, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated,
+		(id, path, album_id, title, track, original_date, release_date, size, content_type, duration_ms, bit_rate, sampling_rate, channel_count, disc_number, created, updated,
 		bpm, music_brainz_id, replay_gain, replay_gain_peak, lyrics, search_text)
 		VALUES ?`, valueList)
 			return executeQuery(ctx, s.db, q)
@@ -257,7 +259,7 @@ func (s songRepository) TryUpdateAll(ctx context.Context, params []repos.UpdateS
 				}
 				searchFields = append(searchFields, p.ArtistNames...)
 				searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
-				valueList.Comma("(?::text,?::text,?::text,?::text,?::int,?::int,?::bigint,?::text,?::int,?::int,?::int,?::int,?::int,?::int,?,?::real,?::real,?::text,?::text)", p.ID, p.Path, p.AlbumID, p.Title, p.Track, p.Year, p.Size, p.ContentType, p.Duration, p.BitRate, p.SamplingRate,
+				valueList.Comma("(?::text,?::text,?::text,?::text,?::int,?::text,?::text,?::bigint,?::text,?::int,?::int,?::int,?::int,?::int,?::int,?,?::real,?::real,?::text,?::text)", p.ID, p.Path, p.AlbumID, p.Title, p.Track, p.OriginalDate, p.ReleaseDate, p.Size, p.ContentType, p.Duration, p.BitRate, p.SamplingRate,
 					p.ChannelCount, p.Disc, p.BPM, p.MusicBrainzID, p.ReplayGain, p.ReplayGainPeak, p.Lyrics, searchText)
 			}
 
@@ -266,7 +268,8 @@ func (s songRepository) TryUpdateAll(ctx context.Context, params []repos.UpdateS
 					album_id=s.album_id,
 					title=s.title,
 					track=s.track,
-					year=s.year,
+					original_date=s.original_date,
+					release_date=s.release_date,
 					size=s.size,
 					content_type=s.content_type,
 					duration_ms=s.duration_ms,
@@ -281,7 +284,7 @@ func (s songRepository) TryUpdateAll(ctx context.Context, params []repos.UpdateS
 					lyrics=s.lyrics,
 					search_text=s.search_text,
 					updated=NOW()
-				FROM (VALUES ?) AS s(id,path,album_id,title,track,year,size,content_type,duration_ms,bit_rate,sampling_rate,channel_count,disc_number,
+				FROM (VALUES ?) AS s(id,path,album_id,title,track,original_date,release_date,size,content_type,duration_ms,bit_rate,sampling_rate,channel_count,disc_number,
 					bpm,music_brainz_id,replay_gain,replay_gain_peak,lyrics,search_text)
 				WHERE songs.id = s.id`, valueList)
 			c, err := executeQueryCountAffectedRows(ctx, s.db, q)
@@ -474,7 +477,7 @@ func (s songRepository) GetMedianReplayGain(ctx context.Context) (float64, error
 // ================ helpers ================
 
 func genSongSelectList(include repos.IncludeSongInfo) *bqb.Query {
-	q := bqb.New(`songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.year, songs.size, songs.content_type,
+	q := bqb.New(`songs.id, songs.path, songs.album_id, songs.title, songs.track, songs.original_date, songs.release_date, songs.size, songs.content_type,
 		songs.duration_ms, songs.bit_rate, songs.sampling_rate, songs.channel_count, songs.disc_number, songs.created, songs.updated,
 		songs.bpm, songs.music_brainz_id, songs.replay_gain, songs.replay_gain_peak, songs.lyrics`)
 

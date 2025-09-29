@@ -99,7 +99,7 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 			"highest":            repos.FindAlbumSortByRating,
 			"alphabeticalByName": repos.FindAlbumSortByName,
 			"starred":            repos.FindAlbumSortByStarred,
-			"byYear":             repos.FindAlbumSortByYear,
+			"byYear":             repos.FindAlbumSortByOriginalDate,
 			"byGenre":            repos.FindAlbumSortByName,
 			"frequent":           repos.FindAlbumSortByFrequent,
 			"recent":             repos.FindAlbumSortByRecent,

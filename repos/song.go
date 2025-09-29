@@ -14,7 +14,8 @@ type Song struct {
 	AlbumID        *string    `db:"album_id"`
 	Title          string     `db:"title"`
 	Track          *int       `db:"track"`
-	Year           *int       `db:"year"`
+	ReleaseDate    *Date      `db:"release_date"`
+	OriginalDate   *Date      `db:"original_date"`
 	Size           int64      `db:"size"`
 	ContentType    string     `db:"content_type"`
 	Duration       DurationMS `db:"duration_ms"`
@@ -121,7 +122,8 @@ type CreateSongParams struct {
 	AlbumID        *string
 	Title          string
 	Track          *int
-	Year           *int
+	ReleaseDate    *Date
+	OriginalDate   *Date
 	Size           int64
 	ContentType    string
 	Duration       DurationMS
@@ -144,7 +146,8 @@ type UpdateSongAllParams struct {
 	AlbumID        *string
 	Title          string
 	Track          *int
-	Year           *int
+	ReleaseDate    *Date
+	OriginalDate   *Date
 	Size           int64
 	ContentType    string
 	Duration       DurationMS
@@ -164,20 +167,22 @@ type UpdateSongAllParams struct {
 type SongOrder string
 
 const (
-	SongOrderTitle       SongOrder = "title"
-	SongOrderRandom      SongOrder = "random"
-	SongOrderReleaseDate SongOrder = "release"
-	SongOrderAdded       SongOrder = "added"
-	SongOrderLastPlayed  SongOrder = "lastPlayed"
-	SongOrderPlayCount   SongOrder = "playCount"
-	SongOrderStarred     SongOrder = "starred"
-	SongOrderBPM         SongOrder = "bpm"
+	SongOrderTitle        SongOrder = "title"
+	SongOrderRandom       SongOrder = "random"
+	SongOrderOriginalDate SongOrder = "originalDate"
+	SongOrderReleaseDate  SongOrder = "releaseDate"
+	SongOrderAdded        SongOrder = "added"
+	SongOrderLastPlayed   SongOrder = "lastPlayed"
+	SongOrderPlayCount    SongOrder = "playCount"
+	SongOrderStarred      SongOrder = "starred"
+	SongOrderBPM          SongOrder = "bpm"
 )
 
 func (s SongOrder) Valid() bool {
 	return slices.Contains([]SongOrder{
 		SongOrderTitle,
 		SongOrderRandom,
+		SongOrderOriginalDate,
 		SongOrderReleaseDate,
 		SongOrderAdded,
 		SongOrderLastPlayed,

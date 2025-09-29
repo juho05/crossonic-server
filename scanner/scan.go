@@ -18,6 +18,7 @@ import (
 	"github.com/juho05/crossonic-server/audiotags"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
 )
 
@@ -510,10 +511,23 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 
 	album := readSingleTagOptional(tags, "album")
 
-	year := readSingleIntTagFirstOptional(tags, "-", "originalyear", "year", "originaldate", "date")
+	originalDate := readDateTagFirstOptional(tags, "originaldate", "originalyear", "date", "year")
+	releaseDate := readDateTagFirstOptional(tags, "releasedate", "releaseyear", "date", "year", "originaldate", "originalyear")
+	if originalDate == nil {
+		originalDate = releaseDate
+	}
+	if originalDate != nil && releaseDate != nil {
+		if originalDate.Year() == releaseDate.Year() && originalDate.Month() != nil && releaseDate.Month() == nil {
+			releaseDate = util.ToPtr(repos.NewDate(releaseDate.Year(), originalDate.Month(), originalDate.Day()))
+		} else if originalDate.Year() == releaseDate.Year() && originalDate.Month() == releaseDate.Month() && originalDate.Day() != nil && releaseDate.Day() == nil {
+			releaseDate = util.ToPtr(repos.NewDate(releaseDate.Year(), originalDate.Month(), originalDate.Day()))
+		}
+	}
 
 	albumMBID := readSingleTagOptional(tags, "musicbrainz_releasegroupid")
 	releaseMBID := readSingleTagOptional(tags, "musicbrainz_albumid")
+
+	albumVersion := readSingleTagFirstOptional(tags, "albumversion", "version")
 
 	if !s.songQueueClosed {
 		s.songQueue <- &mediaFile{
@@ -541,7 +555,8 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 			releaseTypes:        readStringTags(tags, "releasetypes", "releasetype"),
 			isCompilation:       isCompilation,
 			bpm:                 readSingleIntTagOptional(tags, "bpm"),
-			year:                year,
+			originalDate:        originalDate,
+			releaseDate:         releaseDate,
 			track:               readSingleIntTagFirstOptional(tags, "/", "tracknumber"),
 			disc:                readSingleIntTagFirstOptional(tags, "/", "discnumber"),
 			discTitle:           readSingleTagOptional(tags, "discsubtitle"),
@@ -550,6 +565,7 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 			replayGain:          readReplayGainTag(tags, "replaygain_track_gain"),
 			replayGainPeak:      readReplayGainTag(tags, "replaygain_track_peak"),
 			lyrics:              lyrics,
+			albumVersion:        albumVersion,
 		}
 	}
 
@@ -594,6 +610,17 @@ func readSingleTagOptional(tags map[string][]string, key string) *string {
 	return &v[0]
 }
 
+func readSingleTagFirstOptional(tags map[string][]string, keys ...string) *string {
+	for _, k := range keys {
+		v, ok := tags[k]
+		if !ok || len(v) == 0 {
+			continue
+		}
+		return &v[0]
+	}
+	return nil
+}
+
 func readSingleIntTagOptional(tags map[string][]string, key string) *int {
 	v, ok := tags[key]
 	if !ok {
@@ -621,6 +648,22 @@ func readSingleIntTagFirstOptional(tags map[string][]string, sep string, keys ..
 			return nil
 		}
 		return &i
+	}
+	return nil
+}
+
+func readDateTagFirstOptional(tags map[string][]string, keys ...string) *repos.Date {
+	for _, k := range keys {
+		v, ok := tags[k]
+		if !ok || len(v) == 0 {
+			continue
+		}
+		date, err := repos.ParseDate(v[0])
+		if err != nil {
+			log.Warnf("scan: invalid date value: %s", v[0])
+			continue
+		}
+		return &date
 	}
 	return nil
 }

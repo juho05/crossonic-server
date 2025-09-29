@@ -159,7 +159,7 @@ func (a artistRepository) GetAlbums(ctx context.Context, id string, include repo
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 	q.Space("INNER JOIN album_artist ON album_artist.album_id = albums.id")
 	q.Space(`WHERE album_artist.artist_id = ?`, id)
-	q.Space("ORDER BY albums.year DESC, albums.name")
+	q.Space("ORDER BY albums.original_date DESC, albums.name")
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
 
@@ -171,7 +171,7 @@ func (a artistRepository) GetAppearsOnAlbums(ctx context.Context, id string, inc
 	q.Space(`WHERE album_artist.artist_id != ? AND song_artist.artist_id = ? AND NOT EXISTS (
 		SELECT album_id FROM album_artist WHERE album_artist.artist_id = ? AND album_artist.album_id = albums.id
 	)`, id, id, id)
-	q.Space("ORDER BY albums.year DESC, albums.name")
+	q.Space("ORDER BY albums.original_date DESC, albums.name")
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
 

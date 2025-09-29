@@ -21,11 +21,11 @@ func (a albumRepository) Create(ctx context.Context, params repos.CreateAlbumPar
 	searchFields := []string{params.Name}
 	searchFields = append(searchFields, params.ArtistNames...)
 	searchText := util.NormalizeText(" " + strings.Join(searchFields, " ") + " ")
-	q := bqb.New(`INSERT INTO albums (id, name, created, updated, year, record_labels, music_brainz_id, release_mbid,
-		release_types, is_compilation, replay_gain, replay_gain_peak, search_text, disc_titles) VALUES (?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	q := bqb.New(`INSERT INTO albums (id, name, created, updated, original_date, release_date, record_labels, music_brainz_id, release_mbid,
+		release_types, is_compilation, replay_gain, replay_gain_peak, search_text, disc_titles, version) VALUES (?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING albums.*`,
-		id, params.Name, params.Year, params.RecordLabels, params.MusicBrainzID, params.ReleaseMBID, params.ReleaseTypes,
-		params.IsCompilation, params.ReplayGain, params.ReplayGainPeak, searchText, params.DiscTitles)
+		id, params.Name, params.OriginalDate, params.ReleaseDate, params.RecordLabels, params.MusicBrainzID, params.ReleaseMBID, params.ReleaseTypes,
+		params.IsCompilation, params.ReplayGain, params.ReplayGainPeak, searchText, params.DiscTitles, params.Version)
 	return id, executeQuery(ctx, a.db, q)
 }
 
@@ -41,7 +41,8 @@ func (a albumRepository) Update(ctx context.Context, id string, params repos.Upd
 	}
 	updateList, empty := genUpdateList(map[string]repos.OptionalGetter{
 		"name":             params.Name,
-		"year":             params.Year,
+		"original_date":    params.OriginalDate,
+		"release_date":     params.ReleaseDate,
 		"record_labels":    params.RecordLabels,
 		"music_brainz_id":  params.MusicBrainzID,
 		"release_mbid":     params.ReleaseMBID,
@@ -51,6 +52,7 @@ func (a albumRepository) Update(ctx context.Context, id string, params repos.Upd
 		"replay_gain_peak": params.ReplayGainPeak,
 		"search_text":      searchText,
 		"disc_titles":      params.DiscTitles,
+		"version":          params.Version,
 	}, true)
 	if empty {
 		return nil
@@ -74,10 +76,10 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 
 	where := bqb.Optional("WHERE")
 	if params.FromYear != nil {
-		where.And("(albums.year IS NOT NULL AND albums.year >= ?)", *params.FromYear)
+		where.And("(albums.original_date IS NOT NULL AND SPLIT_PART(albums.original_date, '-', 1)::int >= ?)", *params.FromYear)
 	}
 	if params.ToYear != nil {
-		where.And("(albums.year IS NOT NULL AND albums.year <= ?)", *params.ToYear)
+		where.And("(albums.original_date IS NOT NULL AND SPLIT_PART(albums.original_date, '-', 1)::int <= ?)", *params.ToYear)
 	}
 	if len(params.Genres) > 0 {
 		genres := util.Map(params.Genres, func(g string) string {
@@ -109,9 +111,12 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 		}
 	case repos.FindAlbumSortRandom:
 		orderBy.Space("random()")
-	case repos.FindAlbumSortByYear:
-		orderBy.Space("albums.year, lower(albums.name)")
-		where.And("(albums.year IS NOT NULL)")
+	case repos.FindAlbumSortByOriginalDate:
+		orderBy.Space("albums.original_date, lower(albums.name)")
+		where.And("(albums.original_date IS NOT NULL)")
+	case repos.FindAlbumSortByReleaseDate:
+		orderBy.Space("albums.release_date, lower(albums.name)")
+		where.And("(albums.release_date IS NOT NULL)")
 	case repos.FindAlbumSortByFrequent:
 		if !include.PlayInfo || include.User == "" {
 			return nil, repos.NewError("find all albums ordered by frequency requires include.PlayInfo and include.User to be set", repos.ErrInvalidParams, nil)
@@ -213,7 +218,7 @@ func (a albumRepository) CreateArtistConnections(ctx context.Context, connection
 // helpers
 
 func genAlbumSelectList(include repos.IncludeAlbumInfo) *bqb.Query {
-	q := bqb.New(`albums.id, albums.name, albums.created, albums.updated, albums.year, albums.record_labels, albums.music_brainz_id, albums.release_mbid,
+	q := bqb.New(`albums.id, albums.name, albums.created, albums.updated, albums.release_date, albums.original_date, albums.version, albums.record_labels, albums.music_brainz_id, albums.release_mbid,
 		albums.release_types, albums.is_compilation, albums.replay_gain, albums.replay_gain_peak, albums.disc_titles`)
 
 	if include.TrackInfo {

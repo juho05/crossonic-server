@@ -58,3 +58,7 @@ func (e Error) Is(target error) bool {
 func (e Error) Unwrap() error {
 	return e.DBErr
 }
+
+var (
+	ErrInvalidDate = errors.New("invalid date")
+)

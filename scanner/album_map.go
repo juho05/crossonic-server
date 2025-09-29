@@ -15,7 +15,8 @@ type album struct {
 	id             string
 	mbid           *string
 	releaseMBID    *string
-	year           *int
+	originalDate   *repos.Date
+	releaseDate    *repos.Date
 	recordLabels   []string
 	releaseTypes   []string
 	isCompilation  *bool
@@ -25,6 +26,7 @@ type album struct {
 	artistNames    []string
 	updated        bool
 	discTitles     map[int]string
+	version        *string
 }
 
 type albumMap struct {
@@ -39,7 +41,8 @@ type findOrCreateAlbumParamsArtist struct {
 type findOrCreateAlbumParams struct {
 	mbid           *string
 	releaseMBID    *string
-	year           *int
+	originalDate   *repos.Date
+	releaseDate    *repos.Date
 	recordLabels   []string
 	releaseTypes   []string
 	isCompilation  *bool
@@ -48,6 +51,7 @@ type findOrCreateAlbumParams struct {
 	artists        []findOrCreateAlbumParamsArtist
 	cover          *string
 	songPath       string
+	version        *string
 }
 
 func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
@@ -88,7 +92,8 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 			id:             a.ID,
 			mbid:           a.MusicBrainzID,
 			releaseMBID:    a.ReleaseMBID,
-			year:           a.Year,
+			originalDate:   a.OriginalDate,
+			releaseDate:    a.ReleaseDate,
 			recordLabels:   a.RecordLabels,
 			releaseTypes:   a.ReleaseTypes,
 			isCompilation:  a.IsCompilation,
@@ -98,6 +103,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 			artistNames:    albumArtistNames,
 			updated:        false,
 			discTitles:     a.DiscTitles,
+			version:        a.Version,
 		}
 		albumMap.albums[a.Name] = append(albumMap.albums[a.Name], alb)
 	}
@@ -144,9 +150,27 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 			continue
 		}
 
-		// match year
-		if a.year != nil && params.year != nil {
-			if *a.year == *params.year {
+		// match version
+		if a.version != nil && params.version != nil {
+			if *a.version == *params.version {
+				found = a
+				break
+			}
+			continue
+		}
+
+		// match release date
+		if a.releaseDate != nil && params.releaseDate != nil {
+			if *a.releaseDate == *params.releaseDate {
+				found = a
+				break
+			}
+			continue
+		}
+
+		// match original date
+		if a.originalDate != nil && params.originalDate != nil {
+			if *a.originalDate == *params.originalDate {
 				found = a
 				break
 			}
@@ -169,8 +193,12 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 				found.releaseMBID = params.releaseMBID
 				changed = true
 			}
-			if !util.EqPtrVals(found.year, params.year) {
-				found.year = params.year
+			if !util.EqPtrVals(found.originalDate, params.originalDate) {
+				found.originalDate = params.originalDate
+				changed = true
+			}
+			if !util.EqPtrVals(found.releaseDate, params.releaseDate) {
+				found.releaseDate = params.releaseDate
 				changed = true
 			}
 			if !slices.Equal(found.recordLabels, params.recordLabels) {
@@ -191,6 +219,10 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 			}
 			if !util.EqPtrVals(found.replayGainPeak, params.replayGainPeak) {
 				found.replayGainPeak = params.replayGainPeak
+				changed = true
+			}
+			if !util.EqPtrVals(found.version, params.version) {
+				found.version = params.version
 				changed = true
 			}
 			if len(found.artistIDs) != len(params.artists) {
@@ -249,7 +281,8 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 	alb := &album{
 		mbid:           params.mbid,
 		releaseMBID:    params.releaseMBID,
-		year:           params.year,
+		originalDate:   params.originalDate,
+		releaseDate:    params.releaseDate,
 		recordLabels:   params.recordLabels,
 		releaseTypes:   params.releaseTypes,
 		isCompilation:  params.isCompilation,
@@ -257,6 +290,7 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 		replayGainPeak: params.replayGainPeak,
 		artistIDs:      artistIDs,
 		artistNames:    artistNames,
+		version:        params.version,
 		updated:        true,
 	}
 	a.albums[name] = append(a.albums[name], alb)
@@ -280,7 +314,8 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 
 func (a *albumMap) updateAlbum(ctx context.Context, s *Scanner, name string, album *album) error {
 	err := s.tx.Album().Update(ctx, album.id, repos.UpdateAlbumParams{
-		Year:           repos.NewOptionalFull(album.year),
+		OriginalDate:   repos.NewOptionalFull(album.originalDate),
+		ReleaseDate:    repos.NewOptionalFull(album.releaseDate),
 		RecordLabels:   repos.NewOptionalFull(repos.StringList(album.recordLabels)),
 		MusicBrainzID:  repos.NewOptionalFull(album.mbid),
 		ReleaseMBID:    repos.NewOptionalFull(album.releaseMBID),
@@ -290,6 +325,7 @@ func (a *albumMap) updateAlbum(ctx context.Context, s *Scanner, name string, alb
 		ReplayGainPeak: repos.NewOptionalFull(album.replayGainPeak),
 		Name:           repos.NewOptionalFull(name),
 		ArtistNames:    repos.NewOptionalFull(album.artistNames),
+		Version:        repos.NewOptionalFull(album.version),
 	})
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
@@ -306,7 +342,8 @@ func (a *albumMap) updateAlbum(ctx context.Context, s *Scanner, name string, alb
 func (a *albumMap) createAlbum(ctx context.Context, s *Scanner, name string, album *album) error {
 	albID, err := s.tx.Album().Create(ctx, repos.CreateAlbumParams{
 		Name:           name,
-		Year:           album.year,
+		OriginalDate:   album.originalDate,
+		ReleaseDate:    album.releaseDate,
 		RecordLabels:   album.recordLabels,
 		MusicBrainzID:  album.mbid,
 		ReleaseMBID:    album.releaseMBID,
@@ -315,6 +352,7 @@ func (a *albumMap) createAlbum(ctx context.Context, s *Scanner, name string, alb
 		ReplayGain:     album.replayGain,
 		ReplayGainPeak: album.replayGainPeak,
 		ArtistNames:    album.artistNames,
+		Version:        album.version,
 	})
 	if err != nil {
 		return fmt.Errorf("create: %w", err)

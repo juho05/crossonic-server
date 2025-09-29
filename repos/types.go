@@ -4,9 +4,121 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
+
+type Date struct {
+	year  int
+	month int
+	day   int
+}
+
+func (d Date) Year() int {
+	return d.year
+}
+
+func (d Date) Month() *int {
+	if d.month == 0 {
+		return nil
+	}
+	return &d.month
+}
+
+func (d Date) Day() *int {
+	if d.day == 0 {
+		return nil
+	}
+	return &d.day
+}
+
+func (d Date) String() string {
+	if d.month == 0 {
+		return fmt.Sprintf("%04d", d.year)
+	}
+	if d.day == 0 {
+		return fmt.Sprintf("%04d-%02d", d.year, d.month)
+	}
+	return fmt.Sprintf("%04d-%02d-%02d", d.year, d.month, d.day)
+}
+
+func (d Date) Value() (driver.Value, error) {
+	return d.String(), nil
+}
+
+func (d *Date) Scan(value any) error {
+	if value == nil {
+		return nil
+	}
+	str, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("cannot scan %T into Date; expected string value", value)
+	}
+	date, err := ParseDate(str)
+	if err != nil {
+		return err
+	}
+	*d = date
+	return nil
+}
+
+func NewDate(year int, month *int, day *int) Date {
+	var m int
+	if month != nil {
+		m = *month
+	}
+	var d int
+	if day != nil {
+		d = *day
+	}
+	return Date{
+		year:  year,
+		month: m,
+		day:   d,
+	}
+}
+
+func ParseDate(str string) (Date, error) {
+	parts := strings.Split(str, "-")
+	if len(parts) > 3 {
+		return Date{}, ErrInvalidDate
+	}
+
+	year, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return Date{}, ErrInvalidDate
+	}
+
+	if len(parts) == 1 {
+		return Date{
+			year: year,
+		}, nil
+	}
+
+	month, err := strconv.Atoi(parts[1])
+	if err != nil || month < 1 || month > 12 {
+		return Date{}, ErrInvalidDate
+	}
+
+	if len(parts) == 2 {
+		return Date{
+			year:  year,
+			month: month,
+		}, nil
+	}
+
+	day, err := strconv.Atoi(parts[2])
+	if err != nil || day < 1 || day > 31 {
+		return Date{}, ErrInvalidDate
+	}
+
+	return Date{
+		year:  year,
+		month: month,
+		day:   day,
+	}, nil
+}
 
 type DurationMS time.Duration
 
@@ -14,22 +126,18 @@ func NewDurationMS(millis int64) DurationMS {
 	return DurationMS(time.Duration(millis) * time.Millisecond)
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt DurationMS) Millis() int64 {
 	return nt.ToStd().Milliseconds()
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt DurationMS) Seconds() int {
 	return int(nt.ToStd().Seconds())
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt DurationMS) ToStd() time.Duration {
 	return time.Duration(nt)
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt *DurationMS) Scan(value any) error {
 	if value == nil {
 		return nil
@@ -49,7 +157,6 @@ func (nt *DurationMS) Scan(value any) error {
 	return nil
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt DurationMS) Value() (driver.Value, error) {
 	return time.Duration(nt).Milliseconds(), nil
 }
@@ -59,7 +166,6 @@ type NullDurationMS struct {
 	Valid    bool
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt *NullDurationMS) Scan(value any) error {
 	if value == nil {
 		return nil
@@ -82,7 +188,6 @@ func (nt *NullDurationMS) Scan(value any) error {
 	return nil
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt NullDurationMS) Value() (driver.Value, error) {
 	if !nt.Valid {
 		return nil, nil
@@ -92,7 +197,6 @@ func (nt NullDurationMS) Value() (driver.Value, error) {
 
 type StringList []string
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt *StringList) Scan(value interface{}) error {
 	if value == nil {
 		*nt = nil
@@ -111,14 +215,12 @@ func (nt *StringList) Scan(value interface{}) error {
 	return nil
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (nt StringList) Value() (driver.Value, error) {
 	return strings.Join(nt, "\003"), nil
 }
 
 type Map[T comparable, U any] map[T]U
 
-//goland:noinspection GoMixedReceiverTypes
 func (m *Map[T, U]) Scan(value interface{}) error {
 	if value == nil {
 		*m = nil
@@ -139,7 +241,6 @@ func (m *Map[T, U]) Scan(value interface{}) error {
 	return nil
 }
 
-//goland:noinspection GoMixedReceiverTypes
 func (m Map[T, U]) Value() (driver.Value, error) {
 	if m == nil {
 		return nil, nil
