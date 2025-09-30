@@ -192,4 +192,5 @@ type AlbumRepository interface {
 	GetAllArtistConnections(ctx context.Context) ([]AlbumArtistConnection, error)
 	RemoveAllArtistConnections(ctx context.Context) error
 	CreateArtistConnections(ctx context.Context, connections []AlbumArtistConnection) error
+	GetAlternateVersions(ctx context.Context, albumId string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 }

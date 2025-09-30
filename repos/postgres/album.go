@@ -215,6 +215,19 @@ func (a albumRepository) CreateArtistConnections(ctx context.Context, connection
 	})
 }
 
+func (a albumRepository) GetAlternateVersions(ctx context.Context, albumId string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
+	q.Space("INNER JOIN albums AS albums2 ON albums2.id = ?", albumId)
+	q.Space("WHERE albums.id != ?", albumId)
+
+	conditions := bqb.New("(albums.music_brainz_id IS NOT NULL AND albums.music_brainz_id = albums2.music_brainz_id)")
+	conditions.Or("(albums.music_brainz_id IS NULL AND albums2.music_brainz_id IS NULL AND albums.search_text = albums2.search_text AND (albums.original_date IS NULL OR albums2.original_date IS NULL OR albums.original_date = albums2.original_date))")
+
+	q.And("(?)", conditions)
+
+	return execAlbumSelectMany(ctx, a.db, q, include)
+}
+
 // helpers
 
 func genAlbumSelectList(include repos.IncludeAlbumInfo) *bqb.Query {

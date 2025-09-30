@@ -26,6 +26,10 @@ type AppearsOn struct {
 	Albums []*Album `xml:"album" json:"album"`
 }
 
+type AlbumVersions struct {
+	Albums []*Album `xml:"album" json:"album"`
+}
+
 type Songs struct {
 	Songs []*Song `xml:"song" json:"song"`
 }

@@ -28,3 +28,24 @@ func (h *Handler) handleGetAppearsOn(w http.ResponseWriter, r *http.Request) {
 	}
 	res.EncodeOrLog(w, q.Format())
 }
+
+func (h *Handler) handleGetAlternateAlbumVersions(w http.ResponseWriter, r *http.Request) {
+	q := getQuery(w, r)
+
+	albumId, ok := q.IDReq("albumId")
+	if !ok {
+		return
+	}
+
+	albums, err := h.DB.Album().GetAlternateVersions(r.Context(), albumId, repos.IncludeAlbumInfoFull(q.User()))
+	if err != nil {
+		respondErr(w, q.Format(), fmt.Errorf("get album versions: %w", err))
+		return
+	}
+
+	res := responses.New()
+	res.AlbumVersions = &responses.AlbumVersions{
+		Albums: responses.NewAlbums(albums, h.Config),
+	}
+	res.EncodeOrLog(w, q.Format())
+}

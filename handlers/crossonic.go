@@ -14,4 +14,5 @@ func (h *Handler) registerCrossonicRoutes(r chi.Router) {
 	registerRoute(r, "/getTopSongsRecap", h.handleGetTopSongsRecap)
 	registerRoute(r, "/getAppearsOn", h.handleGetAppearsOn)
 	registerRoute(r, "/getSongs", h.handleGetSongs)
+	registerRoute(r, "/getAlternateAlbumVersions", h.handleGetAlternateAlbumVersions)
 }
