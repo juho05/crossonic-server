@@ -142,6 +142,8 @@ func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFi
 		orderBy.Comma("?", searchOrder)
 	}
 
+	orderBy.Comma("songs.id")
+
 	q.Space("? ?", where, orderBy)
 
 	filter.Paginate.Apply(q)

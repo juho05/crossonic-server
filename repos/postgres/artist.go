@@ -122,7 +122,7 @@ func (a artistRepository) FindAll(ctx context.Context, params repos.FindArtistsP
 	if params.UpdatedAfter != nil {
 		where.And("artists.updated >= ?", *params.UpdatedAfter)
 	}
-	q = bqb.New("? ? ORDER BY lower(artists.name)", q, where)
+	q = bqb.New("? ? ORDER BY lower(artists.name), artists.id", q, where)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 
@@ -139,6 +139,7 @@ func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAl
 		}
 		q.And("COALESCE(aa.count, 0) > 0")
 	}
+	orderBy.Comma("artists.id")
 	q = bqb.New("? ORDER BY ?", q, orderBy)
 	paginate.Apply(q)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
@@ -150,7 +151,7 @@ func (a artistRepository) FindStarred(ctx context.Context, paginate repos.Pagina
 	}
 	q := bqb.New("SELECT ? FROM artists ?", genArtistSelectList(include), genArtistJoins(include))
 	q.Space("WHERE artist_stars.created IS NOT NULL")
-	q.Space("ORDER BY artist_stars.created DESC")
+	q.Space("ORDER BY artist_stars.created DESC, artists.id")
 	paginate.Apply(q)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
@@ -159,7 +160,7 @@ func (a artistRepository) GetAlbums(ctx context.Context, id string, include repo
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 	q.Space("INNER JOIN album_artist ON album_artist.album_id = albums.id")
 	q.Space(`WHERE album_artist.artist_id = ?`, id)
-	q.Space("ORDER BY albums.original_date DESC, albums.name")
+	q.Space("ORDER BY albums.original_date DESC, albums.release_date DESC, albums.id")
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
 
@@ -171,7 +172,7 @@ func (a artistRepository) GetAppearsOnAlbums(ctx context.Context, id string, inc
 	q.Space(`WHERE album_artist.artist_id != ? AND song_artist.artist_id = ? AND NOT EXISTS (
 		SELECT album_id FROM album_artist WHERE album_artist.artist_id = ? AND album_artist.album_id = albums.id
 	)`, id, id, id)
-	q.Space("ORDER BY albums.original_date DESC, albums.name")
+	q.Space("ORDER BY albums.original_date DESC, albums.release_date DESC, albums.id")
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
 

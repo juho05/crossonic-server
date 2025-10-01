@@ -128,6 +128,7 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 		}
 		orderBy.Space("plays.last_played DESC NULLS LAST, lower(albums.name)")
 	}
+	orderBy.Comma("albums.id")
 
 	q = bqb.New("? ? ?", q, where, orderBy)
 	params.Paginate.Apply(q)
@@ -139,6 +140,7 @@ func (a albumRepository) FindBySearch(ctx context.Context, query string, paginat
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 
 	conditions, orderBy := genSearch(query, "albums.search_text", "albums.name")
+	orderBy.Comma("albums.id")
 
 	q = bqb.New("? WHERE ? ORDER BY ?", q, conditions, orderBy)
 
@@ -152,7 +154,7 @@ func (a albumRepository) FindStarred(ctx context.Context, paginate repos.Paginat
 	}
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 	q.Space("WHERE album_stars.created IS NOT NULL")
-	q.Space("ORDER BY album_stars.created DESC")
+	q.Space("ORDER BY album_stars.created DESC, albums.id")
 	paginate.Apply(q)
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }

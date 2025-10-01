@@ -13,7 +13,7 @@ type internetRadioStationRepository struct {
 }
 
 func (i internetRadioStationRepository) FindAll(ctx context.Context, user string) ([]*repos.InternetRadioStation, error) {
-	q := bqb.New("SELECT * FROM internet_radio_stations WHERE user_name = ?", user)
+	q := bqb.New("SELECT * FROM internet_radio_stations WHERE user_name = ? ORDER BY internet_radio_stations.updated DESC, internet_radio_stations.name, internet_radio_stations.created DESC", user)
 	return selectQuery[*repos.InternetRadioStation](ctx, i.db, q)
 }
 
