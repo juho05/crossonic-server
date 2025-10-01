@@ -223,7 +223,9 @@ func (a albumRepository) GetAlternateVersions(ctx context.Context, albumId strin
 	q.Space("WHERE albums.id != ?", albumId)
 
 	conditions := bqb.New("(albums.music_brainz_id IS NOT NULL AND albums.music_brainz_id = albums2.music_brainz_id)")
-	conditions.Or("(albums.music_brainz_id IS NULL AND albums2.music_brainz_id IS NULL AND albums.search_text = albums2.search_text AND (albums.original_date IS NULL OR albums2.original_date IS NULL OR albums.original_date = albums2.original_date))")
+	conditions.Or(`(albums.music_brainz_id IS NULL AND albums2.music_brainz_id IS NULL AND albums.name = albums2.name AND (albums.original_date IS NULL OR albums2.original_date IS NULL OR albums.original_date = albums2.original_date) AND EXISTS (	
+			SELECT album_artist.artist_id FROM album_artist INNER JOIN album_artist AS album_artist2 ON album_artist2.artist_id = album_artist.artist_id WHERE album_artist.album_id = albums.id AND album_artist2.album_id = albums2.id
+		))`)
 
 	q.And("(?)", conditions)
 
