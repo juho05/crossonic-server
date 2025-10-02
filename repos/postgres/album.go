@@ -229,6 +229,7 @@ func (a albumRepository) GetAlternateVersions(ctx context.Context, albumId strin
 		))`)
 
 	q.And("(?)", conditions)
+	q.Space("ORDER BY albums.release_date DESC, albums.version ASC NULLS LAST, albums.id")
 
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
