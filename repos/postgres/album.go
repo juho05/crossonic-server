@@ -96,38 +96,42 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 	orderBy := bqb.Optional("ORDER BY")
 	switch params.SortBy {
 	case repos.FindAlbumSortByName:
-		orderBy.Space("lower(albums.name)")
+		orderBy.Comma("lower(albums.name)")
 	case repos.FindAlbumSortByCreated:
-		orderBy.Space("albums.created DESC, lower(albums.name)")
+		orderBy.Comma("albums.created DESC, lower(albums.name)")
 	case repos.FindAlbumSortByRating:
-		orderBy.Space("COALESCE(album_ratings.rating, 0), lower(albums.name)")
+		orderBy.Comma("COALESCE(album_ratings.rating, 0), lower(albums.name)")
 		if !include.Annotations || include.User == "" {
 			return nil, repos.NewError("find all albums ordered by rating requires include.Annotations and include.User to be set", repos.ErrInvalidParams, nil)
 		}
 	case repos.FindAlbumSortByStarred:
-		orderBy.Space("album_stars.created DESC, lower(albums.name)")
+		orderBy.Comma("album_stars.created DESC, lower(albums.name)")
 		where.And("(album_stars.created IS NOT NULL)")
 		if !include.Annotations || include.User == "" {
 			return nil, repos.NewError("find all albums ordered by starred requires include.Annotations and include.User to be set", repos.ErrInvalidParams, nil)
 		}
 	case repos.FindAlbumSortRandom:
-		orderBy.Space("random()")
+		if params.RandomSeed != nil {
+			orderBy.Comma("md5(albums.id||?)", *params.RandomSeed)
+		} else {
+			orderBy.Comma("random()")
+		}
 	case repos.FindAlbumSortByOriginalDate:
-		orderBy.Space("albums.original_date, lower(albums.name)")
+		orderBy.Comma("albums.original_date, lower(albums.name)")
 		where.And("(albums.original_date IS NOT NULL)")
 	case repos.FindAlbumSortByReleaseDate:
-		orderBy.Space("albums.release_date, lower(albums.name)")
+		orderBy.Comma("albums.release_date, lower(albums.name)")
 		where.And("(albums.release_date IS NOT NULL)")
 	case repos.FindAlbumSortByFrequent:
 		if !include.PlayInfo || include.User == "" {
 			return nil, repos.NewError("find all albums ordered by frequency requires include.PlayInfo and include.User to be set", repos.ErrInvalidParams, nil)
 		}
-		orderBy.Space("COALESCE(plays.count, 0) DESC, lower(albums.name)")
+		orderBy.Comma("COALESCE(plays.count, 0) DESC, lower(albums.name)")
 	case repos.FindAlbumSortByRecent:
 		if !include.PlayInfo || include.User == "" {
 			return nil, repos.NewError("find all albums ordered by last played requires include.PlayInfo and include.User to be set", repos.ErrInvalidParams, nil)
 		}
-		orderBy.Space("plays.last_played DESC NULLS LAST, lower(albums.name)")
+		orderBy.Comma("plays.last_played DESC NULLS LAST, lower(albums.name)")
 	}
 	orderBy.Comma("albums.id")
 

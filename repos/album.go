@@ -147,11 +147,12 @@ const (
 )
 
 type FindAlbumParams struct {
-	SortBy   FindAlbumSortBy
-	FromYear *int
-	ToYear   *int
-	Genres   []string
-	Paginate Paginate
+	SortBy     FindAlbumSortBy
+	FromYear   *int
+	ToYear     *int
+	Genres     []string
+	Paginate   Paginate
+	RandomSeed *string
 }
 
 type SetAlbumInfo struct {

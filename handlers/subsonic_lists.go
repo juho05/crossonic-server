@@ -29,11 +29,14 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 
 	genres := q.Strs("genre")
 
+	seed := util.NilIfEmpty(q.Str("seed"))
+
 	dbSongs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
-		Order:    util.ToPtr(repos.SongOrderRandom),
-		FromYear: fromYear,
-		ToYear:   toYear,
-		Genres:   genres,
+		Order:      util.ToPtr(repos.SongOrderRandom),
+		FromYear:   fromYear,
+		ToYear:     toYear,
+		Genres:     genres,
+		RandomSeed: seed,
 		Paginate: repos.Paginate{
 			Limit: limit,
 		},
@@ -93,6 +96,8 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 			return
 		}
 
+		seed := util.NilIfEmpty(q.Str("seed"))
+
 		sortTypes := map[string]repos.FindAlbumSortBy{
 			"random":             repos.FindAlbumSortRandom,
 			"newest":             repos.FindAlbumSortByCreated,
@@ -112,11 +117,12 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 		}
 
 		a, err := h.DB.Album().FindAll(r.Context(), repos.FindAlbumParams{
-			SortBy:   sortBy,
-			FromYear: fromYear,
-			ToYear:   toYear,
-			Genres:   genres,
-			Paginate: paginate,
+			SortBy:     sortBy,
+			FromYear:   fromYear,
+			ToYear:     toYear,
+			Genres:     genres,
+			Paginate:   paginate,
+			RandomSeed: seed,
 		}, repos.IncludeAlbumInfoFull(q.User()))
 		if err != nil {
 			respondInternalErr(w, q.Format(), fmt.Errorf("get album list 2: find all: %w", err))

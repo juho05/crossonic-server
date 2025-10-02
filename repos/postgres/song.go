@@ -105,7 +105,7 @@ func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFi
 			if filter.RandomSeed != nil {
 				orderBy.Comma("md5(songs.id||?)", *filter.RandomSeed)
 			} else {
-				orderBy.Comma("RANDOM()")
+				orderBy.Comma("random()")
 			}
 		case repos.SongOrderOriginalDate:
 			orderBy.Comma("songs.original_date, songs.release_date")
