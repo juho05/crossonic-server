@@ -20,6 +20,7 @@ type ScrobbleRepository struct {
 	GetDistinctAlbumCountMock     func(ctx context.Context, user string, start, end time.Time) (int, error)
 	GetDistinctArtistCountMock    func(ctx context.Context, user string, start, end time.Time) (int, error)
 	GetTopSongsByDurationMock     func(ctx context.Context, user string, start, end time.Time, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error)
+	FixMetadataMock               func(ctx context.Context) error
 }
 
 func (s ScrobbleRepository) CreateMultiple(ctx context.Context, params []repos.CreateScrobbleParams) error {
@@ -102,6 +103,13 @@ func (s ScrobbleRepository) GetDistinctArtistCount(ctx context.Context, user str
 func (s ScrobbleRepository) GetTopSongsByDuration(ctx context.Context, user string, start, end time.Time, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error) {
 	if s.GetTopSongsByDurationMock != nil {
 		return s.GetTopSongsByDurationMock(ctx, user, start, end, paginate, include)
+	}
+	panic("not implemented")
+}
+
+func (s ScrobbleRepository) FixMetadata(ctx context.Context) error {
+	if s.FixMetadataMock != nil {
+		return s.FixMetadataMock(ctx)
 	}
 	panic("not implemented")
 }

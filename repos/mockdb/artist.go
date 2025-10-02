@@ -2,6 +2,7 @@ package mockdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/juho05/crossonic-server/repos"
 )
@@ -25,6 +26,8 @@ type ArtistRepository struct {
 	RemoveRatingMock               func(ctx context.Context, user, artistID string) error
 	GetInfoMock                    func(ctx context.Context, artistID string) (*repos.ArtistInfo, error)
 	SetInfoMock                    func(ctx context.Context, artistID string, params repos.SetArtistInfo) error
+	MigrateAnnotationsMock         func(ctx context.Context, oldId, newId string) error
+	FindArtistIDsToMigrateMock     func(ctx context.Context, scanStartTime time.Time) ([]repos.FindArtistIDsToMigrateResult, error)
 }
 
 func (a ArtistRepository) GetAppearsOnAlbums(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
@@ -149,6 +152,20 @@ func (a ArtistRepository) GetInfo(ctx context.Context, artistID string) (*repos.
 func (a ArtistRepository) SetInfo(ctx context.Context, artistID string, params repos.SetArtistInfo) error {
 	if a.SetInfoMock != nil {
 		return a.SetInfoMock(ctx, artistID, params)
+	}
+	panic("not implemented")
+}
+
+func (a ArtistRepository) MigrateAnnotations(ctx context.Context, oldId, newId string) error {
+	if a.MigrateAnnotationsMock != nil {
+		return a.MigrateAnnotationsMock(ctx, oldId, newId)
+	}
+	panic("not implemented")
+}
+
+func (a ArtistRepository) FindArtistIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]repos.FindArtistIDsToMigrateResult, error) {
+	if a.FindArtistIDsToMigrateMock != nil {
+		return a.FindArtistIDsToMigrateMock(ctx, scanStartTime)
 	}
 	panic("not implemented")
 }

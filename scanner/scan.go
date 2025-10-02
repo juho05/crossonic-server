@@ -227,6 +227,12 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		repos.SetFallbackGain(fallbackGain)
 	}
 
+	log.Tracef("fixing scrobble metadata...")
+	err = s.tx.Scrobble().FixMetadata(ctx)
+	if err != nil {
+		return fmt.Errorf("fix scrobble metadata: %w", err)
+	}
+
 	err = s.tx.System().SetLastScan(ctx, time.Now())
 	if err != nil {
 		return fmt.Errorf("update last scan: %w", err)
@@ -552,7 +558,7 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 			albumReplayGain:     readReplayGainTag(tags, "replaygain_album_gain"),
 			albumReplayGainPeak: readReplayGainTag(tags, "replaygain_album_peak"),
 			recordLabels:        readStringTags(tags, "labels", "label"),
-			releaseTypes:        readStringTags(tags, "releasetypes", "releasetype"),
+			releaseTypes:        readStringTags(tags, "releasetypes", "releasetype", "release_type"),
 			isCompilation:       isCompilation,
 			bpm:                 readSingleIntTagOptional(tags, "bpm"),
 			originalDate:        originalDate,

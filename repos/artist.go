@@ -81,6 +81,13 @@ type FindArtistsParams struct {
 	UpdatedAfter     *time.Time
 }
 
+// results
+
+type FindArtistIDsToMigrateResult struct {
+	OldID string `db:"old_id"`
+	NewID string `db:"new_id"`
+}
+
 type ArtistRepository interface {
 	Create(ctx context.Context, params CreateArtistParams) (string, error)
 	CreateIfNotExistsByName(ctx context.Context, params []CreateArtistParams) error
@@ -106,4 +113,7 @@ type ArtistRepository interface {
 
 	GetInfo(ctx context.Context, artistID string) (*ArtistInfo, error)
 	SetInfo(ctx context.Context, artistID string, params SetArtistInfo) error
+
+	MigrateAnnotations(ctx context.Context, oldId, newId string) error
+	FindArtistIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]FindArtistIDsToMigrateResult, error)
 }

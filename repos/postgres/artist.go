@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
@@ -204,6 +205,39 @@ func (a artistRepository) GetInfo(ctx context.Context, artistID string) (*repos.
 func (a artistRepository) SetInfo(ctx context.Context, artistID string, params repos.SetArtistInfo) error {
 	q := bqb.New("UPDATE artists SET info_updated=NOW(), biography=?, lastfm_url=?, lastfm_mbid=? WHERE id = ?", params.Biography, params.LastFMURL, params.LastFMMBID, artistID)
 	return executeQueryExpectAffectedRows(ctx, a.db, q)
+}
+
+func (a artistRepository) MigrateAnnotations(ctx context.Context, oldId, newId string) error {
+	return a.tx(ctx, func(a artistRepository) error {
+		err := executeQuery(ctx, a.db, bqb.New("UPDATE artists SET created = a.created FROM artists AS a WHERE artists.id = ? AND a.id = ?", newId, oldId))
+		if err != nil {
+			return fmt.Errorf("migrating artist created time: %w", err)
+		}
+
+		err = executeQuery(ctx, a.db, bqb.New("UPDATE artist_ratings SET artist_id = ? WHERE artist_id = ?", newId, oldId))
+		if err != nil {
+			return fmt.Errorf("migrate artist ratings: %w", err)
+		}
+
+		err = executeQuery(ctx, a.db, bqb.New("UPDATE artist_stars SET artist_id = ? WHERE artist_id = ?", newId, oldId))
+		if err != nil {
+			return fmt.Errorf("migrate artist stars: %w", err)
+		}
+
+		return nil
+	})
+}
+
+func (a artistRepository) FindArtistIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]repos.FindArtistIDsToMigrateResult, error) {
+	q := bqb.New("SELECT artists.id AS old_id, arts.id AS new_id FROM artists")
+	q.Space(`
+		LEFT JOIN song_artist ON song_artist.artist_id = artists.id
+		LEFT JOIN album_artist ON album_artist.artist_id = artists.id
+		LEFT JOIN artists AS arts ON artists.music_brainz_id = arts.music_brainz_id AND artists.id != arts.id
+	`)
+	q.Space("WHERE artists.music_brainz_id IS NOT NULL AND song_artist.song_id IS NULL AND album_artist.album_id IS NULL AND arts.music_brainz_id IS NOT NULL AND arts.created >= ?", scanStartTime)
+	q.And("NOT EXISTS (SELECT artis.id FROM albums AS artis WHERE artis.music_brainz_id = artists.music_brainz_id AND artis.id != artists.id AND artis.id != arts.id AND artis.created >= ?)", scanStartTime)
+	return selectQuery[repos.FindArtistIDsToMigrateResult](ctx, a.db, q)
 }
 
 // helpers

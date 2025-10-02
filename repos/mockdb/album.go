@@ -2,12 +2,15 @@ package mockdb
 
 import (
 	"context"
+	"time"
+
 	"github.com/juho05/crossonic-server/repos"
 )
 
 type AlbumRepository struct {
 	CreateMock                     func(ctx context.Context, params repos.CreateAlbumParams) (string, error)
 	UpdateMock                     func(ctx context.Context, id string, params repos.UpdateAlbumParams) error
+	FindAlbumsWithNoTracksMock     func(ctx context.Context) error
 	DeleteIfNoTracksMock           func(ctx context.Context) error
 	FindByIDMock                   func(ctx context.Context, id string, include repos.IncludeAlbumInfo) (*repos.CompleteAlbum, error)
 	FindAllMock                    func(ctx context.Context, params repos.FindAlbumParams, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
@@ -23,6 +26,9 @@ type AlbumRepository struct {
 	GetAllArtistConnectionsMock    func(ctx context.Context) ([]repos.AlbumArtistConnection, error)
 	RemoveAllArtistConnectionsMock func(ctx context.Context) error
 	CreateArtistConnectionsMock    func(ctx context.Context, connections []repos.AlbumArtistConnection) error
+	GetAlternateVersionsMock       func(ctx context.Context, albumId string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
+	MigrateAnnotationsMock         func(ctx context.Context, oldId, newId string) error
+	FindAlbumIDsToMigrateMock      func(ctx context.Context, scanStartTime time.Time) ([]repos.FindAlbumIDsToMigrateResult, error)
 }
 
 func (a AlbumRepository) Create(ctx context.Context, params repos.CreateAlbumParams) (string, error) {
@@ -35,6 +41,13 @@ func (a AlbumRepository) Create(ctx context.Context, params repos.CreateAlbumPar
 func (a AlbumRepository) Update(ctx context.Context, id string, params repos.UpdateAlbumParams) error {
 	if a.UpdateMock != nil {
 		return a.UpdateMock(ctx, id, params)
+	}
+	panic("not implemented")
+}
+
+func (a AlbumRepository) FindAlbumsWithNoTracks(ctx context.Context) error {
+	if a.FindAlbumsWithNoTracksMock != nil {
+		return a.FindAlbumsWithNoTracksMock(ctx)
 	}
 	panic("not implemented")
 }
@@ -140,6 +153,26 @@ func (a AlbumRepository) RemoveAllArtistConnections(ctx context.Context) error {
 func (a AlbumRepository) CreateArtistConnections(ctx context.Context, connections []repos.AlbumArtistConnection) error {
 	if a.CreateArtistConnectionsMock != nil {
 		return a.CreateArtistConnectionsMock(ctx, connections)
+	}
+	panic("not implemented")
+}
+func (a AlbumRepository) GetAlternateVersions(ctx context.Context, albumId string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+	if a.GetAlternateVersionsMock != nil {
+		return a.GetAlternateVersionsMock(ctx, albumId, include)
+	}
+	panic("not implemented")
+}
+
+func (a AlbumRepository) MigrateAnnotations(ctx context.Context, oldId, newId string) error {
+	if a.MigrateAnnotationsMock != nil {
+		return a.MigrateAnnotationsMock(ctx, oldId, newId)
+	}
+	panic("not implemented")
+}
+
+func (a AlbumRepository) FindAlbumIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]repos.FindAlbumIDsToMigrateResult, error) {
+	if a.FindAlbumIDsToMigrateMock != nil {
+		return a.FindAlbumIDsToMigrateMock(ctx, scanStartTime)
 	}
 	panic("not implemented")
 }

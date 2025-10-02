@@ -168,6 +168,11 @@ type FindAlbumsByNameWithArtistMatchCountResult struct {
 	ArtistMatches      int     `db:"artist_matches"`
 }
 
+type FindAlbumIDsToMigrateResult struct {
+	OldID string `db:"old_id"`
+	NewID string `db:"new_id"`
+}
+
 type AlbumRepository interface {
 	Create(ctx context.Context, params CreateAlbumParams) (string, error)
 	Update(ctx context.Context, id string, params UpdateAlbumParams) error
@@ -193,4 +198,6 @@ type AlbumRepository interface {
 	RemoveAllArtistConnections(ctx context.Context) error
 	CreateArtistConnections(ctx context.Context, connections []AlbumArtistConnection) error
 	GetAlternateVersions(ctx context.Context, albumId string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	MigrateAnnotations(ctx context.Context, oldId, newId string) error
+	FindAlbumIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]FindAlbumIDsToMigrateResult, error)
 }

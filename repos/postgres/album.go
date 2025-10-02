@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
@@ -230,6 +231,35 @@ func (a albumRepository) GetAlternateVersions(ctx context.Context, albumId strin
 	q.And("(?)", conditions)
 
 	return execAlbumSelectMany(ctx, a.db, q, include)
+}
+
+func (a albumRepository) MigrateAnnotations(ctx context.Context, oldId, newId string) error {
+	return a.tx(ctx, func(a albumRepository) error {
+		err := executeQuery(ctx, a.db, bqb.New("UPDATE albums SET created = a.created FROM albums AS a WHERE albums.id = ? AND a.id = ?", newId, oldId))
+		if err != nil {
+			return fmt.Errorf("migrating album created time: %w", err)
+		}
+
+		err = executeQuery(ctx, a.db, bqb.New("UPDATE album_ratings SET album_id = ? WHERE album_id = ?", newId, oldId))
+		if err != nil {
+			return fmt.Errorf("migrate album ratings: %w", err)
+		}
+
+		err = executeQuery(ctx, a.db, bqb.New("UPDATE album_stars SET album_id = ? WHERE album_id = ?", newId, oldId))
+		if err != nil {
+			return fmt.Errorf("migrate album stars: %w", err)
+		}
+
+		return nil
+	})
+}
+
+func (a albumRepository) FindAlbumIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]repos.FindAlbumIDsToMigrateResult, error) {
+	q := bqb.New("SELECT albums.id AS old_id, albs.id AS new_id FROM albums LEFT JOIN songs ON songs.album_id = albums.id")
+	q.Space("LEFT JOIN albums AS albs ON albums.music_brainz_id = albs.music_brainz_id AND albums.id != albs.id")
+	q.Space("WHERE albums.music_brainz_id IS NOT NULL AND songs.id IS NULL AND albs.music_brainz_id IS NOT NULL AND albs.created >= ?", scanStartTime)
+	q.And("NOT EXISTS (SELECT als.id FROM albums AS als WHERE als.music_brainz_id = albums.music_brainz_id AND als.id != albums.id AND als.id != albs.id AND als.created >= ?)", scanStartTime)
+	return selectQuery[repos.FindAlbumIDsToMigrateResult](ctx, a.db, q)
 }
 
 // helpers

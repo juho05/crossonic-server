@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/log"
 )
 
 func (s *Scanner) deleteOrphaned(ctx context.Context) error {
@@ -29,9 +30,52 @@ func (s *Scanner) deleteOrphaned(ctx context.Context) error {
 		return fmt.Errorf("delete orphaned genres: %w", err)
 	}
 
+	err = s.cleanAlbums(ctx)
+	if err != nil {
+		return fmt.Errorf("clean albums: %w", err)
+	}
+
+	err = s.cleanArtists(ctx)
+	if err != nil {
+		return fmt.Errorf("clean artists: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Scanner) cleanAlbums(ctx context.Context) error {
+	ids, err := s.tx.Album().FindAlbumIDsToMigrate(ctx, s.scanStart)
+	if err != nil {
+		return fmt.Errorf("find albums to migrate: %w", err)
+	}
+
+	for _, id := range ids {
+		log.Tracef("migrating album annotations from %s to %s", id.OldID, id.NewID)
+		err := s.tx.Album().MigrateAnnotations(ctx, id.OldID, id.NewID)
+		if err != nil {
+			log.Errorf("failed to migrate album annotations from %s to %s: %v", id.OldID, id.NewID, err)
+		}
+	}
+
 	err = s.tx.Album().DeleteIfNoTracks(ctx)
 	if err != nil {
 		return fmt.Errorf("delete orphaned albums: %w", err)
+	}
+	return nil
+}
+
+func (s *Scanner) cleanArtists(ctx context.Context) error {
+	ids, err := s.tx.Artist().FindArtistIDsToMigrate(ctx, s.scanStart)
+	if err != nil {
+		return fmt.Errorf("find artists to migrate: %w", err)
+	}
+
+	for _, id := range ids {
+		log.Tracef("migrating artist annotations from %s to %s", id.OldID, id.NewID)
+		err := s.tx.Artist().MigrateAnnotations(ctx, id.OldID, id.NewID)
+		if err != nil {
+			log.Errorf("failed to migrate artist annotations from %s to %s: %v", id.OldID, id.NewID, err)
+		}
 	}
 
 	err = s.tx.Artist().DeleteIfNoAlbumsAndNoSongs(ctx)

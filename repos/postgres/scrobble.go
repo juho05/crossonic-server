@@ -136,3 +136,8 @@ func (s scrobbleRepository) GetTopSongsByDuration(ctx context.Context, user stri
 	}
 	return songs, nil
 }
+
+func (s scrobbleRepository) FixMetadata(ctx context.Context) error {
+	q := bqb.New("UPDATE scrobbles SET album_id = songs.album_id, song_duration_ms = songs.duration_ms FROM songs WHERE songs.id = scrobbles.song_id")
+	return executeQuery(ctx, s.db, q)
+}
