@@ -66,6 +66,7 @@ func usersCreate(args []string, db repos.DB) error {
 			return err
 		}
 	}
+	fmt.Printf("Created user %s.\n", args[3])
 	return nil
 }
 
@@ -81,6 +82,7 @@ func usersDelete(args []string, db repos.DB) error {
 		}
 		return err
 	}
+	fmt.Printf("Deleted user %s.\n", args[3])
 	return nil
 }
 
