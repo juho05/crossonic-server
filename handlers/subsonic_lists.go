@@ -12,12 +12,9 @@ import (
 func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 	q := getQuery(w, r)
 
-	limit, ok := q.IntRange("size", 0, maxListSize)
+	paginate, ok := q.Paginate("size", "offset", 10)
 	if !ok {
 		return
-	}
-	if limit == nil {
-		limit = util.ToPtr(10)
 	}
 
 	fromYear, ok := q.Int("fromYear")
@@ -37,9 +34,7 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 		ToYear:     toYear,
 		Genres:     genres,
 		RandomSeed: seed,
-		Paginate: repos.Paginate{
-			Limit: limit,
-		},
+		Paginate:   paginate,
 	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("get random songs: %w", err))
