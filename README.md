@@ -4,11 +4,10 @@ OpenSubsonic compatible music server with additional extensions for [Crossonic](
 
 ## Status
 
-This project is in development. Expect bugs and missing features.
+This project is in development. Expect some bugs and missing features.
 
-Not all OpenSubsonic endpoints have been implemented yet ([status](./supported_endpoints.md)).
-This server implements all endpoints needed for the [Crossonic](https://github.com/juho05/crossonic) app but may not yet work without issues with
-other Subsonic media players.
+Most OpenSubsonic endpoints have been implemented: [status](./supported_endpoints.md). There might be issues with some clients that rely on
+unimplemented endpoints.
 
 ## Features
 
@@ -27,6 +26,7 @@ other Subsonic media players.
   - `raw`, `mp3`, `opus`, `vorbis`
 - [x] Fetch artist images and artist/album info from [last.fm](https://last.fm)
 - [x] Multiple artists, album artists, genres
+- [x] release types/versions
 - [x] **Stores a unique ID in the metadata of all media files** to preserve IDs when moving/renaming files on disk
 - [x] Scrobbling including playback duration
 - [x] Browse by tags
@@ -48,6 +48,10 @@ other Subsonic media players.
   - [x] total listening duration
   - [x] distinct song, album, artist count
   - [ ] ranked songs, albums, artists by listening duration
+- [x] Additional endpoints for [Crossonic](https://github.com/juho05/crossonic), e.g.
+  - get alternate album verions
+  - get list of artist appearances on other albums
+  - …
 
 ## Deploy with Docker
 

@@ -1,5 +1,7 @@
 # List of Supported Endpoints
 
+**This page might be outdated as I'm working on a new more comprehensive API documentation.**
+
 ## OpenSubsonic (1.16.1)
 
 **Response formats:** `xml`, `json`
@@ -20,10 +22,8 @@
 - [ ] [getMusicFolders](https://opensubsonic.netlify.app/docs/endpoints/getmusicfolders)
 - [x] [getIndexes](https://opensubsonic.netlify.app/docs/endpoints/getindexes)
 - [x] [getMusicDirectory](https://opensubsonic.netlify.app/docs/endpoints/getmusicdirectory)
-  - supports artist and album IDs
 - [x] [getGenres](https://opensubsonic.netlify.app/docs/endpoints/getgenres)
 - [x] [getArtists](https://opensubsonic.netlify.app/docs/endpoints/getartists)
-  - only album artists are returned
 - [x] [getArtist](https://opensubsonic.netlify.app/docs/endpoints/getartist)
 - [x] [getAlbum](https://opensubsonic.netlify.app/docs/endpoints/getalbum)
 - [x] [getSong](https://opensubsonic.netlify.app/docs/endpoints/getsong)
@@ -50,7 +50,7 @@
   - [x] frequent
   - [x] recent
   - [x] alphabeticalByName
-  - [ ] alphabeticalByArtist -> *impossible because of multiple artists*
+  - [ ] alphabeticalByArtist
   - [x] starred
   - [x] byYear
   - [x] byGenre
@@ -67,7 +67,6 @@
 - [x] [search2](https://opensubsonic.netlify.app/docs/endpoints/search2)
   - identical to _search3_
 - [x] [search3](https://opensubsonic.netlify.app/docs/endpoints/search3)
-  - only album artists are returned
 
 ### Playlists
 
@@ -163,8 +162,14 @@
 
 ## Crossonic
 
+**Crossonic API version:** `0.3.0`
+
 - [x] connectListenBrainz
 - [x] getListenBrainzConfig
+- [x] updateListenBrainzConfig
 - [x] setPlaylistCover
 - [x] getRecap
 - [x] getTopSongsRecap
+- [x] getAppearsOn
+- [x] getSongs
+- [x] getAlternateAlbumVersions
