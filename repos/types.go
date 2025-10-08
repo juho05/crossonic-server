@@ -43,7 +43,10 @@ func (d Date) String() string {
 	return fmt.Sprintf("%04d-%02d-%02d", d.year, d.month, d.day)
 }
 
-func (d Date) Value() (driver.Value, error) {
+func (d *Date) Value() (driver.Value, error) {
+	if d == nil {
+		return nil, nil
+	}
 	return d.String(), nil
 }
 
@@ -216,6 +219,9 @@ func (nt *StringList) Scan(value interface{}) error {
 }
 
 func (nt StringList) Value() (driver.Value, error) {
+	if nt == nil {
+		return nil, nil
+	}
 	return strings.Join(nt, "\003"), nil
 }
 
