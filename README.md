@@ -1,119 +1,46 @@
 # Crossonic Server
 
-OpenSubsonic compatible music server with additional extensions for [Crossonic](https://github.com/juho05/crossonic).
+Crossonic-Server is a Subsonic-compatible music server with the aim to support modern features of the [OpenSubsonic API](https://opensubsonic.netlify.app/) and custom extensions
+for use with the [Crossonic client application](https://crossonic.org/app).
 
-## Status
+It works by scanning a directory containing your music files and making your music library available to [Crossonic](https://crossonic.org/app)
+and all other (Open)Subsonic compatible clients, that can be used to browse
+and stream your music on all your devices similar to popular streaming services.
 
-This project is in development. Expect some bugs and missing features.
+## Installation 
 
-Most OpenSubsonic endpoints have been implemented: [status](./supported_endpoints.md). There might be issues with some clients that rely on
-unimplemented endpoints.
+Follow the [installation guide](https://crossonic.org/server/install).
 
 ## Features
+- Robust library scanning
+    - Takes MusicBrainz IDs into account
+    - Stores crossonic song ID in the file metadata to prevent losing favorites/scrobbles when renaming files and/or changing metadata
+    - Multiple artists/genres per song
+    - Release groups, labels, disc subtitles, replay gain, lyrics, bpm, …
+    - Incremental scanning (only scans files that have changed)
+- Multi-user
+    - Each with their own playlists, scrobbles, favorites, …
+    - Add internet radio stations per user
+- ListenBrainz integration
+    - Scrobbling
+    - Two-way favorites sync
+    - Configurable for each user
+- Fetch artist images and biographies from [last.fm](https://last.fm)
+- On-the-fly transcoding and caching
+    - Configurable `format=` and `maxBitRate=` parameters
+    - `raw`, `mp3`, `opus`, `vorbis`
+- Receive scrobbles from clients (including playback duration)
+- Proper handling of different release versions
+- Compatible with your favorite (Open)Subsonic clients
 
-- [x] media library scan
-  - [x] on startup
-  - [x] `startScan` endpoint
-  - [x] incremental scan
-  - [ ] file watching
-- [x] [ListenBrainz](https://listenbrainz.org) integration
-  - [x] scrobbling
-  - [x] sync favorites
-- [x] Multiple users
-  - [x] per-user internet radio stations
-- [x] Transcoding and caching
-  - [x] configurable with `format=` and `maxBitRate=` parameters
-  - `raw`, `mp3`, `opus`, `vorbis`
-- [x] Fetch artist images and artist/album info from [last.fm](https://last.fm)
-- [x] Multiple artists, album artists, genres
-- [x] release types/versions
-- [x] **Stores a unique ID in the metadata of all media files** to preserve IDs when moving/renaming files on disk
-- [x] Scrobbling including playback duration
-- [x] Browse by tags
-  - browsing by folders not supported (`getIndexes`, `getMusicDirectory` etc. simulate behavior based on tags)
-- [x] Favorites/rating
-- [x] Lyrics
-  - [x] unsynced
-  - [ ] synced
-- [ ] Multiple music directories
-- [x] Playlists
-  - including user-changable playlist covers (not natively supported by *OpenSubsonic*)
-- [ ] Jukebox
-  - [ ] device selection
-  - [ ] SONOS casting
-- [x] Serve [Crossonic Web](https://github.com/juho05/crossonic#web)
-- [x] Admin CLI
-- [ ] Admin web interface
-- [x] End-of-year recap
-  - [x] total listening duration
-  - [x] distinct song, album, artist count
-  - [ ] ranked songs, albums, artists by listening duration
-- [x] Additional endpoints for [Crossonic](https://github.com/juho05/crossonic), e.g.
-  - get alternate album verions
-  - get list of artist appearances on other albums
-  - …
+## Documentation
 
-## Deploy with Docker
+All documentation can be found on the [Crossonic website](https://crossonic.org/server).
 
-Create `docker-compose.yml`:
-```bash
-services:
-  crossonic:
-    image: ghcr.io/juho05/crossonic-server
-    restart: unless-stopped
-    environment:
-      DB_USER: crossonic
-      DB_PASSWORD: crossonic
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_NAME: crossonic
-      # Base64 encoded string representing exactly 32 bytes.
-      # Generate with: docker run --rm -it --entrypoint crossonic-admin ghcr.io/juho05/crossonic-server gen-encryption-key
-      ENCRYPTION_KEY: <key>
-      # URL where crossonic-server is reachable
-      BASE_URL: "https://crossonic.example.com"
-
-      # (optional) last.fm key to fetch album/artist info and artist images.
-      # To get an API key visit https://www.last.fm/api/account/create, sign in, then fill in
-      # your email and an application name (all other fields are optional).
-      # Then copy the "API key" (crossonic-server does not need your secret) and fill
-      # it in below.
-      # LASTFM_API_KEY: <api-key>
-
-      # (optional) whether a quick or full scan should be performed on startup
-      # STARTUP_SCAN: quick # disabled, quick, full
-    volumes:
-      - "./cache:/cache"   # cache files
-      - "./data:/data"     # cover art etc.
-      - "./library:/music" # your music files
-    ports:
-      - "8080:8080"
-    depends_on:
-      - db
-  db:
-    image: postgres:16
-    restart: unless-stopped
-    volumes:
-      - ./postgres:/var/lib/postgresql/data
-    environment:
-      POSTGRES_PASSWORD: crossonic
-      POSTGRES_USER: crossonic
-    healthcheck:
-      test: ["CMD", "pg_isready -U crossonic"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-```
-
-Run `docker compose up -d` in the same directory as the `docker-compose.yml` file.
-
-### Create user
-
-To create a user use the following command from the directory of your `docker-compose.yml` file:
-
-```bash
-docker compose exec -it crossonic crossonic-admin users create <name>
-```
+Some useful links:
+- [Installation](https://crossonic.org/server/install)
+- [Configuration](https://crossonic.org/server/configuration)
+- [Music library organization](https://crossonic.org/server/music-library)
 
 ## License
 
