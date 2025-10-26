@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
-	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
 )
 
@@ -176,8 +174,6 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, info.Path)
 }
 
-var lyricsTimestampRegex = regexp.MustCompile(`^\[([0-9]+[:.]?)+]`)
-
 func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	q := getQuery(w, r)
 
@@ -222,8 +218,6 @@ func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := getLyricsLines(*song.Lyrics)
-
 	if artist == "" && len(song.Artists) > 0 {
 		artist = song.Artists[0].Name
 	}
@@ -232,7 +226,7 @@ func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	res.Lyrics = &responses.Lyrics{
 		Title:  song.Title,
 		Artist: &artist,
-		Value:  strings.Join(lines, "\n"),
+		Value:  *responses.NewLyrics(song.Lyrics),
 	}
 	res.EncodeOrLog(w, q.Format())
 }
@@ -261,21 +255,7 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	lines := getLyricsLines(*song.Lyrics)
-
-	res.LyricsList = &responses.LyricsList{
-		StructuredLyrics: []*responses.StructuredLyrics{
-			{
-				Lang:   "und",
-				Synced: false,
-				Line: util.Map(lines, func(l string) *responses.Line {
-					return &responses.Line{
-						Value: l,
-					}
-				}),
-			},
-		},
-	}
+	res.LyricsList = responses.NewLyricsList(song.Lyrics)
 	res.EncodeOrLog(w, q.Format())
 }
 
@@ -452,30 +432,4 @@ func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) 
 		return fmt.Errorf("load artist cover from last fm by id: encode image: %w", err)
 	}
 	return nil
-}
-
-func getLyricsLines(lyrics string) []string {
-	lines := strings.Split(lyrics, "\n")
-	for i, l := range lines {
-		l = strings.TrimSpace(l)
-		loc := lyricsTimestampRegex.FindStringIndex(l)
-		if loc != nil {
-			l = strings.TrimSpace(l[loc[1]:])
-		}
-		lines[i] = l
-	}
-	first := 0
-	for ; first < len(lines); first++ {
-		if len(lines[first]) > 0 {
-			break
-		}
-	}
-	last := len(lines) - 1
-	for ; last >= 0; last-- {
-		if len(lines[last]) > 0 {
-			break
-		}
-	}
-	lines = lines[first : last+1]
-	return lines
 }

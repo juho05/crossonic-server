@@ -458,7 +458,14 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 
 	s.counter.Add(1)
 
-	if !s.fullScan && !parentDirChanged && info.ModTime().Before(s.lastScan) {
+	lrcSideCarPath := strings.TrimSuffix(path, ext) + ".lrc"
+	lrcFileInfo, err := os.Stat(lrcSideCarPath)
+	var lrcModTime time.Time
+	if err == nil {
+		lrcModTime = lrcFileInfo.ModTime()
+	}
+
+	if !s.fullScan && !parentDirChanged && info.ModTime().Before(s.lastScan) && (lrcModTime.IsZero() || lrcModTime.Before(s.lastScan)) {
 		timeStat, err := times.Stat(path)
 		if err != nil {
 			return fmt.Errorf("times stat: %w", err)
@@ -495,14 +502,7 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 		title = strings.TrimSuffix(filepath.Base(path), ext)
 	}
 
-	var lyrics *string
-	if l, ok := tags["lyrics"]; ok {
-		ly := strings.Join(l, "\n")
-		lyrics = &ly
-	} else if l, ok := tags["unsyncedlyrics"]; ok {
-		ly := strings.Join(l, "\n")
-		lyrics = &ly
-	}
+	lyrics := s.scanLyrics(lrcSideCarPath, tags)
 
 	isCompilation := readSingleBoolTag(tags, "compilation")
 

@@ -84,30 +84,6 @@ type SearchResult3 struct {
 	Songs   []*Song   `xml:"song" json:"song"`
 }
 
-type Lyrics struct {
-	Title  string  `xml:"title,attr" json:"title"`
-	Artist *string `xml:"artist,attr,omitempty" json:"artist,omitempty"`
-	Value  string  `xml:",chardata" json:"value"`
-}
-
-type LyricsList struct {
-	StructuredLyrics []*StructuredLyrics `xml:"structuredLyrics" json:"structuredLyrics"`
-}
-
-type StructuredLyrics struct {
-	Lang          string  `xml:"lang,attr" json:"lang"`
-	Synced        bool    `xml:"synced,attr" json:"synced"`
-	DisplayArtist string  `xml:"displayArtist,attr,omitempty" json:"displayArtist,omitempty"`
-	DisplayTitle  string  `xml:"displayTitle,attr,omitempty" json:"displayTitle,omitempty"`
-	Offset        int     `xml:"offset,attr,omitempty" json:"offset,omitempty"`
-	Line          []*Line `xml:"line" json:"line"`
-}
-
-type Line struct {
-	Value string `xml:",chardata" json:"value"`
-	Start *int   `xml:"start,attr,omitempty" json:"start,omitempty"`
-}
-
 type Starred struct {
 	Songs   []*Song   `xml:"song" json:"song"`
 	Albums  []*Album  `xml:"album" json:"album"`
