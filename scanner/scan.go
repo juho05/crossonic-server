@@ -475,50 +475,50 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 		}
 	}
 
-	file, err := audiotags.Open(path)
+	tags, props, hasImage, err := audiotags.Read(path, prioritizeEmbeddedCover || cover == nil)
 	if err != nil {
+		if errors.Is(err, audiotags.ErrNoMetadata) {
+			return errNotAMediaFile
+		}
 		return fmt.Errorf("read tags: %w", err)
 	}
-	defer file.Close()
 
-	props := file.ReadAudioProperties()
 	if props.IsEmpty() {
 		return errNotAMediaFile
 	}
-	tags := file.ReadTags()
 
-	if prioritizeEmbeddedCover && cover != nil && file.HasImage() {
+	if prioritizeEmbeddedCover && cover != nil && hasImage {
 		cover = nil
 	}
 
 	var songID *string
-	idTag, ok := readSingleTag(tags, "crossonic_id_"+s.instanceID)
+	idTag, ok := readSingleTag(tags, "CROSSONIC_ID_"+strings.ToUpper(s.instanceID))
 	if ok && strings.HasPrefix(idTag, "tr_") {
 		songID = &idTag
 	}
 
-	title, ok := readSingleTag(tags, "title")
+	title, ok := readSingleTag(tags, "TITLE")
 	if !ok {
 		title = strings.TrimSuffix(filepath.Base(path), ext)
 	}
 
 	lyrics := s.scanLyrics(lrcSideCarPath, tags)
 
-	isCompilation := readSingleBoolTag(tags, "compilation")
+	isCompilation := readSingleBoolTag(tags, "COMPILATION")
 
-	artists := readStringTags(tags, "artists", "artist")
-	albumArtists := readStringTags(tags, "albumartists", "album_artists", "albumartist", "album_artist")
+	artists := readStringTags(tags, "ARTISTS", "ARTIST")
+	albumArtists := readStringTags(tags, "ALBUMARTISTS", "ALBUM_ARTISTS", "ALBUMARTIST", "ALBUM_ARTIST")
 	if !isCompilation && len(albumArtists) == 0 && len(artists) > 0 {
 		albumArtists = []string{artists[0]}
 	}
 
-	artistMBIDs := readStringTags(tags, "musicbrainz_artistids", "musicbrainz_artistid")
-	albumArtistMBIDs := readStringTags(tags, "musicbrainz_albumartistids", "musicbrainz_albumartistid")
+	artistMBIDs := readStringTags(tags, "MUSICBRAINZ_ARTISTIDS", "MUSICBRAINZ_ARTISTID")
+	albumArtistMBIDs := readStringTags(tags, "MUSICBRAINZ_ALBUMARTISTIDS", "MUSICBRAINZ_ALBUMARTISTID")
 
-	album := readSingleTagOptional(tags, "album")
+	album := readSingleTagOptional(tags, "ALBUM")
 
-	originalDate := readDateTagFirstOptional(tags, "originaldate", "originalyear", "date", "year")
-	releaseDate := readDateTagFirstOptional(tags, "releasedate", "releaseyear", "date", "year", "originaldate", "originalyear")
+	originalDate := readDateTagFirstOptional(tags, "ORIGINALDATE", "ORIGINALYEAR", "DATE", "YEAR")
+	releaseDate := readDateTagFirstOptional(tags, "RELEASEDATE", "RELEASEYEAR", "DATE", "YEAR", "ORIGINALDATE", "ORIGINALYEAR")
 	if originalDate == nil {
 		originalDate = releaseDate
 	}
@@ -530,10 +530,10 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 		}
 	}
 
-	albumMBID := readSingleTagOptional(tags, "musicbrainz_releasegroupid")
-	releaseMBID := readSingleTagOptional(tags, "musicbrainz_albumid")
+	albumMBID := readSingleTagOptional(tags, "MUSICBRAINZ_RELEASEGROUPID")
+	releaseMBID := readSingleTagOptional(tags, "MUSICBRAINZ_ALBUMID")
 
-	albumVersion := readSingleTagFirstOptional(tags, "albumversion", "version")
+	albumVersion := readSingleTagFirstOptional(tags, "ALBUMVERSION", "VERSION")
 
 	if !s.songQueueClosed {
 		s.songQueue <- &mediaFile{
@@ -543,10 +543,10 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 			contentType:         contentType,
 			lastModified:        info.ModTime(),
 			cover:               cover,
-			bitrate:             props.Bitrate,
+			bitrate:             props.BitRate,
 			channels:            props.Channels,
 			lengthMS:            props.LengthMs,
-			sampleRate:          props.Samplerate,
+			sampleRate:          props.SampleRate,
 			title:               title,
 			albumName:           album,
 			albumMBID:           albumMBID,
@@ -555,21 +555,21 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 			artistMBIDs:         artistMBIDs,
 			albumArtistNames:    albumArtists,
 			albumArtistMBIDs:    albumArtistMBIDs,
-			albumReplayGain:     readReplayGainTag(tags, "replaygain_album_gain"),
-			albumReplayGainPeak: readReplayGainTag(tags, "replaygain_album_peak"),
-			recordLabels:        readStringTags(tags, "labels", "label"),
-			releaseTypes:        readStringTags(tags, "releasetypes", "releasetype", "release_type"),
+			albumReplayGain:     readReplayGainTag(tags, "REPLAYGAIN_ALBUM_GAIN"),
+			albumReplayGainPeak: readReplayGainTag(tags, "REPLAYGAIN_ALBUM_PEAK"),
+			recordLabels:        readStringTags(tags, "LABELS", "LABEL"),
+			releaseTypes:        readStringTags(tags, "RELEASETYPES", "RELEASETYPE", "RELEASE_TYPE"),
 			isCompilation:       isCompilation,
-			bpm:                 readSingleIntTagOptional(tags, "bpm"),
+			bpm:                 readSingleIntTagOptional(tags, "BPM"),
 			originalDate:        originalDate,
 			releaseDate:         releaseDate,
-			track:               readSingleIntTagFirstOptional(tags, "/", "tracknumber"),
-			disc:                readSingleIntTagFirstOptional(tags, "/", "discnumber"),
-			discTitle:           readSingleTagOptional(tags, "discsubtitle"),
-			genres:              readStringTags(tags, "genres", "genre"),
-			musicBrainzID:       readSingleTagOptional(tags, "musicbrainz_trackid"),
-			replayGain:          readReplayGainTag(tags, "replaygain_track_gain"),
-			replayGainPeak:      readReplayGainTag(tags, "replaygain_track_peak"),
+			track:               readSingleIntTagFirstOptional(tags, "/", "TRACKNUMBER"),
+			disc:                readSingleIntTagFirstOptional(tags, "/", "DISCNUMBER"),
+			discTitle:           readSingleTagOptional(tags, "DISCSUBTITLE"),
+			genres:              readStringTags(tags, "GENRES", "GENRE"),
+			musicBrainzID:       readSingleTagOptional(tags, "MUSICBRAINZ_TRACKID"),
+			replayGain:          readReplayGainTag(tags, "REPLAYGAIN_TRACK_GAIN"),
+			replayGainPeak:      readReplayGainTag(tags, "REPLAYGAIN_TRACK_PEAK"),
 			lyrics:              lyrics,
 			albumVersion:        albumVersion,
 		}

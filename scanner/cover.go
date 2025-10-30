@@ -169,13 +169,7 @@ func (s *Scanner) saveCoverFromEmbeddedCover(lastModified time.Time, songPath, i
 	}
 	defer newFile.Close()
 
-	file, err := audiotags.Open(songPath)
-	if err != nil {
-		return fmt.Errorf("open song file: %w", err)
-	}
-	defer file.Close()
-
-	img, err := file.ReadImage()
+	img, err := audiotags.ReadImage(songPath)
 	if img == nil {
 		return errNoEmbeddedCover
 	}

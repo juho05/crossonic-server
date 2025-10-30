@@ -59,7 +59,7 @@ type mediaFile struct {
 
 type song struct {
 	id           *string
-	newID        bool
+	hasIDTag     bool
 	path         string
 	size         int64
 	contentType  string
@@ -162,6 +162,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 	for _, media := range mediaFiles {
 		song := &song{
 			id:                        media.id,
+			hasIDTag:                  media.id != nil,
 			path:                      media.path,
 			size:                      media.size,
 			contentType:               media.contentType,
@@ -265,14 +266,17 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 		return fmt.Errorf("create songs: %w", err)
 	}
 
-	for _, s := range create {
-		if s.newID {
+	for _, s := range update {
+		if !s.hasIDTag {
 			updateSongFiles <- s
+			s.hasIDTag = true
 		}
 	}
-	for _, s := range failed {
-		if s.newID {
+
+	for _, s := range create {
+		if !s.hasIDTag {
 			updateSongFiles <- s
+			s.hasIDTag = true
 		}
 	}
 
@@ -500,7 +504,7 @@ func (s *Scanner) createSongsInDB(ctx context.Context, songs []*song) error {
 	for _, s := range songs {
 		id := crossonic.GenIDSong()
 		s.id = &id
-		s.newID = true
+		s.hasIDTag = false
 	}
 	err := s.tx.Song().CreateAll(ctx, util.Map(songs, func(s *song) repos.CreateSongParams {
 		return repos.CreateSongParams{
@@ -534,14 +538,8 @@ func (s *Scanner) createSongsInDB(ctx context.Context, songs []*song) error {
 }
 
 func (s *Scanner) setCrossonicID(path, id string) error {
-	file, err := audiotags.Open(path)
-	if err != nil {
-		return fmt.Errorf("read tags: %w", err)
-	}
-	defer file.Close()
-	tags := file.ReadTags()
-	tags["crossonic_id_"+s.instanceID] = []string{id}
-	if !file.WriteTags(tags) {
+	success := audiotags.WriteTag(path, "crossonic_id_"+s.instanceID, id)
+	if !success {
 		return fmt.Errorf("write failed")
 	}
 	return nil

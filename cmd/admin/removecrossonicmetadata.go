@@ -36,8 +36,8 @@ func removeCrossonicMetadata(args []string, db repos.DB, conf config.Config) err
 	}
 
 	var instanceID string
+	var err error
 	if selection != "all" {
-		var err error
 		instanceID, err = db.System().InstanceID(context.Background())
 		if err != nil {
 			return fmt.Errorf("remove crossonic id in %s: get instance ID: %w", path, err)
@@ -46,42 +46,17 @@ func removeCrossonicMetadata(args []string, db repos.DB, conf config.Config) err
 
 	fmt.Printf("Removing crossonic tags in %s...\n", path)
 	var counter int
-	err := filepath.WalkDir(path, func(path string, d fs.DirEntry, _ error) error {
+	err = filepath.WalkDir(path, func(path string, d fs.DirEntry, _ error) error {
 		ext := filepath.Ext(path)
 		if !strings.HasPrefix(mime.TypeByExtension(ext), "audio/") {
 			return nil
 		}
-		if counter%5 == 0 {
+		if counter%10 == 0 {
 			fmt.Print("\rProcessed: ", counter)
 		}
-		file, err := audiotags.Open(path)
-		if err != nil {
-			log.Errorf("remove crossonic id in %s: %s", path, err)
+		if !audiotags.RemoveCrossonicTag(path, instanceID) {
+			log.Errorf("remove crossonic id in %s: write failed", path)
 			return nil
-		}
-		defer file.Close()
-		if file.ReadAudioProperties().IsEmpty() {
-			log.Errorf("remove crossonic id in %s: unsupported format", path)
-			return nil
-		}
-		tags := file.ReadTags()
-		var changed bool
-		if selection == "current" {
-			_, changed = tags["crossonic_id_"+instanceID]
-			delete(tags, "crossonic_id_"+instanceID)
-		} else {
-			for k := range tags {
-				if strings.HasPrefix(k, "crossonic_") {
-					changed = true
-					delete(tags, k)
-				}
-			}
-		}
-		if changed {
-			if !file.WriteTags(tags) {
-				log.Errorf("remove crossonic id in %s: write failed", path)
-				return nil
-			}
 		}
 		counter++
 		return nil
