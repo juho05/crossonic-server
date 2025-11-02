@@ -17,6 +17,11 @@ type UpdateListenBrainzSettingsParams struct {
 	SyncFeedback Optional[bool]
 }
 
+type UpdateUserParams struct {
+	Name     Optional[string]
+	Password Optional[string]
+}
+
 // UserRepository is an interface to manipulate user data in a database.
 type UserRepository interface {
 	// Create creates a new user in the database. The password parameter is automatically encrypted before
@@ -41,6 +46,10 @@ type UserRepository interface {
 	// FindByName returns the user with the provided name.
 	// Returns an error if no user was found.
 	FindByName(ctx context.Context, name string) (*User, error)
+
+	// Update updates the specified properties of the user.
+	// If no user with the name is found, ErrNotFound will be returned.
+	Update(ctx context.Context, name string, params UpdateUserParams) error
 
 	// DeleteByName deletes the user with the provided name.
 	// Returns an error if no user was found.

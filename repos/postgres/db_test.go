@@ -3,6 +3,10 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"testing"
+
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/log"
@@ -11,9 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"net/http"
-	"os"
-	"testing"
 )
 
 func TestMain(m *testing.M) {
@@ -87,6 +88,19 @@ func thCount(t *testing.T, db *DB, table string) int {
 	t.Helper()
 	var count int
 	err := db.db.Get(&count, fmt.Sprintf("SELECT COALESCE(COUNT(*), 0) FROM %s", table))
+	require.NoErrorf(t, err, "count %s: %v", table, err)
+	return count
+}
+
+func thCountWhere(t *testing.T, db *DB, table, where string) int {
+	t.Helper()
+
+	if where != "" {
+		where = "WHERE " + where
+	}
+
+	var count int
+	err := db.db.Get(&count, fmt.Sprintf("SELECT COALESCE(COUNT(*), 0) FROM %s %s", table, where))
 	require.NoErrorf(t, err, "count %s: %v", table, err)
 	return count
 }

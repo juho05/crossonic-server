@@ -12,6 +12,7 @@ type UserRepository struct {
 	UpdateListenBrainzSettingsMock   func(ctx context.Context, name string, params repos.UpdateListenBrainzSettingsParams) error
 	FindAllMock                      func(ctx context.Context) ([]*repos.User, error)
 	FindByNameMock                   func(ctx context.Context, name string) (*repos.User, error)
+	UpdateMock                       func(ctx context.Context, name string, params repos.UpdateUserParams) error
 	DeleteByNameMock                 func(ctx context.Context, name string) error
 }
 
@@ -46,6 +47,13 @@ func (u UserRepository) FindAll(ctx context.Context) ([]*repos.User, error) {
 func (u UserRepository) FindByName(ctx context.Context, name string) (*repos.User, error) {
 	if u.FindByNameMock != nil {
 		return u.FindByNameMock(ctx, name)
+	}
+	panic("not implemented")
+}
+
+func (u UserRepository) Update(ctx context.Context, name string, params repos.UpdateUserParams) error {
+	if u.UpdateMock != nil {
+		return u.UpdateMock(ctx, name, params)
 	}
 	panic("not implemented")
 }

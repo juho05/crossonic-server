@@ -1,18 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
-	"syscall"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/juho05/crossonic-server/repos"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 func usersList(db repos.DB) error {
@@ -35,19 +31,10 @@ func usersCreate(args []string, db repos.DB) error {
 
 	var password string
 	for password == "" {
-		fmt.Print("Enter password: ")
-		p1, err := terminal.ReadPassword(syscall.Stdin)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Print("\nRepeat password: ")
-		p2, err := terminal.ReadPassword(syscall.Stdin)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println()
-		if bytes.Equal(p1, p2) {
-			password = string(p1)
+		p1 := inputPassword("Enter password")
+		p2 := inputPassword("Repeat password")
+		if p1 == p2 {
+			password = p1
 		} else {
 			fmt.Println("Passwords don't match. Try again.")
 		}
@@ -86,9 +73,63 @@ func usersDelete(args []string, db repos.DB) error {
 	return nil
 }
 
+func usersUpdate(args []string, db repos.DB) error {
+	if len(args) < 5 {
+		fmt.Println("USAGE:", args[0], "users update <name/password> <name>")
+		os.Exit(1)
+	}
+	switch args[3] {
+	case "name":
+		return usersChangeName(args[4], db)
+	case "password":
+		return usersChangePassword(args[4], db)
+	default:
+		fmt.Println("USAGE:", args[0], "users update <name/password> <name>")
+		os.Exit(1)
+	}
+	return nil
+}
+
+func usersChangeName(user string, db repos.DB) error {
+	name := input("Enter new name")
+
+	err := db.User().Update(context.Background(), user, repos.UpdateUserParams{
+		Name: repos.NewOptionalFull(name),
+	})
+	if err != nil {
+		return fmt.Errorf("update user name in db: %w", err)
+	}
+
+	fmt.Printf("Changed name from %s to %s.\n", user, name)
+	return nil
+}
+
+func usersChangePassword(user string, db repos.DB) error {
+	var password string
+	for password == "" {
+		p1 := inputPassword("Enter new password")
+		p2 := inputPassword("Repeat password")
+		if p1 == p2 {
+			password = p1
+		} else {
+			fmt.Println("Passwords don't match. Try again.")
+		}
+	}
+
+	err := db.User().Update(context.Background(), user, repos.UpdateUserParams{
+		Password: repos.NewOptionalFull(password),
+	})
+	if err != nil {
+		return fmt.Errorf("update user name in db: %w", err)
+	}
+
+	fmt.Printf("Changed password of user %s.\n", user)
+	return nil
+}
+
 func users(args []string, db repos.DB) error {
 	if len(args) < 3 {
-		fmt.Println("USAGE:", args[0], "users <command>\n\nCOMMANDS:\n  list\n  create\n  delete")
+		fmt.Println("USAGE:", args[0], "users <command>\n\nCOMMANDS:\n  list\n  create\n  update\n  delete")
 		os.Exit(1)
 	}
 	var err error
@@ -97,11 +138,13 @@ func users(args []string, db repos.DB) error {
 		err = usersList(db)
 	case "create":
 		err = usersCreate(args, db)
+	case "update":
+		err = usersUpdate(args, db)
 	case "delete":
 		err = usersDelete(args, db)
 	default:
 		fmt.Println("Unknown command")
-		fmt.Println("USAGE:", args[0], "users <command>\n\nCOMMANDS:\n  list\n  create\n  delete")
+		fmt.Println("USAGE:", args[0], "users <command>\n\nCOMMANDS:\n  list\n  create\n  update\n  delete")
 		os.Exit(1)
 	}
 	return err

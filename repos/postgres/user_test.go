@@ -252,6 +252,51 @@ func TestUserRepository(t *testing.T) {
 		})
 	})
 
+	t.Run("Update", func(t *testing.T) {
+		t.Run("user does not exist", func(t *testing.T) {
+			thDeleteAll(t, db, "users")
+			_ = thCreateUser(t, db)
+			_ = thCreateUser(t, db)
+
+			err := repo.Update(ctx, "does not exist", repos.UpdateUserParams{
+				Name: repos.NewOptionalFull("test"),
+			})
+			assert.True(t, errors.Is(err, repos.ErrNotFound))
+			assert.False(t, thExists(t, db, "users", map[string]any{"name": "test"}))
+		})
+
+		t.Run("update name", func(t *testing.T) {
+			thDeleteAll(t, db, "users")
+			user1 := thCreateUser(t, db)
+			user2 := thCreateUser(t, db)
+
+			err := repo.Update(ctx, user1, repos.UpdateUserParams{
+				Name: repos.NewOptionalFull("test"),
+			})
+			require.NoErrorf(t, err, "update user: %v", err)
+			assert.Equal(t, 1, thCountWhere(t, db, "users", "name = 'test'"))
+			assert.True(t, thExists(t, db, "users", map[string]any{"name": user2}))
+		})
+
+		t.Run("update password", func(t *testing.T) {
+			thDeleteAll(t, db, "users")
+			user1 := thCreateUser(t, db)
+			_ = thCreateUser(t, db)
+
+			err := repo.Update(ctx, user1, repos.UpdateUserParams{
+				Password: repos.NewOptionalFull("test"),
+			})
+			require.NoErrorf(t, err, "update user: %v", err)
+
+			u, err := db.User().FindByName(ctx, user1)
+			require.NoErrorf(t, err, "find user: %v", err)
+
+			password, err := repos.DecryptPassword(u.EncryptedPassword, encKey)
+			require.NoErrorf(t, err, "decrypt password: %v", err)
+			assert.Equal(t, "test", password)
+		})
+	})
+
 	t.Run("DeleteByName", func(t *testing.T) {
 		t.Run("user does not exist", func(t *testing.T) {
 			thDeleteAll(t, db, "users")
@@ -261,7 +306,7 @@ func TestUserRepository(t *testing.T) {
 
 			err := repo.DeleteByName(ctx, "does not exist")
 			assert.True(t, errors.Is(err, repos.ErrNotFound))
-			require.Equal(t, 2, thCount(t, db, "users"))
+			assert.Equal(t, 2, thCount(t, db, "users"))
 		})
 
 		t.Run("user does exist", func(t *testing.T) {
@@ -286,7 +331,7 @@ func TestUserRepository(t *testing.T) {
 func thCreateUser(t *testing.T, db *DB) string {
 	t.Helper()
 	user := "testuser-" + uuid.NewString()
-	err := db.User().Create(context.Background(), user, "testpassword")
+	err := db.User().Create(context.Background(), user, "defaulttestpassword")
 	require.NoErrorf(t, err, "create test user: %v", err)
 	return user
 }

@@ -73,6 +73,27 @@ func (u userRepository) FindByName(ctx context.Context, name string) (*repos.Use
 	return us, err
 }
 
+func (u userRepository) Update(ctx context.Context, name string, params repos.UpdateUserParams) error {
+	encryptedPassword := repos.NewOptionalEmpty[[]byte]()
+	if params.Password.HasValue() {
+		bytes, err := repos.EncryptPassword(params.Password.Get().(string), u.conf.EncryptionKey)
+		if err != nil {
+			return repos.NewError("encrypt password", repos.ErrGeneral, err)
+		}
+		encryptedPassword = repos.NewOptionalFull(bytes)
+	}
+
+	updateList, empty := genUpdateList(map[string]repos.OptionalGetter{
+		"name":               params.Name,
+		"encrypted_password": encryptedPassword,
+	}, false)
+	if empty {
+		return nil
+	}
+	q := bqb.New("UPDATE users SET ? WHERE name = ?", updateList, name)
+	return executeQueryExpectAffectedRows(ctx, u.db, q)
+}
+
 func (u userRepository) DeleteByName(ctx context.Context, name string) error {
 	return executeQueryExpectAffectedRows(ctx, u.db, bqb.New("DELETE FROM users WHERE name = ?", name))
 }
