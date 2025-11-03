@@ -14,6 +14,10 @@ type UserRepository struct {
 	FindByNameMock                   func(ctx context.Context, name string) (*repos.User, error)
 	UpdateMock                       func(ctx context.Context, name string, params repos.UpdateUserParams) error
 	DeleteByNameMock                 func(ctx context.Context, name string) error
+	CreateAPIKeyMock                 func(ctx context.Context, user, name string) (string, error)
+	FindAPIKeysMock                  func(ctx context.Context, user string) ([]*repos.APIKey, error)
+	DeleteAPIKeyMock                 func(ctx context.Context, user, name string) error
+	FindUserNameByAPIKeyMock         func(ctx context.Context, apiKey string) (string, error)
 }
 
 func (u UserRepository) Create(ctx context.Context, name, password string) error {
@@ -61,6 +65,33 @@ func (u UserRepository) Update(ctx context.Context, name string, params repos.Up
 func (u UserRepository) DeleteByName(ctx context.Context, name string) error {
 	if u.DeleteByNameMock != nil {
 		return u.DeleteByNameMock(ctx, name)
+	}
+	panic("not implemented")
+}
+
+func (u UserRepository) CreateAPIKey(ctx context.Context, user, name string) (string, error) {
+	if u.CreateAPIKeyMock != nil {
+		return u.CreateAPIKeyMock(ctx, user, name)
+	}
+	panic("not implemented")
+}
+func (u UserRepository) FindAPIKeys(ctx context.Context, user string) ([]*repos.APIKey, error) {
+	if u.FindAPIKeysMock != nil {
+		return u.FindAPIKeysMock(ctx, user)
+	}
+	panic("not implemented")
+}
+
+func (u UserRepository) DeleteAPIKey(ctx context.Context, user, name string) error {
+	if u.DeleteAPIKeyMock != nil {
+		return u.DeleteAPIKeyMock(ctx, user, name)
+	}
+	panic("not implemented")
+}
+
+func (u UserRepository) FindUserNameByAPIKey(ctx context.Context, apiKey string) (string, error) {
+	if u.FindUserNameByAPIKeyMock != nil {
+		return u.FindUserNameByAPIKeyMock(ctx, apiKey)
 	}
 	panic("not implemented")
 }

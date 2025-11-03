@@ -3,7 +3,9 @@ package postgres
 import (
 	"database/sql"
 	"errors"
+	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/juho05/crossonic-server/repos"
 )
 
@@ -31,6 +33,12 @@ func sqlErrToErrType(err error) repos.ErrorType {
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return repos.ErrNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if strings.Contains(pgErr.ConstraintName, "_pkey") || strings.Contains(pgErr.ConstraintName, "_key") {
+			return repos.ErrExists
+		}
 	}
 	return repos.ErrGeneral
 }

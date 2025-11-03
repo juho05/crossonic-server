@@ -21,7 +21,11 @@ func (u userRepository) Create(ctx context.Context, name, password string) error
 	if err != nil {
 		return repos.NewError("encrypt password", repos.ErrGeneral, err)
 	}
-	q := bqb.New("INSERT INTO users (name, encrypted_password) VALUES (?, ?)", name, encryptedPassword)
+	hashedPassword, err := repos.HashPassword(password)
+	if err != nil {
+		return repos.NewError("hash password", repos.ErrGeneral, err)
+	}
+	q := bqb.New("INSERT INTO users (name, encrypted_password, hashed_password) VALUES (?, ?, ?)", name, encryptedPassword, hashedPassword)
 	return executeQuery(ctx, u.db, q)
 }
 
@@ -75,17 +79,25 @@ func (u userRepository) FindByName(ctx context.Context, name string) (*repos.Use
 
 func (u userRepository) Update(ctx context.Context, name string, params repos.UpdateUserParams) error {
 	encryptedPassword := repos.NewOptionalEmpty[[]byte]()
+	hashedPassword := repos.NewOptionalEmpty[string]()
 	if params.Password.HasValue() {
-		bytes, err := repos.EncryptPassword(params.Password.Get().(string), u.conf.EncryptionKey)
+		encBytes, err := repos.EncryptPassword(params.Password.Get().(string), u.conf.EncryptionKey)
 		if err != nil {
 			return repos.NewError("encrypt password", repos.ErrGeneral, err)
 		}
-		encryptedPassword = repos.NewOptionalFull(bytes)
+		encryptedPassword = repos.NewOptionalFull(encBytes)
+
+		hashBytes, err := repos.HashPassword(params.Password.Get().(string))
+		if err != nil {
+			return repos.NewError("hash password", repos.ErrGeneral, err)
+		}
+		hashedPassword = repos.NewOptionalFull(hashBytes)
 	}
 
 	updateList, empty := genUpdateList(map[string]repos.OptionalGetter{
 		"name":               params.Name,
 		"encrypted_password": encryptedPassword,
+		"hashed_password":    hashedPassword,
 	}, false)
 	if empty {
 		return nil
@@ -96,4 +108,40 @@ func (u userRepository) Update(ctx context.Context, name string, params repos.Up
 
 func (u userRepository) DeleteByName(ctx context.Context, name string) error {
 	return executeQueryExpectAffectedRows(ctx, u.db, bqb.New("DELETE FROM users WHERE name = ?", name))
+}
+
+func (u userRepository) CreateAPIKey(ctx context.Context, user, name string) (string, error) {
+	key, err := repos.GenerateAPIKey()
+	if err != nil {
+		return "", fmt.Errorf("generate API key: %w", err)
+	}
+	hashedKey, err := repos.HashAPIKey(key)
+	if err != nil {
+		return "", fmt.Errorf("hash API key: %w", err)
+	}
+	q := bqb.New("INSERT INTO api_keys (user_name, name, value_hash, created) VALUES (?, ?, ?, NOW())", user, name, hashedKey)
+	err = executeQuery(ctx, u.db, q)
+	if err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+func (u userRepository) FindAPIKeys(ctx context.Context, user string) ([]*repos.APIKey, error) {
+	q := bqb.New("SELECT user_name, name, value_hash, created FROM api_keys WHERE user_name = ?", user)
+	return selectQuery[*repos.APIKey](ctx, u.db, q)
+}
+
+func (u userRepository) DeleteAPIKey(ctx context.Context, user, name string) error {
+	q := bqb.New("DELETE FROM api_keys WHERE user_name = ? AND name = ?", user, name)
+	return executeQueryExpectAffectedRows(ctx, u.db, q)
+}
+
+func (u userRepository) FindUserNameByAPIKey(ctx context.Context, apiKey string) (string, error) {
+	hashedKey, err := repos.HashAPIKey(apiKey)
+	if err != nil {
+		return "", fmt.Errorf("hash API key: %w", err)
+	}
+	q := bqb.New("SELECT user_name FROM api_keys WHERE value_hash = ?", hashedKey)
+	return getQuery[string](ctx, u.db, q)
 }

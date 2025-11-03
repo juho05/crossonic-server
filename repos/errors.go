@@ -13,6 +13,7 @@ func (e ErrorType) Error() string {
 
 const (
 	ErrNotFound          ErrorType = "not found"
+	ErrExists            ErrorType = "already exists"
 	ErrTooMany           ErrorType = "got multiple rows, expected one"
 	ErrNestedTransaction ErrorType = "nested transactions not allowed"
 	ErrGeneral           ErrorType = "general"

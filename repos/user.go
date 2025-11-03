@@ -1,15 +1,26 @@
 package repos
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type User struct {
-	Name              string `db:"name"`
-	EncryptedPassword []byte `db:"encrypted_password"`
+	Name              string  `db:"name"`
+	EncryptedPassword []byte  `db:"encrypted_password"`
+	HashedPassword    *string `db:"hashed_password"`
 
 	ListenBrainzUsername       *string `db:"listenbrainz_username"`
 	EncryptedListenBrainzToken []byte  `db:"encrypted_listenbrainz_token"`
 	ListenBrainzScrobble       bool    `db:"listenbrainz_scrobble"`
 	ListenBrainzSyncFeedback   bool    `db:"listenbrainz_sync_feedback"`
+}
+
+type APIKey struct {
+	User        string    `db:"user_name"`
+	Name        string    `db:"name"`
+	HashedValue []byte    `db:"value_hash"`
+	Created     time.Time `db:"created"`
 }
 
 type UpdateListenBrainzSettingsParams struct {
@@ -54,4 +65,16 @@ type UserRepository interface {
 	// DeleteByName deletes the user with the provided name.
 	// Returns an error if no user was found.
 	DeleteByName(ctx context.Context, name string) error
+
+	// CreateAPIKey generates a new API key for the user and stores it in the database with the name.
+	CreateAPIKey(ctx context.Context, user, name string) (string, error)
+
+	// FindAPIKeys returns all API keys of the given user.
+	FindAPIKeys(ctx context.Context, user string) ([]*APIKey, error)
+
+	// DeleteAPIKey deletes the API key with the given name of the user.
+	DeleteAPIKey(ctx context.Context, user, name string) error
+
+	// FindUserNameByAPIKey returns the user who owns the apiKey or ErrNotFound otherwise.
+	FindUserNameByAPIKey(ctx context.Context, apiKey string) (string, error)
 }

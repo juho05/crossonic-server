@@ -44,6 +44,8 @@ func TestUserRepository(t *testing.T) {
 			assert.NoErrorf(t, err, "decrypt user password: %v", err)
 			assert.Equal(t, "testpassword", password)
 
+			// TODO verify password hash
+
 			assert.Nil(t, u.ListenBrainzUsername, "listenbrainz username should be nil")
 			assert.Nil(t, u.EncryptedListenBrainzToken, "listenbrainz token should be nil")
 			assert.True(t, u.ListenBrainzScrobble, "listenbrainz scrobble should be true")
@@ -294,6 +296,8 @@ func TestUserRepository(t *testing.T) {
 			password, err := repos.DecryptPassword(u.EncryptedPassword, encKey)
 			require.NoErrorf(t, err, "decrypt password: %v", err)
 			assert.Equal(t, "test", password)
+
+			// TODO verify password hash
 		})
 	})
 
@@ -323,6 +327,22 @@ func TestUserRepository(t *testing.T) {
 
 			assert.Equal(t, 1, thCount(t, db, "users"), "only the user with matching name should be deleted")
 		})
+	})
+
+	t.Run("CreateAPIKey", func(t *testing.T) {
+		// TODO
+	})
+
+	t.Run("FindAPIKeys", func(t *testing.T) {
+		// TODO
+	})
+
+	t.Run("DeleteAPIKey", func(t *testing.T) {
+		// TODO
+	})
+
+	t.Run("FindUserNameByAPIKey", func(t *testing.T) {
+		// TODO
 	})
 }
 

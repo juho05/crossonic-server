@@ -140,3 +140,7 @@ type InternetRadioStation struct {
 	StreamURL   string  `xml:"streamUrl,attr" json:"streamUrl"`
 	HomepageURL *string `xml:"homepageUrl,attr,omitempty" json:"homepageUrl,omitempty"`
 }
+
+type TokenInfo struct {
+	UserName string `xml:"username,attr" json:"username"`
+}
