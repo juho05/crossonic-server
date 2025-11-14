@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
@@ -290,7 +291,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 		w.Header().Set("Cache-Control", "max-age=10080") // 3h
-		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Content-Type", "image/webp")
 
 		var lastModified time.Time
 		coverFileInfo, err := os.Stat(filepath.Join(coverDir, id))
@@ -301,7 +302,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if cacheObj.IsComplete() {
-			http.ServeContent(w, r, id+".jpg", lastModified, cacheReader)
+			http.ServeContent(w, r, id+".webp", lastModified, cacheReader)
 		} else {
 			if !lastModified.IsZero() {
 				w.Header().Set("Last-Modified", lastModified.UTC().Format(http.TimeFormat))
@@ -360,7 +361,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	}
 	size = min(size, min(img.Bounds().Dx(), img.Bounds().Dy()))
 	img = imaging.Thumbnail(img, size, size, imaging.Linear)
-	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Content-Type", "image/webp")
 	w.Header().Set("Cache-Control", "max-age=10080") // 3h
 	w.WriteHeader(http.StatusOK)
 	cacheObj, err = h.CoverCache.CreateObject(cacheKey)
@@ -369,7 +370,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
-		err = imaging.Encode(cacheObj, img, imaging.JPEG)
+		err = webp.Encode(cacheObj, img, nil)
 		if err != nil {
 			log.Errorf("get cover art: encode %s: %s", id, err)
 			err = h.CoverCache.DeleteObject(cacheKey)
