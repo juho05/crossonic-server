@@ -112,6 +112,30 @@ func (c *Cache) DeleteObject(key string) error {
 	return nil
 }
 
+func (c *Cache) Clear() error {
+	c.objectsLock.Lock()
+	defer c.objectsLock.Unlock()
+	for key := range c.objects {
+		o := c.objects[key]
+		err := o.Close()
+		if err != nil {
+			log.Errorf("cache: clear: close object: %v", err)
+			continue
+		}
+	}
+	clear(c.objects)
+
+	err := os.RemoveAll(c.dir)
+	if err != nil {
+		return fmt.Errorf("cache: clean cache: remove directory: %w", err)
+	}
+	err = os.MkdirAll(c.dir, 0755)
+	if err != nil {
+		return fmt.Errorf("cache: clean cache: re-create directory: %w", err)
+	}
+	return nil
+}
+
 func (c *Cache) InvalidateGracefully() error {
 	c.objectsLock.Lock()
 	defer c.objectsLock.Unlock()

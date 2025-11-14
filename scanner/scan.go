@@ -100,10 +100,10 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 			return fmt.Errorf("check if full scan is needed: %w", err)
 		}
 		s.fullScan = needsFullScan
-		err = s.tx.System().ResetNeedsFullScan(ctx)
-		if err != nil {
-			return fmt.Errorf("reset needs full scan: %w", err)
-		}
+	}
+	err = s.tx.System().ResetNeedsFullScan(ctx)
+	if err != nil {
+		return fmt.Errorf("reset needs full scan: %w", err)
 	}
 
 	if s.fullScan || s.firstScan {
@@ -111,6 +111,14 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	}
 
 	log.Infof("Scanning %s (full scan: %t)...", s.mediaDir, s.fullScan)
+
+	if s.fullScan {
+		log.Tracef("clearing cover cache...")
+		err = s.coverCache.Clear()
+		if err != nil {
+			return fmt.Errorf("clear cover cache: %w", err)
+		}
+	}
 
 	log.Tracef("finding artist images...")
 	var waitFindArtistImages sync.WaitGroup
