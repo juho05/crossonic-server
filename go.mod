@@ -19,10 +19,10 @@ require (
 	github.com/juho05/log v0.0.0-20230224211948-f9bad0acae34
 	github.com/mozillazg/go-unidecode v0.2.0
 	github.com/nullism/bqb v1.7.4
-	github.com/rubenv/sql-migrate v1.8.0
+	github.com/rubenv/sql-migrate v1.8.1
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0
-	golang.org/x/crypto v0.44.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/net v0.47.0
 )
 

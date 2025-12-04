@@ -117,10 +117,14 @@ func (s scrobbleRepository) GetDistinctArtistCount(ctx context.Context, user str
 }
 
 func (s scrobbleRepository) GetTopSongsByDuration(ctx context.Context, user string, start, end time.Time, paginate repos.Paginate, include repos.IncludeSongInfo) ([]*repos.ScrobbleTopSong, error) {
-	q := bqb.New("SELECT SUM(scrobbles.duration_ms) as total_duration_ms,? FROM scrobbles INNER JOIN songs ON scrobbles.song_id = songs.id ?", genSongSelectList(include), genSongJoins(include))
-	q.Space("WHERE scrobbles.user_name = ? AND scrobbles.now_playing = false AND scrobbles.time >= ? AND scrobbles.time < ?", user, start, end)
-	q.Space("GROUP BY songs.id, albums.id, song_stars.created, song_ratings.rating, avgr.rating")
-	q.Space("ORDER BY SUM(scrobbles.duration_ms) DESC")
+	q := bqb.New(`
+		SELECT s.total_duration_ms, ? FROM songs INNER JOIN (
+			SELECT SUM(scrobbles.duration_ms) as total_duration_ms, songs.id AS song_id FROM scrobbles INNER JOIN songs ON scrobbles.song_id = songs.id
+			WHERE scrobbles.user_name = ? AND scrobbles.now_playing = false AND scrobbles.time >= ? AND scrobbles.time < ?
+			GROUP BY songs.id
+		) AS s ON songs.id = s.song_id ?
+		ORDER BY s.total_duration_ms DESC
+	`, genSongSelectList(include), user, start, end, genSongJoins(include))
 
 	paginate.Apply(q)
 
