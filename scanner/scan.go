@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/djherbis/times"
+	"github.com/itlightning/dateparse"
 	"github.com/juho05/crossonic-server/audiotags"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
@@ -667,7 +668,7 @@ func readDateTagFirstOptional(tags map[string][]string, keys ...string) *repos.D
 		if !ok || len(v) == 0 {
 			continue
 		}
-		date, err := repos.ParseDate(v[0])
+		date, err := parseDate(v[0])
 		if err != nil {
 			log.Warnf("scan: invalid date value: %s", v[0])
 			continue
@@ -675,6 +676,29 @@ func readDateTagFirstOptional(tags map[string][]string, keys ...string) *repos.D
 		return &date
 	}
 	return nil
+}
+
+func parseDate(str string) (repos.Date, error) {
+	str = strings.TrimSpace(str)
+
+	t, err := dateparse.ParseAny(str)
+	if err != nil {
+		return repos.Date{}, fmt.Errorf("parse any: %w", err)
+	}
+
+	year := t.Year()
+	month := int(t.Month())
+	day := t.Day()
+
+	if str == fmt.Sprintf("%04d", year) {
+		return repos.NewDate(year, nil, nil), nil
+	}
+
+	if str == fmt.Sprintf("%04d-%02d", year, month) {
+		return repos.NewDate(year, &month, nil), nil
+	}
+
+	return repos.NewDate(year, &month, &day), nil
 }
 
 func readReplayGainTag(tags map[string][]string, key string) *float64 {
