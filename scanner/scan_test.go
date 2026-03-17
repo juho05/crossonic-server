@@ -26,6 +26,9 @@ func Test_parseDate(t *testing.T) {
 		{"year-month-day", args{"  2025-11-03   "}, repos.NewDate(2025, util.ToPtr(11), util.ToPtr(3)), false},
 		{"year-month-day no zeros", args{"  2025-2-3   "}, repos.NewDate(2025, util.ToPtr(2), util.ToPtr(3)), false},
 		{"12/11/98", args{"12/11/98"}, repos.NewDate(1998, util.ToPtr(12), util.ToPtr(11)), false},
+		{"YYYY-MM-DD H:M", args{"2025-11-03 7:3"}, repos.NewDate(2025, util.ToPtr(11), util.ToPtr(3)), false},
+		{"YYYY-MM-DD HH:MM:SS", args{"2025-11-03 15:08"}, repos.NewDate(2025, util.ToPtr(11), util.ToPtr(3)), false},
+		{"YYYY-MM-DDTHH:MM:SSZ", args{"2025-11-03T15:08Z"}, repos.NewDate(2025, util.ToPtr(11), util.ToPtr(3)), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

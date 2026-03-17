@@ -1,19 +1,17 @@
 module github.com/juho05/crossonic-server
 
-go 1.24.0
-
-toolchain go1.24.3
+go 1.25.0
 
 require (
 	github.com/andybalholm/cascadia v1.3.3
 	github.com/chai2010/webp v1.4.0
 	github.com/disintegration/imaging v1.6.2
 	github.com/djherbis/times v1.6.0
-	github.com/go-chi/chi/v5 v5.2.3
+	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/cors v1.2.2
 	github.com/google/uuid v1.6.0
 	github.com/itlightning/dateparse v0.2.1
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jaevor/go-nanoid v1.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
@@ -21,10 +19,10 @@ require (
 	github.com/mozillazg/go-unidecode v0.2.0
 	github.com/nullism/bqb v1.7.4
 	github.com/rubenv/sql-migrate v1.8.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0
-	golang.org/x/crypto v0.45.0
-	golang.org/x/net v0.47.0
+	golang.org/x/crypto v0.49.0
+	golang.org/x/net v0.52.0
 )
 
 require (
@@ -80,11 +78,11 @@ require (
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
-	golang.org/x/image v0.33.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/term v0.37.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/image v0.37.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/term v0.41.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
