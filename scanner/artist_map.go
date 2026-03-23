@@ -68,7 +68,8 @@ func (a *artistMap) findOrCreate(ctx context.Context, s *Scanner, name string, m
 				found.mbid = mbid
 				changed = true
 			}
-			if changed {
+			found.updated = true
+			if changed || s.fullScan {
 				err := a.updateArtist(ctx, s, name, found)
 				if err != nil {
 					return "", fmt.Errorf("update artist: %w", err)
@@ -94,6 +95,7 @@ func (a *artistMap) findOrCreate(ctx context.Context, s *Scanner, name string, m
 
 func (a *artistMap) updateArtist(ctx context.Context, s *Scanner, name string, artist *artist) error {
 	err := s.tx.Artist().Update(ctx, artist.id, repos.UpdateArtistParams{
+		Name:          repos.NewOptionalFull(name),
 		MusicBrainzID: repos.NewOptionalFull(artist.mbid),
 	})
 	if err != nil {

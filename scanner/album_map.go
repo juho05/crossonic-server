@@ -253,7 +253,7 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 			}
 			found.updated = true
 
-			if changed {
+			if changed || s.fullScan {
 				err := a.updateAlbum(ctx, s, name, found)
 				if err != nil {
 					return nil, fmt.Errorf("update album: %w", err)

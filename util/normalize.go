@@ -1,8 +1,9 @@
 package util
 
 import (
-	"github.com/mozillazg/go-unidecode"
 	"unicode"
+
+	"github.com/mozillazg/go-unidecode"
 )
 
 // NormalizeText converts text into a form that is suitable for comparison with user input.
@@ -24,7 +25,6 @@ func NormalizeText(text string) string {
 			continue
 		}
 		r = unicode.ToLower(r)
-		// apply replacements
 		result = append(result, r)
 	}
 	return string(result)
