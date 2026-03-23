@@ -1,5 +1,5 @@
 # docker buildx build --platform linux/arm64,linux/amd64 --tag ghcr.io/juho05/crossonic-server:latest --push .
-FROM golang:alpine3.22 AS builder
+FROM golang:alpine3.23 AS builder
 
 RUN apk add -U --no-cache \
     build-base \
@@ -17,7 +17,7 @@ ARG VERSION=dev
 RUN go build -ldflags "-X github.com/juho05/crossonic-server.Version=$VERSION" -o crossonic-server ./cmd/server
 RUN go build -ldflags "-X github.com/juho05/crossonic-server.Version=$VERSION" -o crossonic-admin ./cmd/admin
 
-FROM alpine:3.22
+FROM alpine:3.23
 LABEL org.opencontainers.image.source=https://github.com/juho05/crossonic-server
 RUN apk add -U --no-cache \
     ffmpeg \
