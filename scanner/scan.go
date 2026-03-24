@@ -230,7 +230,11 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	default:
 	}
 
-	// TODO delete tracks from playlist that owner does not have access to due to music folder permissions
+	log.Tracef("deleting songs from playlists that the playlist owner does not have access to...")
+	err = s.tx.Playlist().DeleteTracksInaccessibleDueToMusicFolderPermissions(ctx)
+	if err != nil {
+		return fmt.Errorf("delete songs from playlists that the playlist owner does not have access to: %w", err)
+	}
 
 	log.Tracef("fixing track numbers in playlists...")
 	err = s.tx.Playlist().FixTrackNumbers(ctx)

@@ -155,6 +155,14 @@ func (p playlistRepository) FixTrackNumbers(ctx context.Context) error {
 	return executeQuery(ctx, p.db, q)
 }
 
+func (p playlistRepository) DeleteTracksInaccessibleDueToMusicFolderPermissions(ctx context.Context) error {
+	q := bqb.New(`DELETE FROM playlist_song ps USING playlists p, songs s, music_folders mf
+		WHERE ps.playlist_id = p.id AND ps.song_id = s.id AND s.music_folder_id = mf.id AND NOT EXISTS (
+			SELECT 1 FROM music_folder_users mfu WHERE mfu.music_folder_id = mf.id AND mfu.user_name = p.owner
+		)`)
+	return executeQuery(ctx, p.db, q)
+}
+
 func (p playlistRepository) getMaxTrackNr(ctx context.Context, id string) (int, error) {
 	q := bqb.New("SELECT COALESCE(MAX(playlist_song.track), -1) FROM playlist_song WHERE playlist_song.playlist_id = ?", id)
 	return getQuery[int](ctx, p.db, q)
