@@ -29,31 +29,32 @@ func (s *Scanner) LoadMusicDirs(tx repos.Transaction) (changed bool, err error) 
 	lastMusicDirConfig, err := tx.System().MusicDirConfig(ctx)
 	if errors.Is(err, repos.ErrNotFound) {
 		changed = true
-	} else if err == nil {
-		var sb strings.Builder
-		for i, dir := range musicDirs {
-			if i > 0 {
-				sb.WriteString(";")
-			}
-			sb.WriteString(strconv.Itoa(dir.ID))
-			sb.WriteString(":")
-			sb.WriteString(dir.Path)
-		}
-		currentMusicDirConfig := sb.String()
-		if lastMusicDirConfig != currentMusicDirConfig {
-			changed = true
-			err = tx.System().SetMusicDirConfig(ctx, currentMusicDirConfig)
-			if err != nil {
-				return false, fmt.Errorf("set system music dir config: %w", err)
-			}
-		}
-	} else {
+	} else if err != nil {
 		return false, fmt.Errorf("get system music dir config: %w", err)
+	}
+
+	var sb strings.Builder
+	for i, dir := range musicDirs {
+		if i > 0 {
+			sb.WriteString(";")
+		}
+		sb.WriteString(strconv.Itoa(dir.ID))
+		sb.WriteString(":")
+		sb.WriteString(dir.Path)
+	}
+	currentMusicDirConfig := sb.String()
+	if lastMusicDirConfig != currentMusicDirConfig {
+		changed = true
 	}
 
 	if !changed {
 		log.Tracef("music dir config hasn't changed, skipping db update")
 		return false, nil
+	}
+
+	err = tx.System().SetMusicDirConfig(ctx, currentMusicDirConfig)
+	if err != nil {
+		return false, fmt.Errorf("set system music dir config: %w", err)
 	}
 
 	log.Tracef("music dir config changed, updating database")

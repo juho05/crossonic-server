@@ -17,6 +17,29 @@ import (
 
 const keepLastFMInfoFor = 30 * 24 * time.Hour
 
+func (h *Handler) handleGetMusicFolders(w http.ResponseWriter, r *http.Request) {
+	q := getQuery(w, r)
+
+	folders, err := h.DB.MusicFolder().FindAll(r.Context(), q.User())
+	if err != nil {
+		respondInternalErr(w, q.Format(), fmt.Errorf("find music folders: %w", err))
+		return
+	}
+
+	musicFolders := util.Map(folders, func(f repos.MusicFolder) *responses.MusicFolder {
+		return &responses.MusicFolder{
+			ID:   f.ID,
+			Name: f.Name,
+		}
+	})
+
+	res := responses.New()
+	res.MusicFolders = &responses.MusicFolders{
+		MusicFolders: musicFolders,
+	}
+	res.EncodeOrLog(w, q.Format())
+}
+
 func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 	q := getQuery(w, r)
 	id, ok := q.IDReq("id")

@@ -19,7 +19,7 @@
 
 ### Browsing
 
-- [ ] [getMusicFolders](https://opensubsonic.netlify.app/docs/endpoints/getmusicfolders)
+- [x] [getMusicFolders](https://opensubsonic.netlify.app/docs/endpoints/getmusicfolders)
 - [x] [getIndexes](https://opensubsonic.netlify.app/docs/endpoints/getindexes)
 - [x] [getMusicDirectory](https://opensubsonic.netlify.app/docs/endpoints/getmusicdirectory)
 - [x] [getGenres](https://opensubsonic.netlify.app/docs/endpoints/getgenres)

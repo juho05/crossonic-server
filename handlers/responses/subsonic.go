@@ -18,6 +18,15 @@ type License struct {
 	Valid bool `xml:"valid,attr" json:"valid"`
 }
 
+type MusicFolders struct {
+	MusicFolders []*MusicFolder `xml:"musicFolders" json:"musicFolder"`
+}
+
+type MusicFolder struct {
+	ID   int    `xml:"id,attr" json:"id"`
+	Name string `xml:"name,attr,omitempty" json:"name,omitempty"`
+}
+
 type ScanStatus struct {
 	Scanning bool       `xml:"scanning,attr" json:"scanning"`
 	Count    *int       `xml:"count,attr,omitempty" json:"count,omitempty"`
