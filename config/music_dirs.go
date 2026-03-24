@@ -86,6 +86,10 @@ func GenerateMusicDirConfigString(musicDirs []MusicDir) string {
 		sb.WriteString(strconv.Itoa(dir.ID))
 		sb.WriteString(":")
 		sb.WriteString(dir.Path)
+		for _, u := range dir.Users {
+			sb.WriteString(":")
+			sb.WriteString(u)
+		}
 	}
 	return sb.String()
 }

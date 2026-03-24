@@ -147,10 +147,13 @@ func Load(environ []string) (Config, []error) {
 	config.musicDir = loadMusicDir(env)
 	config.musicDirConfig = loadMusicDirConfig(env)
 
-	if config.musicDir == "" && config.musicDirConfig == "" {
-		errors = append(errors, fmt.Errorf("either MUSIC_DIR or MUSIC_DIR_CONFIG must be specified"))
-	} else if config.musicDir != "" && config.musicDirConfig != "" {
+	if config.musicDir != "" && config.musicDirConfig != "" {
 		errors = append(errors, fmt.Errorf("cannot provide both MUSIC_DIR and MUSIC_DIR_CONFIG"))
+	} else if config.musicDir == "" && config.musicDirConfig == "" {
+		config.musicDir = loadDefaultMusicDir(env)
+		if config.musicDir == "" {
+			errors = append(errors, fmt.Errorf("either MUSIC_DIR or MUSIC_DIR_CONFIG must be specified"))
+		}
 	}
 
 	return config, errors
@@ -286,6 +289,10 @@ func loadMusicDirConfig(env environment) string {
 
 func loadMusicDir(env environment) string {
 	return optionalString(env, "MUSIC_DIR", "")
+}
+
+func loadDefaultMusicDir(env environment) string {
+	return optionalString(env, "DEFAULT_MUSIC_DIR", "")
 }
 
 func loadArtistImagePriority(env environment) []string {

@@ -36,17 +36,17 @@ func (s *Scanner) LoadMusicDirs(tx repos.Transaction) (changed bool, err error) 
 		changed = true
 	}
 
-	if !changed {
+	if !changed && !s.fullScan {
 		log.Tracef("music dir config hasn't changed, skipping db update")
 		return false, nil
 	}
+
+	log.Tracef("updating music dir config in database")
 
 	err = tx.System().SetMusicDirConfig(ctx, currentMusicDirConfig)
 	if err != nil {
 		return false, fmt.Errorf("set system music dir config: %w", err)
 	}
-
-	log.Tracef("music dir config changed, updating database")
 
 	err = tx.MusicFolder().DeleteAllUserAssociations(ctx)
 	if err != nil {
@@ -75,7 +75,7 @@ func (s *Scanner) LoadMusicDirs(tx repos.Transaction) (changed bool, err error) 
 		names := userNames
 
 		if dir.Users != nil {
-			names = make([]string, len(dir.Users))
+			names = make([]string, 0, len(dir.Users))
 			for _, u := range dir.Users {
 				if !slices.Contains(userNames, u) {
 					return false, fmt.Errorf("unknown user for music dir %d: %s", dir.ID, u)

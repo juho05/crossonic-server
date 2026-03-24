@@ -35,7 +35,7 @@ COPY --from=builder "/src/crossonic-server" /bin/
 COPY --from=builder "/src/crossonic-admin" /bin/
 EXPOSE 8080
 ENV TZ=""
-ENV MUSIC_DIR=/music
+ENV DEFAULT_MUSIC_DIR=/music
 ENV DATA_DIR=/data
 ENV CACHE_DIR=/cache
 ENV LISTEN_ADDR=0.0.0.0:8080
