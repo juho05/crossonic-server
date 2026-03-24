@@ -150,12 +150,13 @@ const (
 )
 
 type FindAlbumParams struct {
-	SortBy     FindAlbumSortBy
-	FromYear   *int
-	ToYear     *int
-	Genres     []string
-	Paginate   Paginate
-	RandomSeed *string
+	SortBy         FindAlbumSortBy
+	FromYear       *int
+	ToYear         *int
+	Genres         []string
+	Paginate       Paginate
+	RandomSeed     *string
+	MusicFolderIDs []int
 }
 
 type SetAlbumInfo struct {
@@ -182,10 +183,10 @@ type AlbumRepository interface {
 	Update(ctx context.Context, id string, params UpdateAlbumParams) error
 	DeleteIfNoTracks(ctx context.Context) error
 
-	FindByID(ctx context.Context, id string, include IncludeAlbumInfo) (*CompleteAlbum, error)
+	FindByID(ctx context.Context, id, user string, include IncludeAlbumInfo) (*CompleteAlbum, error)
 	FindAll(ctx context.Context, params FindAlbumParams, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
-	FindBySearch(ctx context.Context, query string, paginate Paginate, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
-	FindStarred(ctx context.Context, paginate Paginate, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	FindBySearch(ctx context.Context, query string, musicFolderIDs []int, paginate Paginate, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	FindStarred(ctx context.Context, musicFolderIDs []int, paginate Paginate, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 
 	GetTracks(ctx context.Context, id string, include IncludeSongInfo) ([]*CompleteSong, error)
 
@@ -195,13 +196,13 @@ type AlbumRepository interface {
 	SetRating(ctx context.Context, user, albumID string, rating int) error
 	RemoveRating(ctx context.Context, user, albumID string) error
 
-	GetInfo(ctx context.Context, albumID string) (*AlbumInfo, error)
+	GetInfo(ctx context.Context, albumID, user string) (*AlbumInfo, error)
 	SetInfo(ctx context.Context, albumID string, params SetAlbumInfo) error
 
 	GetAllArtistConnections(ctx context.Context) ([]AlbumArtistConnection, error)
 	RemoveAllArtistConnections(ctx context.Context) error
 	CreateArtistConnections(ctx context.Context, connections []AlbumArtistConnection) error
-	GetAlternateVersions(ctx context.Context, albumId string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	GetAlternateVersions(ctx context.Context, albumId string, musicFolderIDs []int, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 	MigrateAnnotations(ctx context.Context, oldId, newId string) error
 	FindAlbumIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]FindAlbumIDsToMigrateResult, error)
 

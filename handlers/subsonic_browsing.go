@@ -47,13 +47,18 @@ func (h *Handler) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbArtist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfoFull(q.User()))
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+	if !ok {
+		return
+	}
+
+	dbArtist, err := h.DB.Artist().FindByID(r.Context(), id, q.User(), repos.IncludeArtistInfoFull(q.User()))
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("get artist: %w", err))
 		return
 	}
 
-	dbAlbums, err := h.DB.Artist().GetAlbums(r.Context(), dbArtist.ID, repos.IncludeAlbumInfoFull(q.User()))
+	dbAlbums, err := h.DB.Artist().GetAlbums(r.Context(), dbArtist.ID, musicFolderIDs, repos.IncludeAlbumInfoFull(q.User()))
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("get artist: get albums: %w", err))
 		return
@@ -77,7 +82,7 @@ func (h *Handler) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbAlbum, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfoFull(q.User()))
+	dbAlbum, err := h.DB.Album().FindByID(r.Context(), id, q.User(), repos.IncludeAlbumInfoFull(q.User()))
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("get album: %w", err))
 		return
@@ -108,7 +113,7 @@ func (h *Handler) handleGetSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoFull(q.User()))
+	song, err := h.DB.Song().FindByID(r.Context(), id, q.User(), repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("get song: find song by id: %w", err))
 		return
@@ -122,7 +127,12 @@ func (h *Handler) handleGetSong(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetGenres(w http.ResponseWriter, r *http.Request) {
 	q := getQuery(w, r)
 
-	dbGenres, err := h.DB.Genre().FindAllWithCounts(r.Context())
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+	if !ok {
+		return
+	}
+
+	dbGenres, err := h.DB.Genre().FindAllWithCounts(r.Context(), musicFolderIDs)
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("get genres: %w", err))
 		return
@@ -158,9 +168,15 @@ func (h *Handler) handleGetArtistsIndex(byID3 bool) func(w http.ResponseWriter, 
 			ifModifiedSince = t
 		}
 
+		musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+		if !ok {
+			return
+		}
+
 		artists, err := h.DB.Artist().FindAll(r.Context(), repos.FindArtistsParams{
 			OnlyAlbumArtists: true,
 			UpdatedAfter:     ifModifiedSince,
+			MusicFolderIDs:   musicFolderIDs,
 		}, repos.IncludeArtistInfoFull(q.User()))
 		if err != nil {
 			respondInternalErr(w, q.Format(), fmt.Errorf("get artists: %w", err))
@@ -232,7 +248,7 @@ func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if typ, _ := crossonic.GetIDType(id); typ == crossonic.IDTypeSong {
-		song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoBare())
+		song, err := h.DB.Song().FindByID(r.Context(), id, q.User(), repos.IncludeSongInfoBare())
 		if err != nil {
 			respondErr(w, q.Format(), fmt.Errorf("get album info: find song: %w", err))
 			return
@@ -244,7 +260,7 @@ func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
 		id = *song.AlbumID
 	}
 
-	info, err := h.DB.Album().GetInfo(r.Context(), id)
+	info, err := h.DB.Album().GetInfo(r.Context(), id, q.User())
 	if err != nil && !errors.Is(err, repos.ErrNotFound) {
 		respondErr(w, q.Format(), fmt.Errorf("get album info: get info: %w", err))
 		return
@@ -254,7 +270,7 @@ func (h *Handler) handleGetAlbumInfo2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if info.Updated == nil && h.LastFM != nil {
-		album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
+		album, err := h.DB.Album().FindByID(r.Context(), id, q.User(), repos.IncludeAlbumInfo{
 			Artists: true,
 		})
 		if err != nil {
@@ -326,7 +342,7 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 		}
 
 		if typ, _ := crossonic.GetIDType(id); typ == crossonic.IDTypeSong {
-			song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfo{
+			song, err := h.DB.Song().FindByID(r.Context(), id, q.User(), repos.IncludeSongInfo{
 				Lists: true,
 			})
 			if err != nil {
@@ -342,7 +358,7 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 				return
 			}
 		} else if typ == crossonic.IDTypeAlbum {
-			album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
+			album, err := h.DB.Album().FindByID(r.Context(), id, q.User(), repos.IncludeAlbumInfo{
 				Artists: true,
 			})
 			if err != nil {
@@ -357,7 +373,7 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 			}
 		}
 
-		info, err := h.DB.Artist().GetInfo(r.Context(), id)
+		info, err := h.DB.Artist().GetInfo(r.Context(), id, q.User())
 		if err != nil {
 			respondErr(w, q.Format(), fmt.Errorf("get artist info: get info: %w", err))
 			return
@@ -367,7 +383,7 @@ func (h *Handler) handleGetArtistInfo(version int) func(w http.ResponseWriter, r
 		}
 
 		if info.Updated == nil && h.LastFM != nil {
-			artist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfoBare())
+			artist, err := h.DB.Artist().FindByID(r.Context(), id, q.User(), repos.IncludeArtistInfoBare())
 			if err != nil {
 				respondErr(w, q.Format(), fmt.Errorf("get album info: find album: %w", err))
 				return
@@ -438,8 +454,13 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+	if !ok {
+		return
+	}
+
 	if crossonic.IsIDType(id, crossonic.IDTypeAlbum) {
-		album, err := h.DB.Album().FindByID(r.Context(), id, repos.IncludeAlbumInfo{
+		album, err := h.DB.Album().FindByID(r.Context(), id, q.User(), repos.IncludeAlbumInfo{
 			User:        q.User(),
 			Annotations: true,
 			PlayInfo:    true,
@@ -476,7 +497,7 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 		res.EncodeOrLog(w, q.Format())
 		return
 	} else if crossonic.IsIDType(id, crossonic.IDTypeArtist) {
-		artist, err := h.DB.Artist().FindByID(r.Context(), id, repos.IncludeArtistInfo{
+		artist, err := h.DB.Artist().FindByID(r.Context(), id, q.User(), repos.IncludeArtistInfo{
 			User:        q.User(),
 			Annotations: true,
 		})
@@ -484,7 +505,7 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 			respondErr(w, q.Format(), fmt.Errorf("get music directory: get artist albums: %w", err))
 			return
 		}
-		albums, err := h.DB.Artist().GetAlbums(r.Context(), id, repos.IncludeAlbumInfoFull(q.User()))
+		albums, err := h.DB.Artist().GetAlbums(r.Context(), id, musicFolderIDs, repos.IncludeAlbumInfoFull(q.User()))
 		if err != nil {
 			respondErr(w, q.Format(), fmt.Errorf("get music directory: get artist albums: %w", err))
 			return

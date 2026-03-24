@@ -66,7 +66,7 @@ func (m musicFolderRepository) CreateUserAssociations(ctx context.Context, folde
 	})
 }
 
-func (m musicFolderRepository) GetUserMusicFolderIDs(ctx context.Context, user string, requestedIDs []string) ([]int, error) {
+func (m musicFolderRepository) GetUserMusicFolderIDs(ctx context.Context, user string, requestedIDs []int) ([]int, error) {
 	var result []int
 	err := m.tx(ctx, func(m musicFolderRepository) error {
 		var err error

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -330,6 +332,23 @@ func (q UrlQuery) User() string {
 
 func (q UrlQuery) Client() string {
 	return q.Str("c")
+}
+
+func (q UrlQuery) MusicFolderIDs(ctx context.Context, tx repos.Tx) ([]int, bool) {
+	requestedIDs, ok := q.Ints("musicFolderId")
+	if !ok {
+		return nil, false
+	}
+	folderIDs, err := tx.MusicFolder().GetUserMusicFolderIDs(ctx, q.User(), requestedIDs)
+	if err != nil {
+		if errors.Is(err, repos.ErrForbidden) {
+			respondNotFoundErr(q.responseWriter, q.Format(), "music folder not found")
+			return nil, false
+		}
+		respondErr(q.responseWriter, q.Format(), fmt.Errorf("get music folder ids for user: %w", err))
+		return nil, false
+	}
+	return folderIDs, true
 }
 
 func (q UrlQuery) missingParameter(name string) {

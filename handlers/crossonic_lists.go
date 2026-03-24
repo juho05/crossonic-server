@@ -66,20 +66,26 @@ func (h *Handler) handleGetSongs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+	if !ok {
+		return
+	}
+
 	songs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
-		Search:      search,
-		OnlyStarred: onlyStarred,
-		MinBPM:      minBPM,
-		MaxBPM:      maxBPM,
-		FromYear:    fromYear,
-		ToYear:      toYear,
-		Genres:      genres,
-		ArtistIDs:   artistIDs,
-		AlbumIDs:    albumIDs,
-		Order:       orderBy,
-		OrderDesc:   orderDesc,
-		RandomSeed:  randomSeed,
-		Paginate:    paginate,
+		Search:         search,
+		OnlyStarred:    onlyStarred,
+		MinBPM:         minBPM,
+		MaxBPM:         maxBPM,
+		FromYear:       fromYear,
+		ToYear:         toYear,
+		Genres:         genres,
+		ArtistIDs:      artistIDs,
+		AlbumIDs:       albumIDs,
+		Order:          orderBy,
+		OrderDesc:      orderDesc,
+		RandomSeed:     randomSeed,
+		Paginate:       paginate,
+		MusicFolderIDs: musicFolderIDs,
 	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("find all songs filtered: %w", err))

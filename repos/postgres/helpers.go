@@ -117,10 +117,10 @@ func getQuery[T any](ctx context.Context, db executer, query *bqb.Query) (T, err
 		return result, err
 	}
 	if len(results) == 0 {
-		return result, repos.NewError("", repos.ErrNotFound, nil)
+		return result, repos.NewError("expected one but found none", repos.ErrNotFound, nil)
 	}
 	if len(results) > 1 {
-		return result, repos.NewError("", repos.ErrTooMany, nil)
+		return result, repos.NewError("expected one but found multiple", repos.ErrTooMany, nil)
 	}
 	result = results[0]
 	return result, nil
@@ -181,4 +181,8 @@ func genSearch(query, searchColumn, titleCol string) (conditions *bqb.Query, ord
 	}
 	orderBy.Comma(fmt.Sprintf("lower(%s)", titleCol))
 	return conditions, orderBy
+}
+
+func genMusicFolderUserCondition(tableName, user string) *bqb.Query {
+	return bqb.New(fmt.Sprintf("(EXISTS(SELECT mfu.music_folder_id FROM music_folder_users mfu WHERE mfu.user_name = ? AND mfu.music_folder_id = %s.music_folder_id))", tableName), user)
 }

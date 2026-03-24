@@ -216,6 +216,8 @@ type SongFindAllFilter struct {
 	RandomSeed *string
 
 	Paginate Paginate
+
+	MusicFolderIDs []int
 }
 
 type SongSetLBFeedbackUploadedParams struct {
@@ -227,7 +229,7 @@ type SongSetLBFeedbackUploadedParams struct {
 // repo
 
 type SongRepository interface {
-	FindByID(ctx context.Context, id string, include IncludeSongInfo) (*CompleteSong, error)
+	FindByID(ctx context.Context, id, user string, include IncludeSongInfo) (*CompleteSong, error)
 	FindByIDs(ctx context.Context, ids []string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindAllFiltered(ctx context.Context, filter SongFindAllFilter, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByMusicBrainzID(ctx context.Context, mbid string, include IncludeSongInfo) ([]*CompleteSong, error)
@@ -239,7 +241,7 @@ type SongRepository interface {
 	FindPaths(ctx context.Context, updatedBefore time.Time, paginate Paginate) ([]string, error)
 	DeleteByPaths(ctx context.Context, paths []string) error
 
-	GetStreamInfo(ctx context.Context, id string) (*SongStreamInfo, error)
+	GetStreamInfo(ctx context.Context, id, user string) (*SongStreamInfo, error)
 
 	CreateAll(ctx context.Context, params []CreateSongParams) error
 	TryUpdateAll(ctx context.Context, params []UpdateSongAllParams) (int, error)

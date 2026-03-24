@@ -52,7 +52,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		timeOffset = time.Duration(*timeOffsetMsInt) * time.Millisecond
 	}
 
-	info, err := h.DB.Song().GetStreamInfo(r.Context(), id)
+	info, err := h.DB.Song().GetStreamInfo(r.Context(), id, q.User())
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("stream: get info: %w", err))
 		return
@@ -167,7 +167,7 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := h.DB.Song().GetStreamInfo(r.Context(), id)
+	info, err := h.DB.Song().GetStreamInfo(r.Context(), id, q.User())
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("download: get info: %w", err))
 		return
@@ -240,7 +240,7 @@ func (h *Handler) handleGetLyricsBySongId(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfoBare())
+	song, err := h.DB.Song().FindByID(r.Context(), id, q.User(), repos.IncludeSongInfoBare())
 	if err != nil {
 		respondNotFoundErr(w, q.Format(), "song not found")
 		return
@@ -272,6 +272,9 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
+	// TODO consider validating access rights of user, i.e. whether the requested cover is part of an item that is in
+	//  an accessible music folder.
 
 	coverDir := filepath.Join(h.Config.DataDir, "covers")
 
@@ -319,7 +322,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 			respondNotFoundErr(w, q.Format(), "")
 			return
 		}
-		err = h.loadArtistCoverFromLastFMByID(r.Context(), id)
+		err = h.loadArtistCoverFromLastFMByID(r.Context(), id, q.User())
 		if errors.Is(err, repos.ErrNotFound) {
 			respondNotFoundErr(w, q.Format(), "")
 			return
@@ -394,8 +397,8 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, cacheReader)
 }
 
-func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id string) error {
-	artist, err := h.DB.Artist().FindByID(ctx, id, repos.IncludeArtistInfoBare())
+func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id, user string) error {
+	artist, err := h.DB.Artist().FindByID(ctx, id, user, repos.IncludeArtistInfoBare())
 	if err != nil {
 		return fmt.Errorf("load artist cover from last fm by id: %w", err)
 	}

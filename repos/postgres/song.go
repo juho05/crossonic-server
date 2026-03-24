@@ -17,8 +17,8 @@ type songRepository struct {
 	tx func(ctx context.Context, fn func(s songRepository) error) error
 }
 
-func (s songRepository) FindByID(ctx context.Context, id string, include repos.IncludeSongInfo) (*repos.CompleteSong, error) {
-	q := bqb.New("SELECT ? FROM songs ? WHERE songs.id = ?", genSongSelectList(include), genSongJoins(include), id)
+func (s songRepository) FindByID(ctx context.Context, id, user string, include repos.IncludeSongInfo) (*repos.CompleteSong, error) {
+	q := bqb.New("SELECT ? FROM songs ? WHERE songs.id = ? AND ?", genSongSelectList(include), genSongJoins(include), id, genMusicFolderUserCondition("songs", user))
 	return execSongSelectOne(ctx, s.db, q, include)
 }
 
@@ -89,6 +89,10 @@ func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFi
 
 	if len(filter.AlbumIDs) > 0 {
 		where.And("(songs.album_id IN (?))", filter.AlbumIDs)
+	}
+
+	if filter.MusicFolderIDs != nil {
+		where.And("(songs.music_folder_id IN (?))", filter.MusicFolderIDs)
 	}
 
 	orderBy := bqb.Optional("ORDER BY")
@@ -208,8 +212,8 @@ func (s songRepository) DeleteByPaths(ctx context.Context, paths []string) error
 	})
 }
 
-func (s songRepository) GetStreamInfo(ctx context.Context, id string) (*repos.SongStreamInfo, error) {
-	q := bqb.New("SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms, songs.channel_count FROM songs WHERE songs.id = ?", id)
+func (s songRepository) GetStreamInfo(ctx context.Context, id, user string) (*repos.SongStreamInfo, error) {
+	q := bqb.New("SELECT songs.path, songs.bit_rate, songs.content_type, songs.duration_ms, songs.channel_count FROM songs WHERE songs.id = ? AND ?", id, genMusicFolderUserCondition("songs", user))
 	return getQuery[*repos.SongStreamInfo](ctx, s.db, q)
 }
 

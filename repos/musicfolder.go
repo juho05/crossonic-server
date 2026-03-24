@@ -20,5 +20,5 @@ type MusicFolderRepository interface {
 
 	// GetUserMusicFolderIDs returns requestedIDs if the user has access to all requested music folders and ErrForbidden otherwise.
 	// If requestedIDs is empty it returns all music folders that the user has access to.
-	GetUserMusicFolderIDs(ctx context.Context, user string, requestedIDs []string) ([]int, error)
+	GetUserMusicFolderIDs(ctx context.Context, user string, requestedIDs []int) ([]int, error)
 }

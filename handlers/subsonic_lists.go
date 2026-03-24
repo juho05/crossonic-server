@@ -28,13 +28,19 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 
 	seed := util.NilIfEmpty(q.Str("seed"))
 
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+	if !ok {
+		return
+	}
+
 	dbSongs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
-		Order:      util.ToPtr(repos.SongOrderRandom),
-		FromYear:   fromYear,
-		ToYear:     toYear,
-		Genres:     genres,
-		RandomSeed: seed,
-		Paginate:   paginate,
+		Order:          util.ToPtr(repos.SongOrderRandom),
+		FromYear:       fromYear,
+		ToYear:         toYear,
+		Genres:         genres,
+		RandomSeed:     seed,
+		Paginate:       paginate,
+		MusicFolderIDs: musicFolderIDs,
 	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("get random songs: %w", err))
@@ -111,13 +117,19 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 			return
 		}
 
+		musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+		if !ok {
+			return
+		}
+
 		a, err := h.DB.Album().FindAll(r.Context(), repos.FindAlbumParams{
-			SortBy:     sortBy,
-			FromYear:   fromYear,
-			ToYear:     toYear,
-			Genres:     genres,
-			Paginate:   paginate,
-			RandomSeed: seed,
+			SortBy:         sortBy,
+			FromYear:       fromYear,
+			ToYear:         toYear,
+			Genres:         genres,
+			Paginate:       paginate,
+			RandomSeed:     seed,
+			MusicFolderIDs: musicFolderIDs,
 		}, repos.IncludeAlbumInfoFull(q.User()))
 		if err != nil {
 			respondInternalErr(w, q.Format(), fmt.Errorf("get album list 2: find all: %w", err))
@@ -158,24 +170,30 @@ func (h *Handler) handleGetStarred(version int) func(w http.ResponseWriter, r *h
 			return
 		}
 
+		musicFolderIDs, ok := q.Ints("musicFolderId")
+		if !ok {
+			return
+		}
+
 		songs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
-			Order:       util.ToPtr(repos.SongOrderStarred),
-			OrderDesc:   true,
-			OnlyStarred: true,
-			Paginate:    songPaginate,
+			Order:          util.ToPtr(repos.SongOrderStarred),
+			OrderDesc:      true,
+			OnlyStarred:    true,
+			Paginate:       songPaginate,
+			MusicFolderIDs: musicFolderIDs,
 		}, repos.IncludeSongInfoFull(q.User()))
 		if err != nil {
 			respondInternalErr(w, q.Format(), fmt.Errorf("get starred2: find songs: %w", err))
 			return
 		}
 
-		albums, err := h.DB.Album().FindStarred(r.Context(), albumPaginate, repos.IncludeAlbumInfoFull(q.User()))
+		albums, err := h.DB.Album().FindStarred(r.Context(), musicFolderIDs, albumPaginate, repos.IncludeAlbumInfoFull(q.User()))
 		if err != nil {
 			respondInternalErr(w, q.Format(), fmt.Errorf("get starred2: find albums: %w", err))
 			return
 		}
 
-		artists, err := h.DB.Artist().FindStarred(r.Context(), artistPaginate, repos.IncludeArtistInfoFull(q.User()))
+		artists, err := h.DB.Artist().FindStarred(r.Context(), musicFolderIDs, artistPaginate, repos.IncludeArtistInfoFull(q.User()))
 		if err != nil {
 			respondInternalErr(w, q.Format(), fmt.Errorf("get starred2: find artists: %w", err))
 			return
@@ -209,10 +227,16 @@ func (h *Handler) handleGetSongsByGenre(w http.ResponseWriter, r *http.Request) 
 
 	paginate, ok := q.Paginate("count", "offset", 10)
 
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+	if !ok {
+		return
+	}
+
 	songs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
-		Order:    util.ToPtr(repos.SongOrderTitle),
-		Genres:   genres,
-		Paginate: paginate,
+		Order:          util.ToPtr(repos.SongOrderTitle),
+		Genres:         genres,
+		Paginate:       paginate,
+		MusicFolderIDs: musicFolderIDs,
 	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("get songs by genre: find songs: %w", err))

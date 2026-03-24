@@ -16,7 +16,12 @@ func (h *Handler) handleGetAppearsOn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	albums, err := h.DB.Artist().GetAppearsOnAlbums(r.Context(), artistId, repos.IncludeAlbumInfoFull(q.User()))
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+	if !ok {
+		return
+	}
+
+	albums, err := h.DB.Artist().GetAppearsOnAlbums(r.Context(), artistId, musicFolderIDs, repos.IncludeAlbumInfoFull(q.User()))
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("get appears on albums: %w", err))
 		return
@@ -37,7 +42,12 @@ func (h *Handler) handleGetAlternateAlbumVersions(w http.ResponseWriter, r *http
 		return
 	}
 
-	albums, err := h.DB.Album().GetAlternateVersions(r.Context(), albumId, repos.IncludeAlbumInfoFull(q.User()))
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+	if !ok {
+		return
+	}
+
+	albums, err := h.DB.Album().GetAlternateVersions(r.Context(), albumId, musicFolderIDs, repos.IncludeAlbumInfoFull(q.User()))
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("get album versions: %w", err))
 		return

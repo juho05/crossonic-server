@@ -15,17 +15,22 @@ func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
 
 	search := strings.Trim(q.Str("query"), `"`)
 
-	artists, ok := h.searchArtists(w, r, search)
+	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
 	if !ok {
 		return
 	}
 
-	albums, ok := h.searchAlbums(w, r, search)
+	artists, ok := h.searchArtists(w, r, search, musicFolderIDs)
 	if !ok {
 		return
 	}
 
-	songs, ok := h.searchSongs(w, r, search)
+	albums, ok := h.searchAlbums(w, r, search, musicFolderIDs)
+	if !ok {
+		return
+	}
+
+	songs, ok := h.searchSongs(w, r, search, musicFolderIDs)
 	if !ok {
 		return
 	}
@@ -39,7 +44,7 @@ func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
 	res.EncodeOrLog(w, q.Format())
 }
 
-func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request, searchQuery string) ([]*responses.Artist, bool) {
+func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request, searchQuery string, musicFolderIDs []int) ([]*responses.Artist, bool) {
 	q := getQuery(w, r)
 
 	paginate, ok := q.Paginate("artistCount", "artistOffset", 20)
@@ -52,7 +57,7 @@ func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request, searchQu
 		return nil, false
 	}
 
-	artists, err := h.DB.Artist().FindBySearch(r.Context(), searchQuery, onlyAlbumArtists, paginate, repos.IncludeArtistInfoFull(q.User()))
+	artists, err := h.DB.Artist().FindBySearch(r.Context(), searchQuery, onlyAlbumArtists, musicFolderIDs, paginate, repos.IncludeArtistInfoFull(q.User()))
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("search3: artists: %w", err))
 		return nil, false
@@ -60,7 +65,7 @@ func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request, searchQu
 	return responses.NewArtists(artists, h.Config), true
 }
 
-func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request, searchQuery string) ([]*responses.Album, bool) {
+func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request, searchQuery string, musicFolderIDs []int) ([]*responses.Album, bool) {
 	q := getQuery(w, r)
 
 	paginate, ok := q.Paginate("albumCount", "albumOffset", 20)
@@ -68,7 +73,7 @@ func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request, searchQue
 		return nil, false
 	}
 
-	dbAlbums, err := h.DB.Album().FindBySearch(r.Context(), searchQuery, paginate, repos.IncludeAlbumInfoFull(q.User()))
+	dbAlbums, err := h.DB.Album().FindBySearch(r.Context(), searchQuery, musicFolderIDs, paginate, repos.IncludeAlbumInfoFull(q.User()))
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("search3: albums: %w", err))
 		return nil, false
@@ -77,7 +82,7 @@ func (h *Handler) searchAlbums(w http.ResponseWriter, r *http.Request, searchQue
 	return albums, true
 }
 
-func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request, searchQuery string) ([]*responses.Song, bool) {
+func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request, searchQuery string, musicFolderIDs []int) ([]*responses.Song, bool) {
 	q := getQuery(w, r)
 
 	paginate, ok := q.Paginate("songCount", "songOffset", 20)
@@ -91,9 +96,10 @@ func (h *Handler) searchSongs(w http.ResponseWriter, r *http.Request, searchQuer
 	}
 
 	dbSongs, err := h.DB.Song().FindAllFiltered(r.Context(), repos.SongFindAllFilter{
-		Search:   searchQuery,
-		Paginate: paginate,
-		Order:    order,
+		Search:         searchQuery,
+		Paginate:       paginate,
+		Order:          order,
+		MusicFolderIDs: musicFolderIDs,
 	}, repos.IncludeSongInfoFull(q.User()))
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("search3: songs: %w", err))

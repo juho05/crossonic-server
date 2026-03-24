@@ -98,8 +98,8 @@ func (a artistRepository) FindOrCreateIDsByNames(ctx context.Context, names []st
 	return ids, nil
 }
 
-func (a artistRepository) FindByID(ctx context.Context, id string, include repos.IncludeArtistInfo) (*repos.CompleteArtist, error) {
-	q := bqb.New("SELECT ? FROM artists ? WHERE artists.id = ?", genArtistSelectList(include), genArtistJoins(include), id)
+func (a artistRepository) FindByID(ctx context.Context, id, user string, include repos.IncludeArtistInfo) (*repos.CompleteArtist, error) {
+	q := bqb.New("SELECT ? FROM artists ? WHERE artists.id = ? AND ?", genArtistSelectList(include), genArtistJoins(include), id, genArtistAccessibleByUserCondition("artists", user))
 	return getQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 
@@ -123,11 +123,14 @@ func (a artistRepository) FindAll(ctx context.Context, params repos.FindArtistsP
 	if params.UpdatedAfter != nil {
 		where.And("artists.updated >= ?", *params.UpdatedAfter)
 	}
+	if params.MusicFolderIDs != nil {
+		where.And("?", genArtistInMusicFolderCondition("artists", params.MusicFolderIDs))
+	}
 	q = bqb.New("? ? ORDER BY lower(artists.name), artists.id", q, where)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 
-func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
+func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
 	query = strings.ToLower(query)
 	q := bqb.New("SELECT ? FROM artists ?", genArtistSelectList(include), genArtistJoins(include))
 
@@ -140,32 +143,41 @@ func (a artistRepository) FindBySearch(ctx context.Context, query string, onlyAl
 		}
 		q.And("COALESCE(aa.count, 0) > 0")
 	}
+	if musicFolderIDs != nil {
+		q.And("?", genArtistInMusicFolderCondition("artists", musicFolderIDs))
+	}
 	orderBy.Comma("artists.id")
 	q = bqb.New("? ORDER BY ?", q, orderBy)
 	paginate.Apply(q)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 
-func (a artistRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
+func (a artistRepository) FindStarred(ctx context.Context, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
 	if !include.Annotations || include.User == "" {
 		return nil, repos.NewError("include.Annotations and include.AnnotationUser required", repos.ErrInvalidParams, nil)
 	}
 	q := bqb.New("SELECT ? FROM artists ?", genArtistSelectList(include), genArtistJoins(include))
 	q.Space("WHERE artist_stars.created IS NOT NULL")
+	if musicFolderIDs != nil {
+		q.And("?", genArtistInMusicFolderCondition("artists", musicFolderIDs))
+	}
 	q.Space("ORDER BY artist_stars.created DESC, artists.id")
 	paginate.Apply(q)
 	return selectQuery[*repos.CompleteArtist](ctx, a.db, q)
 }
 
-func (a artistRepository) GetAlbums(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+func (a artistRepository) GetAlbums(ctx context.Context, id string, musicFolderIDs []int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 	q.Space("INNER JOIN album_artist ON album_artist.album_id = albums.id")
 	q.Space(`WHERE album_artist.artist_id = ?`, id)
+	if musicFolderIDs != nil {
+		q.And("(albums.music_folder_id IN (?))", musicFolderIDs)
+	}
 	q.Space("ORDER BY albums.original_date DESC, albums.release_date DESC, albums.id")
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
 
-func (a artistRepository) GetAppearsOnAlbums(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+func (a artistRepository) GetAppearsOnAlbums(ctx context.Context, id string, musicFolderIDs []int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	q := bqb.New("SELECT DISTINCT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 	q.Space("LEFT JOIN album_artist ON album_artist.album_id = albums.id")
 	q.Space("INNER JOIN songs ON songs.album_id = albums.id")
@@ -173,6 +185,9 @@ func (a artistRepository) GetAppearsOnAlbums(ctx context.Context, id string, inc
 	q.Space(`WHERE album_artist.artist_id != ? AND song_artist.artist_id = ? AND NOT EXISTS (
 		SELECT album_id FROM album_artist WHERE album_artist.artist_id = ? AND album_artist.album_id = albums.id
 	)`, id, id, id)
+	if musicFolderIDs != nil {
+		q.And("(albums.music_folder_id IN (?))", musicFolderIDs)
+	}
 	q.Space("ORDER BY albums.original_date DESC, albums.release_date DESC, albums.id")
 	return execAlbumSelectMany(ctx, a.db, q, include)
 }
@@ -197,8 +212,8 @@ func (a artistRepository) RemoveRating(ctx context.Context, user, artistID strin
 	return executeQuery(ctx, a.db, q)
 }
 
-func (a artistRepository) GetInfo(ctx context.Context, artistID string) (*repos.ArtistInfo, error) {
-	q := bqb.New("SELECT artists.id, artists.info_updated, artists.biography, artists.lastfm_url, artists.lastfm_mbid, artists.music_brainz_id FROM artists WHERE artists.id = ?", artistID)
+func (a artistRepository) GetInfo(ctx context.Context, artistID, user string) (*repos.ArtistInfo, error) {
+	q := bqb.New("SELECT artists.id, artists.info_updated, artists.biography, artists.lastfm_url, artists.lastfm_mbid, artists.music_brainz_id FROM artists WHERE artists.id = ? AND ?", artistID, genArtistAccessibleByUserCondition("artists", user))
 	return getQuery[*repos.ArtistInfo](ctx, a.db, q)
 }
 
@@ -278,4 +293,26 @@ func genArtistJoins(include repos.IncludeArtistInfo) *bqb.Query {
 	}
 
 	return q
+}
+
+func genArtistAccessibleByUserCondition(artistTableName string, user string) *bqb.Query {
+	return bqb.New(fmt.Sprintf(`(EXISTS (
+    	SELECT mfu.music_folder_id FROM music_folder_users mfu
+		LEFT JOIN albums ON albums.music_folder_id = mfu.music_folder_id
+		LEFT JOIN album_artist ON album_artist.album_id = albums.id AND album_artist.artist_id = %s.id
+		LEFT JOIN songs ON songs.music_folder_id = mfu.music_folder_id
+		LEFT JOIN song_artist ON song_artist.song_id = songs.id AND song_artist.artist_id = %s.id
+		WHERE mfu.user_name = ? AND (album_artist.album_id IS NOT NULL OR song_artist.song_id IS NOT NULL)
+	))`, artistTableName, artistTableName), user)
+}
+
+func genArtistInMusicFolderCondition(artistTableName string, musicFolderIDs []int) *bqb.Query {
+	return bqb.New(fmt.Sprintf(`(EXISTS (
+		SELECT mf.id FROM music_folders mf
+		LEFT JOIN albums ON albums.music_folder_id = mf.id
+		LEFT JOIN album_artist ON album_artist.album_id = albums.id AND album_artist.artist_id = %s.id
+		LEFT JOIN songs ON songs.music_folder_id = mf.id
+		LEFT JOIN song_artist ON song_artist.song_id = songs.id AND song_artist.artist_id = %s.id
+ 		WHERE mf.id IN (?) AND (album_artist.album_id IS NOT NULL OR song_artist.song_id IS NOT NULL)
+	))`, artistTableName, artistTableName), musicFolderIDs)
 }

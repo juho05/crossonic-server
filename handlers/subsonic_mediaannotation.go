@@ -111,7 +111,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		for i, id := range ids {
-			song, err := h.DB.Song().FindByID(r.Context(), id, repos.IncludeSongInfo{
+			song, err := h.DB.Song().FindByID(r.Context(), id, q.User(), repos.IncludeSongInfo{
 				Album: true,
 				Lists: true,
 			})

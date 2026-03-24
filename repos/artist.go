@@ -79,6 +79,7 @@ type SetArtistInfo struct {
 type FindArtistsParams struct {
 	OnlyAlbumArtists bool
 	UpdatedAfter     *time.Time
+	MusicFolderIDs   []int
 }
 
 // results
@@ -96,14 +97,14 @@ type ArtistRepository interface {
 
 	FindOrCreateIDsByNames(ctx context.Context, names []string) ([]string, error)
 
-	FindByID(ctx context.Context, id string, include IncludeArtistInfo) (*CompleteArtist, error)
+	FindByID(ctx context.Context, id, user string, include IncludeArtistInfo) (*CompleteArtist, error)
 	FindByNames(ctx context.Context, names []string, include IncludeArtistInfo) ([]*CompleteArtist, error)
 	FindAll(ctx context.Context, params FindArtistsParams, include IncludeArtistInfo) ([]*CompleteArtist, error)
-	FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
-	FindStarred(ctx context.Context, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
+	FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, musicFolderIDs []int, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
+	FindStarred(ctx context.Context, musicFolderIDs []int, paginate Paginate, include IncludeArtistInfo) ([]*CompleteArtist, error)
 
-	GetAlbums(ctx context.Context, id string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
-	GetAppearsOnAlbums(ctx context.Context, id string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	GetAlbums(ctx context.Context, id string, musicFolderIDs []int, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
+	GetAppearsOnAlbums(ctx context.Context, id string, musicFolderIDs []int, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 
 	Star(ctx context.Context, user, artistID string) error
 	UnStar(ctx context.Context, user, artistID string) error
@@ -111,7 +112,7 @@ type ArtistRepository interface {
 	SetRating(ctx context.Context, user, artistID string, rating int) error
 	RemoveRating(ctx context.Context, user, artistID string) error
 
-	GetInfo(ctx context.Context, artistID string) (*ArtistInfo, error)
+	GetInfo(ctx context.Context, artistID, user string) (*ArtistInfo, error)
 	SetInfo(ctx context.Context, artistID string, params SetArtistInfo) error
 
 	MigrateAnnotations(ctx context.Context, oldId, newId string) error

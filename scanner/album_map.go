@@ -91,6 +91,10 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 		if albumArtistNames == nil {
 			albumArtistNames = make([]string, 0)
 		}
+		musicFolderID := -1
+		if a.MusicFolderID != nil {
+			musicFolderID = *a.MusicFolderID
+		}
 		alb := &album{
 			id:             a.ID,
 			mbid:           a.MusicBrainzID,
@@ -107,7 +111,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 			updated:        false,
 			discTitles:     a.DiscTitles,
 			version:        a.Version,
-			musicFolderID:  *a.MusicFolderID,
+			musicFolderID:  musicFolderID,
 		}
 		albumMap.albums[a.Name] = append(albumMap.albums[a.Name], alb)
 	}
