@@ -27,3 +27,22 @@ func inputPassword(prompt string) string {
 	fmt.Println()
 	return string(password)
 }
+
+func areYouSure(prompt string, def bool) bool {
+	fmt.Printf("%s", prompt)
+	if def {
+		fmt.Print(" [Y/n]: ")
+	} else {
+		fmt.Printf(" [N/y]: ")
+	}
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
+	if answer == "y" || answer == "yes" {
+		return true
+	}
+	if answer == "n" || answer == "no" {
+		return false
+	}
+	return def
+}

@@ -110,7 +110,16 @@ func usersDelete(args []string, db repos.DB) error {
 		fmt.Println("USAGE:", args[0], "users delete <name>")
 		os.Exit(1)
 	}
-	err := db.User().DeleteByName(context.Background(), args[3])
+
+	userName := args[3]
+
+	confirmation := areYouSure(fmt.Sprintf("Permanently delete user '%s'?", userName), false)
+	if !confirmation {
+		fmt.Println("Canceled.")
+		return nil
+	}
+
+	err := db.User().DeleteByName(context.Background(), userName)
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
 			return fmt.Errorf("user '%s' does not exist", args[3])
