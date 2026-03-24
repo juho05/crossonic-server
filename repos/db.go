@@ -12,6 +12,7 @@ type Tx interface {
 	Genre() GenreRepository
 	Playlist() PlaylistRepository
 	InternetRadioStation() InternetRadioStationRepository
+	MusicFolder() MusicFolderRepository
 }
 
 type Transaction interface {

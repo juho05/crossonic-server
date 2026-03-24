@@ -18,4 +18,8 @@ type SystemRepository interface {
 	NeedsFullScan(ctx context.Context) (bool, error)
 	// ResetNeedsFullScan removes the needs-full-scan marker after the media was successfully re-scanned.
 	ResetNeedsFullScan(ctx context.Context) error
+	// SetMusicDirConfig updates the music dir config. Should be a string of <id>:<abs-path>;<id>:<abs-path>;...
+	SetMusicDirConfig(ctx context.Context, config string) error
+	// MusicDirConfig returns the last known music dir config. Should be a string of <id>:<abs-path>;<id>:<abs-path>;...
+	MusicDirConfig(ctx context.Context) (string, error)
 }

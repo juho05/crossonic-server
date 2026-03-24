@@ -55,6 +55,14 @@ func (s systemRepository) ResetNeedsFullScan(ctx context.Context) error {
 	return executeQuery(ctx, s.db, bqb.New("DELETE FROM system WHERE key = ?", "needs-full-scan"))
 }
 
+func (s systemRepository) SetMusicDirConfig(ctx context.Context, config string) error {
+	return s.set(ctx, "music-dir-config", config)
+}
+
+func (s systemRepository) MusicDirConfig(ctx context.Context) (string, error) {
+	return s.get(ctx, "music-dir-config")
+}
+
 func (s systemRepository) get(ctx context.Context, key string) (string, error) {
 	q := bqb.New("SELECT value FROM system WHERE key = ?", key)
 	return getQuery[string](ctx, s.db, q)

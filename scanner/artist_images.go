@@ -32,9 +32,11 @@ func (s *Scanner) findArtistImages(ctx context.Context) (map[string]string, erro
 		fullScan: s.fullScan,
 	}
 
-	err := scanner.scanDir(ctx, s.mediaDir)
-	if err != nil {
-		return nil, fmt.Errorf("scan dir: %w", err)
+	for _, dir := range s.musicDirs {
+		err := scanner.scanDir(ctx, dir.Path)
+		if err != nil {
+			return nil, fmt.Errorf("scan dir: %w", err)
+		}
 	}
 	return scanner.images, nil
 }

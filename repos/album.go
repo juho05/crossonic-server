@@ -23,6 +23,7 @@ type Album struct {
 	ReplayGainPeak *float64         `db:"replay_gain_peak"`
 	DiscTitles     Map[int, string] `db:"disc_titles"`
 	Version        *string          `db:"version"`
+	MusicFolderID  *int             `db:"music_folder_id"`
 }
 
 type AlbumTrackInfo struct {
@@ -113,6 +114,7 @@ type CreateAlbumParams struct {
 	ArtistNames    []string
 	DiscTitles     Map[int, string]
 	Version        *string
+	MusicFolderID  int
 }
 
 // Name and ArtistNames must always be specified together
@@ -130,6 +132,7 @@ type UpdateAlbumParams struct {
 	ReplayGainPeak Optional[*float64]
 	DiscTitles     Optional[Map[int, string]]
 	Version        Optional[*string]
+	MusicFolderID  Optional[int]
 }
 
 type FindAlbumSortBy int

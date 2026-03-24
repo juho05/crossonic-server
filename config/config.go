@@ -33,7 +33,6 @@ type Config struct {
 	DBName              string
 	DBHost              string
 	DBPort              int
-	MusicDir            string
 	DataDir             string
 	CacheDir            string
 	EncryptionKey       []byte
@@ -41,13 +40,15 @@ type Config struct {
 	AutoMigrate         bool
 	LogLevel            log.Severity
 	LogFile             *os.File
-	StartupScan         StartupScanOption
 	ListenBrainzURL     string
 	LastFMApiKey        string
 	ScanHidden          bool
 	FrontendDir         string
 	CoverArtPriority    []string
 	ArtistImagePriority []string
+
+	musicDir       string
+	musicDirConfig string
 }
 
 // Load loads the configuration from environment variables into Options.
@@ -97,11 +98,6 @@ func Load(environ []string) (Config, []error) {
 		errors = append(errors, err)
 	}
 
-	config.MusicDir, err = loadMusicDir(env)
-	if err != nil {
-		errors = append(errors, err)
-	}
-
 	config.DataDir, err = loadDataDir(env)
 	if err != nil {
 		errors = append(errors, err)
@@ -134,11 +130,6 @@ func Load(environ []string) (Config, []error) {
 		errors = append(errors, err)
 	}
 
-	config.StartupScan, err = loadStartupScan(env)
-	if err != nil {
-		errors = append(errors, err)
-	}
-
 	config.ListenBrainzURL = loadListenBrainzURL(env)
 	config.LastFMApiKey = loadLastFMApiKey(env)
 
@@ -152,6 +143,15 @@ func Load(environ []string) (Config, []error) {
 	config.CoverArtPriority = loadCoverArtPriority(env)
 
 	config.ArtistImagePriority = loadArtistImagePriority(env)
+
+	config.musicDir = loadMusicDir(env)
+	config.musicDirConfig = loadMusicDirConfig(env)
+
+	if config.musicDir == "" && config.musicDirConfig == "" {
+		errors = append(errors, fmt.Errorf("either MUSIC_DIR or MUSIC_DIR_CONFIG must be specified"))
+	} else if config.musicDir != "" && config.musicDirConfig != "" {
+		errors = append(errors, fmt.Errorf("cannot provide both MUSIC_DIR and MUSIC_DIR_CONFIG"))
+	}
 
 	return config, errors
 }
@@ -182,10 +182,6 @@ func loadDBName(env environment) (string, error) {
 
 func loadDBPort(env environment) (int, error) {
 	return requiredInt(env, "DB_PORT")
-}
-
-func loadMusicDir(env environment) (string, error) {
-	return requiredString(env, "MUSIC_DIR")
 }
 
 func loadDataDir(env environment) (string, error) {
@@ -260,15 +256,6 @@ func loadLogFile(env environment) (*os.File, error) {
 	}
 }
 
-func loadStartupScan(env environment) (StartupScanOption, error) {
-	key := "STARTUP_SCAN"
-	startupScan := StartupScanOption(optionalString(env, key, string(StartupScanQuick)))
-	if !startupScan.Valid() {
-		return "", newError(key, "invalid startup scan option (valid: disabled, quick, full)")
-	}
-	return startupScan, nil
-}
-
 func loadListenBrainzURL(env environment) string {
 	return strings.TrimSuffix(optionalString(env, "LISTENBRAINZ_URL", "https://api.listenbrainz.org"), "/")
 }
@@ -291,6 +278,14 @@ func loadCoverArtPriority(env environment) []string {
 		list[i] = strings.ToLower(list[i])
 	}
 	return list
+}
+
+func loadMusicDirConfig(env environment) string {
+	return optionalString(env, "MUSIC_DIR_CONFIG", "")
+}
+
+func loadMusicDir(env environment) string {
+	return optionalString(env, "MUSIC_DIR", "")
 }
 
 func loadArtistImagePriority(env environment) []string {

@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/juho05/crossonic-server"
-	"github.com/juho05/crossonic-server/repos"
 	"mime"
 	"net/http"
 	"os"
@@ -16,6 +14,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/ffmpeg"
@@ -61,39 +60,30 @@ func run(conf config.Config) error {
 	if err != nil {
 		return err
 	}
+	defer transcodeCache.Close()
 
 	// 1 GB
 	coverCache, err := cache.New(filepath.Join(conf.CacheDir, "covers"), 1e9, 30*24*time.Hour)
 	if err != nil {
 		return err
 	}
+	defer coverCache.Close()
 
-	mediaScanner, err := scanner.New(conf.MusicDir, db, conf, coverCache, transcodeCache)
+	mediaScanner, err := scanner.New(db, conf, coverCache, transcodeCache)
 	if err != nil {
 		return err
 	}
 
 	lBrainz := listenbrainz.New(db, conf)
+	defer lBrainz.Close()
 
-	if conf.StartupScan != config.StartupScanDisabled {
-		go func() {
-			err = mediaScanner.Scan(db, conf.StartupScan == config.StartupScanFull)
-			if err != nil {
-				log.Errorf("scan media: %s", err)
-			}
-			lBrainz.StartPeriodicSync(3 * time.Hour)
-		}()
-	} else {
-		log.Tracef("calculating fallback gain...")
-		fallbackGain, err := db.Song().GetMedianReplayGain(context.Background())
+	go func() {
+		err = mediaScanner.Scan(db, false)
 		if err != nil {
-			return fmt.Errorf("get median replay gain: %w", err)
-		}
-		if fallbackGain != 0 {
-			repos.SetFallbackGain(fallbackGain)
+			log.Errorf("scan media: %s", err)
 		}
 		lBrainz.StartPeriodicSync(3 * time.Hour)
-	}
+	}()
 
 	var lfm *lastfm.LastFm
 	if conf.LastFMApiKey != "" {

@@ -39,11 +39,11 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	s.fullScan = fullScan
 	defer s.lock.Unlock()
 	defer func() {
-		if !s.songQueueClosed {
+		if !s.songQueueClosed && s.songQueue != nil {
 			s.songQueueClosed = true
 			close(s.songQueue)
 		}
-		if !s.setAlbumCoverClosed {
+		if !s.setAlbumCoverClosed && s.setAlbumCover != nil {
 			s.setAlbumCoverClosed = true
 			close(s.setAlbumCover)
 		}
@@ -95,6 +95,15 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		}
 	}
 
+	musicDirConfigChanged, err := s.LoadMusicDirs(s.tx)
+	if err != nil {
+		return fmt.Errorf("load music dirs: %w", err)
+	}
+	if musicDirConfigChanged {
+		log.Tracef("music dir config changed, requesting full-scan")
+		s.fullScan = true
+	}
+
 	if !s.fullScan {
 		needsFullScan, err := s.tx.System().NeedsFullScan(ctx)
 		if err != nil {
@@ -111,7 +120,7 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		s.lastScan = time.Time{}
 	}
 
-	log.Infof("Scanning %s (full scan: %t)...", s.mediaDir, s.fullScan)
+	log.Infof("Scanning (full scan: %t)...", s.fullScan)
 
 	if s.fullScan {
 		log.Tracef("clearing cover cache...")
@@ -184,7 +193,7 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	}()
 
 	log.Tracef("scanning media dir with %d workers...", maxParallelDirs)
-	err = s.scanMediaDir(ctx)
+	err = s.scanMediaDirs(ctx)
 	close(s.songQueue)
 	s.songQueueClosed = true
 	if err != nil && !errors.Is(err, context.Canceled) {
@@ -220,6 +229,8 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		return context.Canceled
 	default:
 	}
+
+	// TODO delete tracks from playlist that owner does not have access to due to music folder permissions
 
 	log.Tracef("fixing track numbers in playlists...")
 	err = s.tx.Playlist().FixTrackNumbers(ctx)
@@ -266,12 +277,20 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 	return nil
 }
 
-func (s *Scanner) scanMediaDir(ctx context.Context) error {
+func (s *Scanner) scanMediaDirs(ctx context.Context) error {
 	type dir struct {
-		changed bool
-		path    string
+		changed       bool
+		path          string
+		musicFolderId int
 	}
 	dirs := make(chan dir, maxParallelDirs)
+	var dirsClosed bool
+	defer func() {
+		if !dirsClosed {
+			dirsClosed = true
+			close(dirs)
+		}
+	}()
 
 	var waitGroup sync.WaitGroup
 	var scanDirError error
@@ -280,7 +299,7 @@ func (s *Scanner) scanMediaDir(ctx context.Context) error {
 		go func() {
 			defer waitGroup.Done()
 			for dir := range dirs {
-				err := s.scanMediaFilesInDir(ctx, dir.path, dir.changed)
+				err := s.scanMediaFilesInDir(ctx, dir.path, dir.changed, dir.musicFolderId)
 				if err != nil {
 					log.Errorf("scan media dir: %s", err)
 					if scanDirError == nil {
@@ -292,45 +311,48 @@ func (s *Scanner) scanMediaDir(ctx context.Context) error {
 		}()
 	}
 
-	info, err := os.Lstat(s.mediaDir)
-	if err != nil {
-		return fmt.Errorf("stat media dir: %w", err)
-	}
-	err = s.walkDir(s.mediaDir, fs.FileInfoToDirEntry(info), s.checkIfChanged(s.mediaDir, info), func(path string, d fs.DirEntry, parentChanged bool, err error) error {
+	for _, musicDir := range s.musicDirs {
+		info, err := os.Lstat(musicDir.Path)
 		if err != nil {
-			return err
+			return fmt.Errorf("stat media dir: %w", err)
 		}
-		select {
-		case <-ctx.Done():
-			return filepath.SkipAll
-		default:
-		}
-		if !d.IsDir() {
+		err = s.walkDir(musicDir.Path, fs.FileInfoToDirEntry(info), s.checkIfChanged(musicDir.Path, info), func(path string, d fs.DirEntry, parentChanged bool, err error) error {
+			if err != nil {
+				return err
+			}
+			select {
+			case <-ctx.Done():
+				return filepath.SkipAll
+			default:
+			}
+			if !d.IsDir() {
+				return nil
+			}
+			if scanDirError != nil {
+				return filepath.SkipAll
+			}
+			if !s.conf.ScanHidden && d.Name()[0] == '.' {
+				return filepath.SkipDir
+			}
+			if !dirsClosed {
+				dirs <- dir{
+					changed:       parentChanged || s.checkIfChangedByPath(path),
+					path:          path,
+					musicFolderId: musicDir.ID,
+				}
+			}
 			return nil
-		}
-		if scanDirError != nil {
-			return filepath.SkipAll
-		}
-		if !s.conf.ScanHidden && d.Name()[0] == '.' {
-			return filepath.SkipDir
-		}
-		dirs <- dir{
-			changed: parentChanged || s.checkIfChangedByPath(path),
-			path:    path,
-		}
-		return nil
-	})
-	if err != nil {
-		if !errors.Is(err, filepath.SkipDir) && !errors.Is(err, filepath.SkipAll) {
-			return fmt.Errorf("walk media dir: %w", err)
+		})
+		if err != nil {
+			if !errors.Is(err, filepath.SkipDir) && !errors.Is(err, filepath.SkipAll) {
+				return fmt.Errorf("walk media dir: %w", err)
+			}
 		}
 	}
 
 	close(dirs)
+	dirsClosed = true
 	waitGroup.Wait()
-	if err != nil {
-		return fmt.Errorf("walk dir: %w", err)
-	}
 
 	if scanDirError != nil {
 		return fmt.Errorf("scan media files in dir: %w", scanDirError)
@@ -381,7 +403,7 @@ func (s *Scanner) walkDir(path string, d fs.DirEntry, parentChanged bool, walkDi
 	return nil
 }
 
-func (s *Scanner) scanMediaFilesInDir(ctx context.Context, dir string, changed bool) error {
+func (s *Scanner) scanMediaFilesInDir(ctx context.Context, dir string, changed bool, musicFolderId int) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("read dir: %w", err)
@@ -434,7 +456,7 @@ findCoverLoop:
 		default:
 		}
 
-		err := s.processFile(filepath.Join(dir, e.Name()), cover, prioritizeEmbedded, changed)
+		err := s.processFile(filepath.Join(dir, e.Name()), cover, prioritizeEmbedded, changed, musicFolderId)
 		if errors.Is(err, errNotAMediaFile) {
 			continue
 		}
@@ -447,7 +469,7 @@ findCoverLoop:
 
 var errNotAMediaFile = errors.New("not a media file")
 
-func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCover, parentDirChanged bool) error {
+func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCover, parentDirChanged bool, musicFolderId int) error {
 	ext := filepath.Ext(path)
 	if !strings.HasPrefix(mime.TypeByExtension(ext), "audio/") {
 		return errNotAMediaFile
@@ -576,6 +598,7 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 			replayGainPeak:      readReplayGainTag(tags, "REPLAYGAIN_TRACK_PEAK"),
 			lyrics:              lyrics,
 			albumVersion:        albumVersion,
+			musicFolderId:       musicFolderId,
 		}
 	}
 

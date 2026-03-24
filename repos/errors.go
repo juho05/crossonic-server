@@ -18,6 +18,7 @@ const (
 	ErrNestedTransaction ErrorType = "nested transactions not allowed"
 	ErrGeneral           ErrorType = "general"
 	ErrInvalidParams     ErrorType = "invalid parameters"
+	ErrForbidden         ErrorType = "forbidden"
 )
 
 func NewError(message string, errType ErrorType, innerErr error) Error {

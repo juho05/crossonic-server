@@ -21,8 +21,7 @@ var (
 type Scanner struct {
 	lock sync.Mutex
 
-	mediaDir string
-	conf     config.Config
+	conf config.Config
 
 	tx repos.Transaction
 
@@ -47,15 +46,16 @@ type Scanner struct {
 	songQueueClosed     bool
 	setAlbumCover       chan albumCover
 	setAlbumCoverClosed bool
+
+	musicDirs []config.MusicDir
 }
 
-func New(mediaDir string, db repos.DB, conf config.Config, coverCache *cache.Cache, transcodeCache *cache.Cache) (*Scanner, error) {
+func New(db repos.DB, conf config.Config, coverCache *cache.Cache, transcodeCache *cache.Cache) (*Scanner, error) {
 	instanceID, err := db.System().InstanceID(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("get instance id: %w", err)
 	}
 	return &Scanner{
-		mediaDir:       mediaDir,
 		coverDir:       filepath.Join(conf.DataDir, "covers"),
 		coverCache:     coverCache,
 		transcodeCache: transcodeCache,

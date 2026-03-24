@@ -30,6 +30,7 @@ type Song struct {
 	ReplayGain     *float64   `db:"replay_gain"`
 	ReplayGainPeak *float64   `db:"replay_gain_peak"`
 	Lyrics         *string    `db:"lyrics"`
+	MusicFolderID  *int       `db:"music_folder_id"`
 }
 
 type SongAlbumInfo struct {
@@ -138,6 +139,7 @@ type CreateSongParams struct {
 	Lyrics         *string
 	AlbumName      *string
 	ArtistNames    []string
+	MusicFolderID  int
 }
 
 type UpdateSongAllParams struct {
@@ -162,6 +164,7 @@ type UpdateSongAllParams struct {
 	Lyrics         *string
 	AlbumName      *string
 	ArtistNames    []string
+	MusicFolderID  *int
 }
 
 type SongOrder string

@@ -3,11 +3,12 @@ package postgres
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestSystemRepository(t *testing.T) {
@@ -65,5 +66,21 @@ func TestSystemRepository(t *testing.T) {
 		needsFullScan, err = repo.NeedsFullScan(ctx)
 		require.NoErrorf(t, err, "needs full scan: %v", err)
 		assert.Falsef(t, needsFullScan, "needs full scan should return false after resetting")
+	})
+
+	t.Run("(Set)MusicDirConfig", func(t *testing.T) {
+		thDeleteAll(t, db, "system")
+
+		_, err := repo.MusicDirConfig(ctx)
+		assert.True(t, errors.Is(err, repos.ErrNotFound), "first call to MusicDirConfig should return ErrNotFound")
+
+		config := "123:/bla/bla:4321:/hello/world"
+
+		err = repo.SetMusicDirConfig(ctx, config)
+		require.NoErrorf(t, err, "set music dir config: %v", err)
+
+		lastScan, err := repo.LastScan(ctx)
+		require.NoErrorf(t, err, "get music dir config: %v", err)
+		assert.Equalf(t, config, lastScan, "music dir config from repo should match the provided config")
 	})
 }
