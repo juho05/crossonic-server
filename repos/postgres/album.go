@@ -268,6 +268,10 @@ func (a albumRepository) FindAlbumIDsToMigrate(ctx context.Context, scanStartTim
 	return selectQuery[repos.FindAlbumIDsToMigrateResult](ctx, a.db, q)
 }
 
+func (s albumRepository) DeleteAllWithoutMusicFolderID(ctx context.Context) error {
+	return executeQuery(ctx, s.db, bqb.New("DELETE FROM albums WHERE music_folder_id IS NULL"))
+}
+
 // helpers
 
 func genAlbumSelectList(include repos.IncludeAlbumInfo) *bqb.Query {

@@ -598,7 +598,7 @@ func (s *Scanner) processFile(path string, cover *string, prioritizeEmbeddedCove
 			replayGainPeak:      readReplayGainTag(tags, "REPLAYGAIN_TRACK_PEAK"),
 			lyrics:              lyrics,
 			albumVersion:        albumVersion,
-			musicFolderId:       musicFolderId,
+			musicFolderID:       musicFolderId,
 		}
 	}
 

@@ -13,6 +13,11 @@ import (
 )
 
 func (s *Scanner) deleteOrphaned(ctx context.Context) error {
+	err := s.deleteSongAndAlbumsWithoutMusicFolderID(ctx)
+	if err != nil {
+		return fmt.Errorf("delete orphaned songs/albums without music folder id: %w", err)
+	}
+
 	if s.fullScan {
 		err := s.tx.Song().DeleteLastUpdatedBefore(ctx, s.scanStart)
 		if err != nil {
@@ -25,7 +30,7 @@ func (s *Scanner) deleteOrphaned(ctx context.Context) error {
 		}
 	}
 
-	err := s.tx.Genre().DeleteIfNoSongs(ctx)
+	err = s.tx.Genre().DeleteIfNoSongs(ctx)
 	if err != nil {
 		return fmt.Errorf("delete orphaned genres: %w", err)
 	}
@@ -38,6 +43,20 @@ func (s *Scanner) deleteOrphaned(ctx context.Context) error {
 	err = s.cleanArtists(ctx)
 	if err != nil {
 		return fmt.Errorf("clean artists: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Scanner) deleteSongAndAlbumsWithoutMusicFolderID(ctx context.Context) error {
+	err := s.tx.Song().DeleteAllWithoutMusicFolderID(ctx)
+	if err != nil {
+		return fmt.Errorf("delete songs without music folder id: %w", err)
+	}
+
+	err = s.tx.Album().DeleteAllWithoutMusicFolderID(ctx)
+	if err != nil {
+		return fmt.Errorf("delete albums without music folder id: %w", err)
 	}
 
 	return nil

@@ -56,7 +56,7 @@ type mediaFile struct {
 
 	albumVersion *string
 
-	musicFolderId int
+	musicFolderID int
 }
 
 type song struct {
@@ -90,7 +90,7 @@ type song struct {
 	replayGainPeak            *float64
 	lyrics                    *string
 
-	musicFolderId int
+	musicFolderID int
 }
 
 func (s *Scanner) runSaveSongsLoop(ctx context.Context) error {
@@ -188,7 +188,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			replayGain:                media.replayGain,
 			replayGainPeak:            media.replayGainPeak,
 			lyrics:                    media.lyrics,
-			musicFolderId:             media.musicFolderId,
+			musicFolderID:             media.musicFolderID,
 		}
 		song.artistNames = media.artistNames
 		song.artistIDs = make([]string, 0, len(media.artistNames))
@@ -217,7 +217,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			albumArtists = append(albumArtists, findOrCreateAlbumParamsArtist{
 				id:            id,
 				name:          a,
-				musicFolderId: media.musicFolderId,
+				musicFolderId: media.musicFolderID,
 			})
 		}
 
@@ -236,7 +236,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 				cover:          media.cover,
 				songPath:       media.path,
 				version:        media.albumVersion,
-				musicFolderId:  media.musicFolderId,
+				musicFolderId:  media.musicFolderID,
 			})
 			if err != nil {
 				return fmt.Errorf("find or create album: %w", err)
@@ -382,7 +382,7 @@ func (s *Scanner) updateSongs(ctx context.Context, songs []*song) ([]*song, erro
 			Lyrics:         s.lyrics,
 			AlbumName:      s.albumName,
 			ArtistNames:    s.artistNames,
-			MusicFolderID:  &s.musicFolderId,
+			MusicFolderID:  &s.musicFolderID,
 		}
 	}))
 	if err != nil {
@@ -537,7 +537,7 @@ func (s *Scanner) createSongsInDB(ctx context.Context, songs []*song) error {
 			Lyrics:         s.lyrics,
 			AlbumName:      s.albumName,
 			ArtistNames:    s.artistNames,
-			MusicFolderID:  s.musicFolderId,
+			MusicFolderID:  s.musicFolderID,
 		}
 	}))
 	if err != nil {

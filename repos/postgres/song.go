@@ -477,6 +477,10 @@ func (s songRepository) GetMedianReplayGain(ctx context.Context) (float64, error
 	return getQuery[float64](ctx, s.db, bqb.New("SELECT COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY songs.replay_gain), 0) FROM songs"))
 }
 
+func (s songRepository) DeleteAllWithoutMusicFolderID(ctx context.Context) error {
+	return executeQuery(ctx, s.db, bqb.New("DELETE FROM songs WHERE music_folder_id IS NULL"))
+}
+
 // ================ helpers ================
 
 func genSongSelectList(include repos.IncludeSongInfo) *bqb.Query {

@@ -204,4 +204,6 @@ type AlbumRepository interface {
 	GetAlternateVersions(ctx context.Context, albumId string, include IncludeAlbumInfo) ([]*CompleteAlbum, error)
 	MigrateAnnotations(ctx context.Context, oldId, newId string) error
 	FindAlbumIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]FindAlbumIDsToMigrateResult, error)
+
+	DeleteAllWithoutMusicFolderID(ctx context.Context) error
 }

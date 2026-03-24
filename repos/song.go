@@ -267,4 +267,6 @@ type SongRepository interface {
 
 	Count(ctx context.Context) (int, error)
 	GetMedianReplayGain(ctx context.Context) (float64, error)
+
+	DeleteAllWithoutMusicFolderID(ctx context.Context) error
 }

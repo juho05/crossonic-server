@@ -27,7 +27,7 @@ type album struct {
 	updated        bool
 	discTitles     map[int]string
 	version        *string
-	musicFolderId  int
+	musicFolderID  int
 }
 
 type albumMap struct {
@@ -107,6 +107,7 @@ func newAlbumMapFromDB(ctx context.Context, s *Scanner) (*albumMap, error) {
 			updated:        false,
 			discTitles:     a.DiscTitles,
 			version:        a.Version,
+			musicFolderID:  *a.MusicFolderID,
 		}
 		albumMap.albums[a.Name] = append(albumMap.albums[a.Name], alb)
 	}
@@ -118,7 +119,7 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 	var found *album
 	for _, a := range a.albums[name] {
 		// match music folder id but only if it has already been set in this scan
-		if a.updated && a.musicFolderId != params.musicFolderId {
+		if a.updated && a.musicFolderID != params.musicFolderId {
 			continue
 		}
 
@@ -193,8 +194,8 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 	if found != nil {
 		if !found.updated {
 			var changed bool
-			if found.musicFolderId != params.musicFolderId {
-				found.musicFolderId = params.musicFolderId
+			if found.musicFolderID != params.musicFolderId {
+				found.musicFolderID = params.musicFolderId
 				changed = true
 			}
 			if !util.EqPtrVals(found.mbid, params.mbid) {
@@ -304,7 +305,7 @@ func (a *albumMap) findOrCreate(ctx context.Context, s *Scanner, name string, pa
 		artistNames:    artistNames,
 		version:        params.version,
 		updated:        true,
-		musicFolderId:  params.musicFolderId,
+		musicFolderID:  params.musicFolderId,
 	}
 	a.albums[name] = append(a.albums[name], alb)
 
@@ -339,7 +340,7 @@ func (a *albumMap) updateAlbum(ctx context.Context, s *Scanner, name string, alb
 		Name:           repos.NewOptionalFull(name),
 		ArtistNames:    repos.NewOptionalFull(album.artistNames),
 		Version:        repos.NewOptionalFull(album.version),
-		MusicFolderID:  repos.NewOptionalFull(album.musicFolderId),
+		MusicFolderID:  repos.NewOptionalFull(album.musicFolderID),
 	})
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
@@ -367,7 +368,7 @@ func (a *albumMap) createAlbum(ctx context.Context, s *Scanner, name string, alb
 		ReplayGainPeak: album.replayGainPeak,
 		ArtistNames:    album.artistNames,
 		Version:        album.version,
-		MusicFolderID:  album.musicFolderId,
+		MusicFolderID:  album.musicFolderID,
 	})
 	if err != nil {
 		return fmt.Errorf("create: %w", err)
