@@ -46,7 +46,7 @@ func newArtistMapFromDB(ctx context.Context, s *Scanner) (*artistMap, error) {
 		artistIDMap[art.id] = art
 	}
 
-	if s.fullScan {
+	if !s.fullScan {
 		artistMusicFolderAssociations, err := s.tx.MusicFolder().GetAllArtistAsssociations(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("get all artist music folder associations: %w", err)
