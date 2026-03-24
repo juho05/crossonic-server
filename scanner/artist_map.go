@@ -46,13 +46,15 @@ func newArtistMapFromDB(ctx context.Context, s *Scanner) (*artistMap, error) {
 		artistIDMap[art.id] = art
 	}
 
-	artistMusicFolderAssociations, err := s.tx.MusicFolder().GetAllArtistAsssociations(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("get all artist music folder associations: %w", err)
-	}
+	if s.fullScan {
+		artistMusicFolderAssociations, err := s.tx.MusicFolder().GetAllArtistAsssociations(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get all artist music folder associations: %w", err)
+		}
 
-	for _, a := range artistMusicFolderAssociations {
-		artistIDMap[a.ArtistID].musicFolderIDs[a.MusicFolderID] = struct{}{}
+		for _, a := range artistMusicFolderAssociations {
+			artistIDMap[a.ArtistID].musicFolderIDs[a.MusicFolderID] = struct{}{}
+		}
 	}
 
 	return artistMap, nil
@@ -163,6 +165,11 @@ func (a *artistMap) updateMusicFolderAssociations(ctx context.Context, s *Scanne
 	err = s.tx.MusicFolder().CreateArtistAssociations(ctx, associations)
 	if err != nil {
 		return fmt.Errorf("create artist associations: %w", err)
+	}
+
+	err = s.tx.MusicFolder().DeleteArtistAssociationsWithoutSongs(ctx)
+	if err != nil {
+		return fmt.Errorf("delete artist associations without songs: %w", err)
 	}
 
 	return nil

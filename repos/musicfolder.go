@@ -26,6 +26,7 @@ type MusicFolderRepository interface {
 	GetAllArtistAsssociations(ctx context.Context) ([]ArtistMusicFolderAssociation, error)
 	DeleteAllArtistAssociations(ctx context.Context) error
 	CreateArtistAssociations(ctx context.Context, associations []ArtistMusicFolderAssociation) error
+	DeleteArtistAssociationsWithoutSongs(ctx context.Context) error
 
 	// GetUserMusicFolderIDs returns requestedIDs if the user has access to all requested music folders and ErrForbidden otherwise.
 	// If requestedIDs is empty it returns all music folders that the user has access to.

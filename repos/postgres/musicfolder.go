@@ -91,6 +91,22 @@ func (m musicFolderRepository) CreateArtistAssociations(ctx context.Context, ass
 	})
 }
 
+func (m musicFolderRepository) DeleteArtistAssociationsWithoutSongs(ctx context.Context) error {
+	q := bqb.New(`DELETE FROM music_folder_artists mfa WHERE NOT EXISTS (
+		SELECT 1 FROM (
+		    SELECT sa.artist_id, s.music_folder_id
+		    FROM song_artist sa
+		    JOIN songs s ON s.id = sa.song_id
+		    UNION
+		    SELECT aa.artist_id, a.music_folder_id
+		    FROM album_artist aa
+		    JOIN albums a ON a.id = aa.album_id
+		) t
+		WHERE t.artist_id = mfa.artist_id AND t.music_folder_id = mfa.music_folder_id
+	)`)
+	return executeQuery(ctx, m.db, q)
+}
+
 func (m musicFolderRepository) GetUserMusicFolderIDs(ctx context.Context, user string, requestedIDs []int) ([]int, error) {
 	var result []int
 	err := m.tx(ctx, func(m musicFolderRepository) error {
