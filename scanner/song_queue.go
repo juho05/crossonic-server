@@ -197,7 +197,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			if i < len(media.artistMBIDs) {
 				mbid = &media.artistMBIDs[i]
 			}
-			id, err := s.artists.findOrCreate(ctx, s, a, mbid)
+			id, err := s.artists.findOrCreate(ctx, s, a, mbid, media.musicFolderID)
 			if err != nil {
 				return fmt.Errorf("find or create artist: %s", err)
 			}
@@ -210,7 +210,7 @@ func (s *Scanner) createOrUpdateSongs(ctx context.Context, mediaFiles []*mediaFi
 			if i < len(media.albumArtistMBIDs) {
 				mbid = &media.albumArtistMBIDs[i]
 			}
-			id, err := s.artists.findOrCreate(ctx, s, a, mbid)
+			id, err := s.artists.findOrCreate(ctx, s, a, mbid, media.musicFolderID)
 			if err != nil {
 				return fmt.Errorf("find or create album artist: %s", err)
 			}

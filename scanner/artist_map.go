@@ -10,9 +10,10 @@ import (
 )
 
 type artist struct {
-	id      string
-	mbid    *string
-	updated bool
+	id             string
+	mbid           *string
+	musicFolderIDs map[int]struct{}
+	updated        bool
 }
 
 type artistMap struct {
@@ -33,18 +34,31 @@ func newArtistMapFromDB(ctx context.Context, s *Scanner) (*artistMap, error) {
 		artists: make(map[string][]*artist, int(float64(len(artists))*0.8)),
 	}
 
+	artistIDMap := make(map[string]*artist, len(artists))
+
 	for _, a := range artists {
-		alb := &artist{
-			id:   a.ID,
-			mbid: a.MusicBrainzID,
+		art := &artist{
+			id:             a.ID,
+			mbid:           a.MusicBrainzID,
+			musicFolderIDs: map[int]struct{}{},
 		}
-		artistMap.artists[a.Name] = append(artistMap.artists[a.Name], alb)
+		artistMap.artists[a.Name] = append(artistMap.artists[a.Name], art)
+		artistIDMap[art.id] = art
+	}
+
+	artistMusicFolderAssociations, err := s.tx.MusicFolder().GetAllArtistAsssociations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get all artist music folder associations: %w", err)
+	}
+
+	for _, a := range artistMusicFolderAssociations {
+		artistIDMap[a.ArtistID].musicFolderIDs[a.MusicFolderID] = struct{}{}
 	}
 
 	return artistMap, nil
 }
 
-func (a *artistMap) findOrCreate(ctx context.Context, s *Scanner, name string, mbid *string) (string, error) {
+func (a *artistMap) findOrCreate(ctx context.Context, s *Scanner, name string, mbid *string, musicFolderID int) (string, error) {
 	var found *artist
 	for _, a := range a.artists[name] {
 		// match mbid
@@ -76,12 +90,18 @@ func (a *artistMap) findOrCreate(ctx context.Context, s *Scanner, name string, m
 				}
 			}
 		}
+		if _, ok := found.musicFolderIDs[musicFolderID]; !ok {
+			found.musicFolderIDs[musicFolderID] = struct{}{}
+		}
 		return found.id, nil
 	}
 
 	art := &artist{
 		mbid:    mbid,
 		updated: true,
+		musicFolderIDs: map[int]struct{}{
+			musicFolderID: {},
+		},
 	}
 	a.artists[name] = append(a.artists[name], art)
 
@@ -119,5 +139,31 @@ func (a *artistMap) createArtist(ctx context.Context, s *Scanner, name string, a
 		return fmt.Errorf("create: %w", err)
 	}
 	artist.id = artID
+	return nil
+}
+
+func (a *artistMap) updateMusicFolderAssociations(ctx context.Context, s *Scanner) error {
+	err := s.tx.MusicFolder().DeleteAllArtistAssociations(ctx)
+	if err != nil {
+		return fmt.Errorf("delete all artist associations: %w", err)
+	}
+
+	associations := make([]repos.ArtistMusicFolderAssociation, 0, len(a.artists))
+	for _, artists := range a.artists {
+		for _, artist := range artists {
+			for musicFolderID := range artist.musicFolderIDs {
+				associations = append(associations, repos.ArtistMusicFolderAssociation{
+					MusicFolderID: musicFolderID,
+					ArtistID:      artist.id,
+				})
+			}
+		}
+	}
+
+	err = s.tx.MusicFolder().CreateArtistAssociations(ctx, associations)
+	if err != nil {
+		return fmt.Errorf("create artist associations: %w", err)
+	}
+
 	return nil
 }

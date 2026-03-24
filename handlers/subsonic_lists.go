@@ -170,7 +170,7 @@ func (h *Handler) handleGetStarred(version int) func(w http.ResponseWriter, r *h
 			return
 		}
 
-		musicFolderIDs, ok := q.Ints("musicFolderId")
+		musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
 		if !ok {
 			return
 		}

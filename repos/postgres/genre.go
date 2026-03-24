@@ -42,6 +42,9 @@ func (g genreRepository) FindAllWithCounts(ctx context.Context, musicFolderIDs [
 		) so ON so.genre_name = genres.name`)
 
 	if musicFolderIDs != nil {
+		if len(musicFolderIDs) == 0 {
+			return []*repos.GenreWithCounts{{}}, nil
+		}
 		q.Space("WHERE EXISTS (SELECT 1 FROM song_genre JOIN songs ON song_genre.song_id = songs.id WHERE song_genre.genre_name = genres.name AND songs.music_folder_id IN (?))", musicFolderIDs)
 	}
 	q.Space("ORDER BY lower(genres.name)")

@@ -171,7 +171,7 @@ func (a artistRepository) GetAlbums(ctx context.Context, id string, musicFolderI
 	q.Space("INNER JOIN album_artist ON album_artist.album_id = albums.id")
 	q.Space(`WHERE album_artist.artist_id = ?`, id)
 	if musicFolderIDs != nil {
-		q.And("(albums.music_folder_id IN (?))", musicFolderIDs)
+		q.And("?", genOneOfMusicFoldersCondition("albums", musicFolderIDs))
 	}
 	q.Space("ORDER BY albums.original_date DESC, albums.release_date DESC, albums.id")
 	return execAlbumSelectMany(ctx, a.db, q, include)
@@ -186,7 +186,7 @@ func (a artistRepository) GetAppearsOnAlbums(ctx context.Context, id string, mus
 		SELECT album_id FROM album_artist WHERE album_artist.artist_id = ? AND album_artist.album_id = albums.id
 	)`, id, id, id)
 	if musicFolderIDs != nil {
-		q.And("(albums.music_folder_id IN (?))", musicFolderIDs)
+		q.And("?", genOneOfMusicFoldersCondition("albums", musicFolderIDs))
 	}
 	q.Space("ORDER BY albums.original_date DESC, albums.release_date DESC, albums.id")
 	return execAlbumSelectMany(ctx, a.db, q, include)
@@ -297,22 +297,17 @@ func genArtistJoins(include repos.IncludeArtistInfo) *bqb.Query {
 
 func genArtistAccessibleByUserCondition(artistTableName string, user string) *bqb.Query {
 	return bqb.New(fmt.Sprintf(`(EXISTS (
-    	SELECT mfu.music_folder_id FROM music_folder_users mfu
-		LEFT JOIN albums ON albums.music_folder_id = mfu.music_folder_id
-		LEFT JOIN album_artist ON album_artist.album_id = albums.id AND album_artist.artist_id = %s.id
-		LEFT JOIN songs ON songs.music_folder_id = mfu.music_folder_id
-		LEFT JOIN song_artist ON song_artist.song_id = songs.id AND song_artist.artist_id = %s.id
-		WHERE mfu.user_name = ? AND (album_artist.album_id IS NOT NULL OR song_artist.song_id IS NOT NULL)
-	))`, artistTableName, artistTableName), user)
+     	SELECT mfa.music_folder_id FROM music_folder_artists mfa
+		JOIN music_folder_users mfu ON mfu.music_folder_id = mfa.music_folder_id
+		WHERE mfa.artist_id = %s.id AND mfu.user_name = ?
+	))`, artistTableName), user)
 }
 
 func genArtistInMusicFolderCondition(artistTableName string, musicFolderIDs []int) *bqb.Query {
+	if len(musicFolderIDs) == 0 {
+		return bqb.New("false")
+	}
 	return bqb.New(fmt.Sprintf(`(EXISTS (
-		SELECT mf.id FROM music_folders mf
-		LEFT JOIN albums ON albums.music_folder_id = mf.id
-		LEFT JOIN album_artist ON album_artist.album_id = albums.id AND album_artist.artist_id = %s.id
-		LEFT JOIN songs ON songs.music_folder_id = mf.id
-		LEFT JOIN song_artist ON song_artist.song_id = songs.id AND song_artist.artist_id = %s.id
- 		WHERE mf.id IN (?) AND (album_artist.album_id IS NOT NULL OR song_artist.song_id IS NOT NULL)
-	))`, artistTableName, artistTableName), musicFolderIDs)
+     	SELECT mfa.music_folder_id FROM music_folder_artists mfa WHERE mfa.artist_id = %s.id AND mfa.music_folder_id IN (?)
+	))`, artistTableName), musicFolderIDs)
 }

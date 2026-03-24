@@ -218,6 +218,12 @@ func (s *Scanner) Scan(db repos.DB, fullScan bool) (err error) {
 		return fmt.Errorf("update album artists: %w", err)
 	}
 
+	log.Tracef("updating artist music folder associations...")
+	err = s.artists.updateMusicFolderAssociations(ctx, s)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return fmt.Errorf("update artist music folder associations: %w", err)
+	}
+
 	log.Tracef("deleting orphaned songs/albums/artists...")
 	err = s.deleteOrphaned(ctx)
 	if err != nil {

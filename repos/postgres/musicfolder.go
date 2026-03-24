@@ -66,6 +66,31 @@ func (m musicFolderRepository) CreateUserAssociations(ctx context.Context, folde
 	})
 }
 
+func (m musicFolderRepository) GetAllArtistAsssociations(ctx context.Context) ([]repos.ArtistMusicFolderAssociation, error) {
+	return selectQuery[repos.ArtistMusicFolderAssociation](ctx, m.db, bqb.New("SELECT mfa.music_folder_id, mfa.artist_id FROM music_folder_artists mfa"))
+}
+
+func (m musicFolderRepository) DeleteAllArtistAssociations(ctx context.Context) error {
+	q := bqb.New("DELETE FROM music_folder_artists")
+	return executeQuery(ctx, m.db, q)
+}
+
+func (m musicFolderRepository) CreateArtistAssociations(ctx context.Context, associations []repos.ArtistMusicFolderAssociation) error {
+	if len(associations) == 0 {
+		return nil
+	}
+	return m.tx(ctx, func(m musicFolderRepository) error {
+		return execBatch(associations, func(associations []repos.ArtistMusicFolderAssociation) error {
+			valueList := bqb.Optional("")
+			for _, a := range associations {
+				valueList.Comma("(?,?)", a.MusicFolderID, a.ArtistID)
+			}
+			q := bqb.New("INSERT INTO music_folder_artists (music_folder_id, artist_id) VALUES ?", valueList)
+			return executeQuery(ctx, m.db, q)
+		})
+	})
+}
+
 func (m musicFolderRepository) GetUserMusicFolderIDs(ctx context.Context, user string, requestedIDs []int) ([]int, error) {
 	var result []int
 	err := m.tx(ctx, func(m musicFolderRepository) error {

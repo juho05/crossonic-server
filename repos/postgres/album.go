@@ -69,7 +69,7 @@ func (a albumRepository) DeleteIfNoTracks(ctx context.Context) error {
 }
 
 func (a albumRepository) FindByID(ctx context.Context, id, user string, include repos.IncludeAlbumInfo) (*repos.CompleteAlbum, error) {
-	q := bqb.New("SELECT ? FROM albums ? WHERE albums.id = ? AND ?", genAlbumSelectList(include), genAlbumJoins(include), id, genMusicFolderUserCondition("albums", user))
+	q := bqb.New("SELECT ? FROM albums ? ? WHERE albums.id = ?", genAlbumSelectList(include), genMusicFolderUserJoin("albums", user), genAlbumJoins(include), id)
 	return execAlbumSelectOne(ctx, a.db, q, include)
 }
 
@@ -94,7 +94,7 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 			))`, genres)
 	}
 	if params.MusicFolderIDs != nil {
-		where.And("(albums.music_folder_id IN (?))", params.MusicFolderIDs)
+		where.And("?", genOneOfMusicFoldersCondition("albums", params.MusicFolderIDs))
 	}
 
 	orderBy := bqb.Optional("ORDER BY")
@@ -152,7 +152,7 @@ func (a albumRepository) FindBySearch(ctx context.Context, query string, musicFo
 	orderBy.Comma("albums.id")
 
 	if musicFolderIDs != nil {
-		conditions.And("(albums.music_folder_id IN (?))", musicFolderIDs)
+		conditions.And("?", genOneOfMusicFoldersCondition("albums", musicFolderIDs))
 	}
 
 	q = bqb.New("? WHERE ? ORDER BY ?", q, conditions, orderBy)
@@ -168,7 +168,7 @@ func (a albumRepository) FindStarred(ctx context.Context, musicFolderIDs []int, 
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 	q.Space("WHERE album_stars.created IS NOT NULL")
 	if musicFolderIDs != nil {
-		q.And("(albums.music_folder_id IN (?))", musicFolderIDs)
+		q.And("?", genOneOfMusicFoldersCondition("albums", musicFolderIDs))
 	}
 	q.Space("ORDER BY album_stars.created DESC, albums.id")
 	paginate.Apply(q)
@@ -201,7 +201,7 @@ func (a albumRepository) RemoveRating(ctx context.Context, user, albumID string)
 }
 
 func (a albumRepository) GetInfo(ctx context.Context, albumID, user string) (*repos.AlbumInfo, error) {
-	q := bqb.New("SELECT albums.id, albums.info_updated, albums.description, albums.lastfm_url, albums.lastfm_mbid, albums.music_brainz_id, albums.release_mbid FROM albums WHERE albums.id = ? AND ?", albumID, genMusicFolderUserCondition("albums", user))
+	q := bqb.New("SELECT albums.id, albums.info_updated, albums.description, albums.lastfm_url, albums.lastfm_mbid, albums.music_brainz_id, albums.release_mbid FROM albums ? WHERE albums.id = ?", genMusicFolderUserJoin("albums", user), albumID)
 	return getQuery[*repos.AlbumInfo](ctx, a.db, q)
 }
 
@@ -243,7 +243,7 @@ func (a albumRepository) GetAlternateVersions(ctx context.Context, albumId strin
 			SELECT album_artist.artist_id FROM album_artist INNER JOIN album_artist AS album_artist2 ON album_artist2.artist_id = album_artist.artist_id WHERE album_artist.album_id = albums.id AND album_artist2.album_id = albums2.id
 		))`)
 	if musicFolderIDs != nil {
-		conditions.And("(albums.music_folder_id IN (?))", musicFolderIDs)
+		conditions.And("?", genOneOfMusicFoldersCondition("albums", musicFolderIDs))
 	}
 
 	q.And("(?)", conditions)

@@ -183,6 +183,13 @@ func genSearch(query, searchColumn, titleCol string) (conditions *bqb.Query, ord
 	return conditions, orderBy
 }
 
-func genMusicFolderUserCondition(tableName, user string) *bqb.Query {
-	return bqb.New(fmt.Sprintf("(EXISTS(SELECT mfu.music_folder_id FROM music_folder_users mfu WHERE mfu.user_name = ? AND mfu.music_folder_id = %s.music_folder_id))", tableName), user)
+func genMusicFolderUserJoin(tableName, user string) *bqb.Query {
+	return bqb.New(fmt.Sprintf("JOIN music_folder_users mfu ON mfu.music_folder_id = %s.music_folder_id AND mfu.user_name = ?", tableName), user)
+}
+
+func genOneOfMusicFoldersCondition(tableName string, musicFolderIDs []int) *bqb.Query {
+	if len(musicFolderIDs) == 0 {
+		return bqb.New("false")
+	}
+	return bqb.New(fmt.Sprintf("(%s.music_folder_id IN (?))", tableName), musicFolderIDs)
 }
