@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 type MusicDir struct {
@@ -73,4 +75,17 @@ func (c Config) GetMusicDirs() ([]MusicDir, error) {
 	}
 
 	return musicDirs, nil
+}
+
+func GenerateMusicDirConfigString(musicDirs []MusicDir) string {
+	var sb strings.Builder
+	for i, dir := range musicDirs {
+		if i > 0 {
+			sb.WriteString(";")
+		}
+		sb.WriteString(strconv.Itoa(dir.ID))
+		sb.WriteString(":")
+		sb.WriteString(dir.Path)
+	}
+	return sb.String()
 }

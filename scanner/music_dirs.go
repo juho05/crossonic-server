@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
@@ -33,16 +31,7 @@ func (s *Scanner) LoadMusicDirs(tx repos.Transaction) (changed bool, err error) 
 		return false, fmt.Errorf("get system music dir config: %w", err)
 	}
 
-	var sb strings.Builder
-	for i, dir := range musicDirs {
-		if i > 0 {
-			sb.WriteString(";")
-		}
-		sb.WriteString(strconv.Itoa(dir.ID))
-		sb.WriteString(":")
-		sb.WriteString(dir.Path)
-	}
-	currentMusicDirConfig := sb.String()
+	currentMusicDirConfig := config.GenerateMusicDirConfigString(musicDirs)
 	if lastMusicDirConfig != currentMusicDirConfig {
 		changed = true
 	}
@@ -85,7 +74,7 @@ func (s *Scanner) LoadMusicDirs(tx repos.Transaction) (changed bool, err error) 
 	for _, dir := range musicDirs {
 		names := userNames
 
-		if len(dir.Users) > 0 {
+		if dir.Users != nil {
 			names = make([]string, len(dir.Users))
 			for _, u := range dir.Users {
 				if !slices.Contains(userNames, u) {

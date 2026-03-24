@@ -270,7 +270,8 @@ func (d *DB) NewTransaction(ctx context.Context) (repos.Transaction, error) {
 		return nil, wrapErr("begin transaction", err)
 	}
 	return &DB{
-		tx: tx,
+		tx:     tx,
+		config: d.config,
 	}, nil
 }
 

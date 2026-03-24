@@ -47,7 +47,7 @@ func run(args []string, conf config.Config) error {
 
 	switch args[1] {
 	case "users":
-		err = users(args, db)
+		err = users(args, db, conf)
 	case "remove-crossonic-metadata":
 		err = removeCrossonicMetadata(args, db, conf)
 	default:

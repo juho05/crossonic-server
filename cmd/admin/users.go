@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
+	"github.com/juho05/crossonic-server/config"
 	"github.com/juho05/crossonic-server/repos"
+	"github.com/juho05/log"
 )
 
 func usersList(db repos.DB) error {
@@ -22,7 +25,7 @@ func usersList(db repos.DB) error {
 	return nil
 }
 
-func usersCreate(args []string, db repos.DB) error {
+func usersCreate(args []string, db repos.DB, conf config.Config) error {
 	if len(args) < 4 {
 		fmt.Println("USAGE:", args[0], "users create <name>")
 		os.Exit(1)
@@ -39,14 +42,66 @@ func usersCreate(args []string, db repos.DB) error {
 		}
 	}
 
-	err := db.User().Create(context.Background(), args[3], password)
+	tx, err := db.NewTransaction(context.Background())
+	if err != nil {
+		return fmt.Errorf("create transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	userName := args[3]
+
+	err = tx.User().Create(context.Background(), userName, password)
 	if err != nil {
 		if errors.Is(err, repos.ErrExists) {
 			return errors.New("user already exists")
 		}
 		return err
 	}
+
+	err = createMusicFolderAssociationsForUser(tx, userName, conf)
+	if err != nil {
+		return fmt.Errorf("create music folder associations: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
 	fmt.Printf("Created user '%s'.\n", args[3])
+	return nil
+}
+
+func createMusicFolderAssociationsForUser(tx repos.Tx, user string, conf config.Config) error {
+	lastMusicDirConfig, err := tx.System().MusicDirConfig(context.Background())
+	if errors.Is(err, repos.ErrNotFound) {
+		// user associations don't exist yet, nothing to do
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("get last music folder: %w", err)
+	}
+
+	musicDirs, err := conf.GetMusicDirs()
+	if err != nil {
+		return fmt.Errorf("get music dirs: %w", err)
+	}
+	currentMusicDirConfig := config.GenerateMusicDirConfigString(musicDirs)
+	if lastMusicDirConfig != currentMusicDirConfig {
+		log.Warnf("The music dir configuration has changed since the last scan. Please execute a scan or restart crossonic-server " +
+			"before using this user.")
+		return nil
+	}
+
+	for _, dir := range musicDirs {
+		if dir.Users == nil || slices.Contains(dir.Users, user) {
+			err = tx.MusicFolder().CreateUserAssociations(context.Background(), dir.ID, []string{user})
+			if err != nil {
+				return fmt.Errorf("create user association for music folder %d: %w", dir.ID, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -190,7 +245,7 @@ func usersApiKeysDelete(args []string, db repos.DB) error {
 	return nil
 }
 
-func users(args []string, db repos.DB) error {
+func users(args []string, db repos.DB, conf config.Config) error {
 	if len(args) < 3 {
 		fmt.Println("USAGE:", args[0], "users <command>\n\nCOMMANDS:\n  create\n  list\n  update\n  api-keys\n  delete")
 		os.Exit(1)
@@ -200,7 +255,7 @@ func users(args []string, db repos.DB) error {
 	case "list":
 		err = usersList(db)
 	case "create":
-		err = usersCreate(args, db)
+		err = usersCreate(args, db, conf)
 	case "update":
 		err = usersUpdate(args, db)
 	case "api-keys":
