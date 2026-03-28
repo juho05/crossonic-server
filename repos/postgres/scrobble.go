@@ -80,7 +80,8 @@ func (s scrobbleRepository) GetNowPlayingSongs(ctx context.Context, include repo
 
 func (s scrobbleRepository) FindUnsubmittedLBScrobbles(ctx context.Context) ([]*repos.Scrobble, error) {
 	q := bqb.New(`SELECT scrobbles.* FROM scrobbles JOIN users ON scrobbles.user_name = users.name
-		WHERE users.listenbrainz_username IS NOT NULL AND users.listenbrainz_scrobble = true AND now_playing = false AND submitted_to_listenbrainz = false AND (duration_ms >= 4*60*1000 OR duration_ms >= song_duration_ms*0.5)`)
+		WHERE users.listenbrainz_username IS NOT NULL AND users.listenbrainz_scrobble = true AND scrobbles.now_playing = false AND scrobbles.submitted_to_listenbrainz = false AND (scrobbles.duration_ms >= 4*60*1000 OR scrobbles.duration_ms >= scrobbles.song_duration_ms*0.5)
+		AND EXISTS (SELECT songs.id FROM songs WHERE songs.id = scrobbles.song_id)`)
 	return selectQuery[*repos.Scrobble](ctx, s.db, q)
 }
 

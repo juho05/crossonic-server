@@ -319,6 +319,9 @@ func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
 			listensPerUser[s.User] = make([]*Listen, 0, 10)
 		}
 		song := songMap[s.SongID]
+		if song == nil {
+			continue
+		}
 		duration := repos.NewDurationMS(song.DurationMS)
 		listensPerUser[s.User] = append(listensPerUser[s.User], &Listen{
 			ListenedAt:  s.Time,
