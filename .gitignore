@@ -1,5 +1,6 @@
 /data
 /.env
+/music_dirs.json
 /docker-compose.yml
 /.vscode
 /bruno

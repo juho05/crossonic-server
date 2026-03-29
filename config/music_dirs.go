@@ -47,6 +47,8 @@ func (c Config) GetMusicDirs() ([]MusicDir, error) {
 		return nil, fmt.Errorf("invalid music dir config file: %w", err)
 	}
 
+	foundIDs := make(map[int]struct{}, len(musicDirs))
+
 	for i, dir := range musicDirs {
 		if dir.ID == 0 {
 			return nil, fmt.Errorf("music dir with index %d has no id", i)
@@ -60,6 +62,10 @@ func (c Config) GetMusicDirs() ([]MusicDir, error) {
 		if dir.Path == "" {
 			return nil, fmt.Errorf("music dir %d does not have a path", dir.ID)
 		}
+		if _, ok := foundIDs[dir.ID]; ok {
+			return nil, fmt.Errorf("duplicate music dir id: %d", dir.ID)
+		}
+		foundIDs[dir.ID] = struct{}{}
 		stat, err := os.Stat(dir.Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open music dir %d: %w", dir.ID, err)
@@ -71,7 +77,12 @@ func (c Config) GetMusicDirs() ([]MusicDir, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to make music dir path of %d absolute: %w", dir.ID, err)
 		}
-		musicDirs[i].Path = abs
+		musicDirs[i].Path = filepath.Clean(strings.TrimSpace(abs))
+	}
+
+	err = checkIfPathsSubdirOfEachOther(musicDirs)
+	if err != nil {
+		return nil, err
 	}
 
 	return musicDirs, nil
@@ -92,4 +103,21 @@ func GenerateMusicDirConfigString(musicDirs []MusicDir) string {
 		}
 	}
 	return sb.String()
+}
+
+func checkIfPathsSubdirOfEachOther(musicDirs []MusicDir) error {
+	for _, a := range musicDirs {
+		for _, b := range musicDirs {
+			if a.ID == b.ID {
+				continue
+			}
+			if strings.HasPrefix(a.Path, b.Path) {
+				if a.Path == b.Path {
+					return fmt.Errorf("music dir %d has the same path as music dir %d", a.ID, b.ID)
+				}
+				return fmt.Errorf("music dir %d is a subdirectory of music dir %d", a.ID, b.ID)
+			}
+		}
+	}
+	return nil
 }
