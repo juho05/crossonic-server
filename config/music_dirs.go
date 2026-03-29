@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
 type MusicDir struct {
-	ID    int      `json:"id"`
+	ID    int      `json:"-"`
 	Name  string   `json:"name"`
 	Path  string   `json:"path"`
 	Users []string `json:"users"`
@@ -47,25 +46,14 @@ func (c Config) GetMusicDirs() ([]MusicDir, error) {
 		return nil, fmt.Errorf("invalid music dir config file: %w", err)
 	}
 
-	foundIDs := make(map[int]struct{}, len(musicDirs))
-
 	for i, dir := range musicDirs {
-		if dir.ID == 0 {
-			return nil, fmt.Errorf("music dir with index %d has no id", i)
-		}
-		if dir.ID < 0 {
-			return nil, fmt.Errorf("music dir ids must be positive")
-		}
+		musicDirs[i].ID = i + 1
 		if dir.Name == "" {
 			return nil, fmt.Errorf("music dir %d does not have a name", dir.ID)
 		}
 		if dir.Path == "" {
 			return nil, fmt.Errorf("music dir %d does not have a path", dir.ID)
 		}
-		if _, ok := foundIDs[dir.ID]; ok {
-			return nil, fmt.Errorf("duplicate music dir id: %d", dir.ID)
-		}
-		foundIDs[dir.ID] = struct{}{}
 		stat, err := os.Stat(dir.Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open music dir %d: %w", dir.ID, err)
@@ -94,8 +82,6 @@ func GenerateMusicDirConfigString(musicDirs []MusicDir) string {
 		if i > 0 {
 			sb.WriteString(";")
 		}
-		sb.WriteString(strconv.Itoa(dir.ID))
-		sb.WriteString(":")
 		sb.WriteString(dir.Path)
 		for _, u := range dir.Users {
 			sb.WriteString(":")
