@@ -13,26 +13,26 @@ type ArtistRepository struct {
 	UpdateMock                     func(ctx context.Context, id string, params repos.UpdateArtistParams) error
 	DeleteIfNoAlbumsAndNoSongsMock func(ctx context.Context) error
 	FindOrCreateIDsByNamesMock     func(ctx context.Context, names []string) ([]string, error)
-	FindByIDMock                   func(ctx context.Context, id string, include repos.IncludeArtistInfo) (*repos.CompleteArtist, error)
+	FindByIDMock                   func(ctx context.Context, id, user string, include repos.IncludeArtistInfo) (*repos.CompleteArtist, error)
 	FindByNamesMock                func(ctx context.Context, names []string, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error)
 	FindAllMock                    func(ctx context.Context, params repos.FindArtistsParams, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error)
-	FindBySearchMock               func(ctx context.Context, query string, onlyAlbumArtists bool, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error)
-	FindStarredMock                func(ctx context.Context, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error)
-	GetAlbumsMock                  func(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
-	GetAppearsOnAlbumsMock         func(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
+	FindBySearchMock               func(ctx context.Context, query string, onlyAlbumArtists bool, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error)
+	FindStarredMock                func(ctx context.Context, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error)
+	GetAlbumsMock                  func(ctx context.Context, id string, musicFolderIDs []int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
+	GetAppearsOnAlbumsMock         func(ctx context.Context, id string, musicFolderIDs []int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
 	StarMock                       func(ctx context.Context, user, artistID string) error
 	UnStarMock                     func(ctx context.Context, user, artistID string) error
 	SetRatingMock                  func(ctx context.Context, user, artistID string, rating int) error
 	RemoveRatingMock               func(ctx context.Context, user, artistID string) error
-	GetInfoMock                    func(ctx context.Context, artistID string) (*repos.ArtistInfo, error)
+	GetInfoMock                    func(ctx context.Context, artistID, user string) (*repos.ArtistInfo, error)
 	SetInfoMock                    func(ctx context.Context, artistID string, params repos.SetArtistInfo) error
 	MigrateAnnotationsMock         func(ctx context.Context, oldId, newId string) error
 	FindArtistIDsToMigrateMock     func(ctx context.Context, scanStartTime time.Time) ([]repos.FindArtistIDsToMigrateResult, error)
 }
 
-func (a ArtistRepository) GetAppearsOnAlbums(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+func (a ArtistRepository) GetAppearsOnAlbums(ctx context.Context, id string, musicFolderIDs []int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	if a.GetAlbumsMock != nil {
-		return a.GetAlbumsMock(ctx, id, include)
+		return a.GetAlbumsMock(ctx, id, musicFolderIDs, include)
 	}
 	panic("not implemented")
 }
@@ -72,9 +72,9 @@ func (a ArtistRepository) FindOrCreateIDsByNames(ctx context.Context, names []st
 	panic("not implemented")
 }
 
-func (a ArtistRepository) FindByID(ctx context.Context, id string, include repos.IncludeArtistInfo) (*repos.CompleteArtist, error) {
+func (a ArtistRepository) FindByID(ctx context.Context, id, user string, include repos.IncludeArtistInfo) (*repos.CompleteArtist, error) {
 	if a.FindByIDMock != nil {
-		return a.FindByIDMock(ctx, id, include)
+		return a.FindByIDMock(ctx, id, user, include)
 	}
 	panic("not implemented")
 }
@@ -93,23 +93,23 @@ func (a ArtistRepository) FindAll(ctx context.Context, params repos.FindArtistsP
 	panic("not implemented")
 }
 
-func (a ArtistRepository) FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
+func (a ArtistRepository) FindBySearch(ctx context.Context, query string, onlyAlbumArtists bool, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
 	if a.FindBySearchMock != nil {
-		return a.FindBySearchMock(ctx, query, onlyAlbumArtists, paginate, include)
+		return a.FindBySearchMock(ctx, query, onlyAlbumArtists, musicFolderIDs, paginate, include)
 	}
 	panic("not implemented")
 }
 
-func (a ArtistRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
+func (a ArtistRepository) FindStarred(ctx context.Context, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeArtistInfo) ([]*repos.CompleteArtist, error) {
 	if a.FindStarredMock != nil {
-		return a.FindStarredMock(ctx, paginate, include)
+		return a.FindStarredMock(ctx, musicFolderIDs, paginate, include)
 	}
 	panic("not implemented")
 }
 
-func (a ArtistRepository) GetAlbums(ctx context.Context, id string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+func (a ArtistRepository) GetAlbums(ctx context.Context, id string, musicFolderIDs []int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	if a.GetAlbumsMock != nil {
-		return a.GetAlbumsMock(ctx, id, include)
+		return a.GetAlbumsMock(ctx, id, musicFolderIDs, include)
 	}
 	panic("not implemented")
 }
@@ -142,9 +142,9 @@ func (a ArtistRepository) RemoveRating(ctx context.Context, user, artistID strin
 	panic("not implemented")
 }
 
-func (a ArtistRepository) GetInfo(ctx context.Context, artistID string) (*repos.ArtistInfo, error) {
+func (a ArtistRepository) GetInfo(ctx context.Context, artistID, user string) (*repos.ArtistInfo, error) {
 	if a.GetInfoMock != nil {
-		return a.GetInfoMock(ctx, artistID)
+		return a.GetInfoMock(ctx, artistID, user)
 	}
 	panic("not implemented")
 }

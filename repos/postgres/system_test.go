@@ -79,8 +79,8 @@ func TestSystemRepository(t *testing.T) {
 		err = repo.SetMusicDirConfig(ctx, config)
 		require.NoErrorf(t, err, "set music dir config: %v", err)
 
-		lastScan, err := repo.LastScan(ctx)
+		musicDirConfig, err := repo.MusicDirConfig(ctx)
 		require.NoErrorf(t, err, "get music dir config: %v", err)
-		assert.Equalf(t, config, lastScan, "music dir config from repo should match the provided config")
+		assert.Equalf(t, config, musicDirConfig, "music dir config from repo should match the provided config")
 	})
 }

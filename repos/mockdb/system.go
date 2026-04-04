@@ -11,6 +11,22 @@ type SystemRepository struct {
 	SetLastScanMock        func(ctx context.Context, t time.Time) error
 	NeedsFullScanMock      func(ctx context.Context) (bool, error)
 	ResetNeedsFullScanMock func(ctx context.Context) error
+	SetMusicDirConfigMock  func(ctx context.Context, config string) error
+	MusicDirConfigMock     func(ctx context.Context) (string, error)
+}
+
+func (s SystemRepository) SetMusicDirConfig(ctx context.Context, config string) error {
+	if s.SetMusicDirConfigMock != nil {
+		return s.SetMusicDirConfigMock(ctx, config)
+	}
+	panic("not implemented")
+}
+
+func (s SystemRepository) MusicDirConfig(ctx context.Context) (string, error) {
+	if s.MusicDirConfigMock != nil {
+		return s.MusicDirConfigMock(ctx)
+	}
+	panic("not implemented")
 }
 
 func (s SystemRepository) InstanceID(ctx context.Context) (string, error) {

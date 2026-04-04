@@ -8,27 +8,28 @@ import (
 )
 
 type AlbumRepository struct {
-	CreateMock                     func(ctx context.Context, params repos.CreateAlbumParams) (string, error)
-	UpdateMock                     func(ctx context.Context, id string, params repos.UpdateAlbumParams) error
-	FindAlbumsWithNoTracksMock     func(ctx context.Context) error
-	DeleteIfNoTracksMock           func(ctx context.Context) error
-	FindByIDMock                   func(ctx context.Context, id string, include repos.IncludeAlbumInfo) (*repos.CompleteAlbum, error)
-	FindAllMock                    func(ctx context.Context, params repos.FindAlbumParams, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
-	FindBySearchMock               func(ctx context.Context, query string, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
-	FindStarredMock                func(ctx context.Context, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
-	GetTracksMock                  func(ctx context.Context, id string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
-	StartMock                      func(ctx context.Context, user, albumID string) error
-	UnStartMock                    func(ctx context.Context, user, albumID string) error
-	SetRatingMock                  func(ctx context.Context, user, albumID string, rating int) error
-	RemoveRatingMock               func(ctx context.Context, user, albumID string) error
-	GetInfoMock                    func(ctx context.Context, albumID string) (*repos.AlbumInfo, error)
-	SetInfoMock                    func(ctx context.Context, albumID string, params repos.SetAlbumInfo) error
-	GetAllArtistConnectionsMock    func(ctx context.Context) ([]repos.AlbumArtistConnection, error)
-	RemoveAllArtistConnectionsMock func(ctx context.Context) error
-	CreateArtistConnectionsMock    func(ctx context.Context, connections []repos.AlbumArtistConnection) error
-	GetAlternateVersionsMock       func(ctx context.Context, albumId string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
-	MigrateAnnotationsMock         func(ctx context.Context, oldId, newId string) error
-	FindAlbumIDsToMigrateMock      func(ctx context.Context, scanStartTime time.Time) ([]repos.FindAlbumIDsToMigrateResult, error)
+	CreateMock                        func(ctx context.Context, params repos.CreateAlbumParams) (string, error)
+	UpdateMock                        func(ctx context.Context, id string, params repos.UpdateAlbumParams) error
+	FindAlbumsWithNoTracksMock        func(ctx context.Context) error
+	DeleteIfNoTracksMock              func(ctx context.Context) error
+	FindByIDMock                      func(ctx context.Context, id, user string, include repos.IncludeAlbumInfo) (*repos.CompleteAlbum, error)
+	FindAllMock                       func(ctx context.Context, params repos.FindAlbumParams, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
+	FindBySearchMock                  func(ctx context.Context, query string, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
+	FindStarredMock                   func(ctx context.Context, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
+	GetTracksMock                     func(ctx context.Context, id string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
+	StartMock                         func(ctx context.Context, user, albumID string) error
+	UnStartMock                       func(ctx context.Context, user, albumID string) error
+	SetRatingMock                     func(ctx context.Context, user, albumID string, rating int) error
+	RemoveRatingMock                  func(ctx context.Context, user, albumID string) error
+	GetInfoMock                       func(ctx context.Context, albumID, user string) (*repos.AlbumInfo, error)
+	SetInfoMock                       func(ctx context.Context, albumID string, params repos.SetAlbumInfo) error
+	GetAllArtistConnectionsMock       func(ctx context.Context) ([]repos.AlbumArtistConnection, error)
+	RemoveAllArtistConnectionsMock    func(ctx context.Context) error
+	CreateArtistConnectionsMock       func(ctx context.Context, connections []repos.AlbumArtistConnection) error
+	GetAlternateVersionsMock          func(ctx context.Context, albumId string, musicFolderIDs []int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error)
+	MigrateAnnotationsMock            func(ctx context.Context, oldId, newId string) error
+	FindAlbumIDsToMigrateMock         func(ctx context.Context, scanStartTime time.Time) ([]repos.FindAlbumIDsToMigrateResult, error)
+	DeleteAllWithoutMusicFolderIDMock func(ctx context.Context) error
 }
 
 func (a AlbumRepository) Create(ctx context.Context, params repos.CreateAlbumParams) (string, error) {
@@ -59,9 +60,9 @@ func (a AlbumRepository) DeleteIfNoTracks(ctx context.Context) error {
 	panic("not implemented")
 }
 
-func (a AlbumRepository) FindByID(ctx context.Context, id string, include repos.IncludeAlbumInfo) (*repos.CompleteAlbum, error) {
+func (a AlbumRepository) FindByID(ctx context.Context, id, user string, include repos.IncludeAlbumInfo) (*repos.CompleteAlbum, error) {
 	if a.FindByIDMock != nil {
-		return a.FindByIDMock(ctx, id, include)
+		return a.FindByIDMock(ctx, id, user, include)
 	}
 	panic("not implemented")
 }
@@ -73,16 +74,16 @@ func (a AlbumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 	panic("not implemented")
 }
 
-func (a AlbumRepository) FindBySearch(ctx context.Context, query string, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+func (a AlbumRepository) FindBySearch(ctx context.Context, query string, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	if a.FindBySearchMock != nil {
-		return a.FindBySearchMock(ctx, query, paginate, include)
+		return a.FindBySearchMock(ctx, query, musicFolderIDs, paginate, include)
 	}
 	panic("not implemented")
 }
 
-func (a AlbumRepository) FindStarred(ctx context.Context, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+func (a AlbumRepository) FindStarred(ctx context.Context, musicFolderIDs []int, paginate repos.Paginate, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	if a.FindStarredMock != nil {
-		return a.FindStarredMock(ctx, paginate, include)
+		return a.FindStarredMock(ctx, musicFolderIDs, paginate, include)
 	}
 	panic("not implemented")
 }
@@ -122,9 +123,9 @@ func (a AlbumRepository) RemoveRating(ctx context.Context, user, albumID string)
 	panic("not implemented")
 }
 
-func (a AlbumRepository) GetInfo(ctx context.Context, albumID string) (*repos.AlbumInfo, error) {
+func (a AlbumRepository) GetInfo(ctx context.Context, albumID, user string) (*repos.AlbumInfo, error) {
 	if a.GetInfoMock != nil {
-		return a.GetInfoMock(ctx, albumID)
+		return a.GetInfoMock(ctx, albumID, user)
 	}
 	panic("not implemented")
 }
@@ -156,9 +157,9 @@ func (a AlbumRepository) CreateArtistConnections(ctx context.Context, connection
 	}
 	panic("not implemented")
 }
-func (a AlbumRepository) GetAlternateVersions(ctx context.Context, albumId string, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
+func (a AlbumRepository) GetAlternateVersions(ctx context.Context, albumId string, musicFolderIDs []int, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	if a.GetAlternateVersionsMock != nil {
-		return a.GetAlternateVersionsMock(ctx, albumId, include)
+		return a.GetAlternateVersionsMock(ctx, albumId, musicFolderIDs, include)
 	}
 	panic("not implemented")
 }
@@ -173,6 +174,13 @@ func (a AlbumRepository) MigrateAnnotations(ctx context.Context, oldId, newId st
 func (a AlbumRepository) FindAlbumIDsToMigrate(ctx context.Context, scanStartTime time.Time) ([]repos.FindAlbumIDsToMigrateResult, error) {
 	if a.FindAlbumIDsToMigrateMock != nil {
 		return a.FindAlbumIDsToMigrateMock(ctx, scanStartTime)
+	}
+	panic("not implemented")
+}
+
+func (a AlbumRepository) DeleteAllWithoutMusicFolderID(ctx context.Context) error {
+	if a.DeleteAllWithoutMusicFolderIDMock != nil {
+		return a.DeleteAllWithoutMusicFolderIDMock(ctx)
 	}
 	panic("not implemented")
 }

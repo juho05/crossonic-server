@@ -14,16 +14,6 @@ type StartupScanOption string
 
 type environment map[string]string
 
-var (
-	StartupScanDisabled StartupScanOption = "disabled"
-	StartupScanQuick    StartupScanOption = "quick"
-	StartupScanFull     StartupScanOption = "full"
-)
-
-func (s StartupScanOption) Valid() bool {
-	return s == StartupScanDisabled || s == StartupScanQuick || s == StartupScanFull
-}
-
 const CoverArtPriorityEmbedded = "embedded"
 
 type Config struct {

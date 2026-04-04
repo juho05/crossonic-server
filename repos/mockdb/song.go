@@ -8,7 +8,7 @@ import (
 )
 
 type SongRepository struct {
-	FindByIDMock                                        func(ctx context.Context, id string, include repos.IncludeSongInfo) (*repos.CompleteSong, error)
+	FindByIDMock                                        func(ctx context.Context, id, user string, include repos.IncludeSongInfo) (*repos.CompleteSong, error)
 	FindByIDsMock                                       func(ctx context.Context, ids []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
 	FindAllFilteredMock                                 func(ctx context.Context, filter repos.SongFindAllFilter, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
 	FindByMusicBrainzIDMock                             func(ctx context.Context, musicBrainzID string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
@@ -18,7 +18,7 @@ type SongRepository struct {
 	FindNonExistentIDsMock                              func(ctx context.Context, ids []string) ([]string, error)
 	FindPathsMock                                       func(ctx context.Context, updatedBefore time.Time, paginate repos.Paginate) ([]string, error)
 	DeleteByPathsMock                                   func(ctx context.Context, paths []string) error
-	GetStreamInfoMock                                   func(ctx context.Context, id string) (*repos.SongStreamInfo, error)
+	GetStreamInfoMock                                   func(ctx context.Context, id, user string) (*repos.SongStreamInfo, error)
 	CreateAllMock                                       func(ctx context.Context, params []repos.CreateSongParams) error
 	TryUpdateAllMock                                    func(ctx context.Context, params []repos.UpdateSongAllParams) (int, error)
 	DeleteLastUpdatedBeforeMock                         func(ctx context.Context, before time.Time) error
@@ -38,11 +38,12 @@ type SongRepository struct {
 	SetLBFeedbackUploadedForAllMatchingStarredSongsMock func(ctx context.Context, user string, lbLovedMBIDs []string) error
 	CountMock                                           func(ctx context.Context) (int, error)
 	GetMedianReplayGainMock                             func(ctx context.Context) (float64, error)
+	DeleteAllWithoutMusicFolderIDMock                   func(ctx context.Context) error
 }
 
-func (s SongRepository) FindByID(ctx context.Context, id string, include repos.IncludeSongInfo) (*repos.CompleteSong, error) {
+func (s SongRepository) FindByID(ctx context.Context, id, user string, include repos.IncludeSongInfo) (*repos.CompleteSong, error) {
 	if s.FindByIDMock != nil {
-		return s.FindByIDMock(ctx, id, include)
+		return s.FindByIDMock(ctx, id, user, include)
 	}
 	panic("not implemented")
 }
@@ -110,9 +111,9 @@ func (s SongRepository) DeleteByPaths(ctx context.Context, paths []string) error
 	panic("not implemented")
 }
 
-func (s SongRepository) GetStreamInfo(ctx context.Context, id string) (*repos.SongStreamInfo, error) {
+func (s SongRepository) GetStreamInfo(ctx context.Context, id, user string) (*repos.SongStreamInfo, error) {
 	if s.GetStreamInfoMock != nil {
-		return s.GetStreamInfoMock(ctx, id)
+		return s.GetStreamInfoMock(ctx, id, user)
 	}
 	panic("not implemented")
 }
@@ -246,6 +247,13 @@ func (s SongRepository) Count(ctx context.Context) (int, error) {
 func (s SongRepository) GetMedianReplayGain(ctx context.Context) (float64, error) {
 	if s.GetMedianReplayGainMock != nil {
 		return s.GetMedianReplayGainMock(ctx)
+	}
+	panic("not implemented")
+}
+
+func (s SongRepository) DeleteAllWithoutMusicFolderID(ctx context.Context) error {
+	if s.DeleteAllWithoutMusicFolderIDMock != nil {
+		return s.DeleteAllWithoutMusicFolderIDMock(ctx)
 	}
 	panic("not implemented")
 }

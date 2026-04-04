@@ -2,13 +2,14 @@ package mockdb
 
 import (
 	"context"
+
 	"github.com/juho05/crossonic-server/repos"
 )
 
 type GenreRepository struct {
 	CreateIfNotExistsMock func(ctx context.Context, names []string) error
 	DeleteIfNoSongsMock   func(ctx context.Context) error
-	FindAllWithCountsMock func(ctx context.Context) ([]*repos.GenreWithCounts, error)
+	FindAllWithCountsMock func(ctx context.Context, musicFolderIDs []int) ([]*repos.GenreWithCounts, error)
 }
 
 func (g GenreRepository) CreateIfNotExists(ctx context.Context, names []string) error {
@@ -25,9 +26,9 @@ func (g GenreRepository) DeleteIfNoSongs(ctx context.Context) error {
 	return nil
 }
 
-func (g GenreRepository) FindAllWithCounts(ctx context.Context) ([]*repos.GenreWithCounts, error) {
+func (g GenreRepository) FindAllWithCounts(ctx context.Context, musicFolderIDs []int) ([]*repos.GenreWithCounts, error) {
 	if g.FindAllWithCountsMock != nil {
-		return g.FindAllWithCountsMock(ctx)
+		return g.FindAllWithCountsMock(ctx, musicFolderIDs)
 	}
 	return nil, nil
 }

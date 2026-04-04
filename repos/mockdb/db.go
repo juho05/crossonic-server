@@ -2,6 +2,7 @@ package mockdb
 
 import (
 	"context"
+
 	"github.com/juho05/crossonic-server/repos"
 )
 
@@ -15,6 +16,7 @@ type DB struct {
 	GenreRepository                GenreRepository
 	PlaylistRepository             PlaylistRepository
 	InternetRadioStationRepository InternetRadioStationRepository
+	MusicFolderRepository          MusicFolderRepository
 
 	TransactionMock    func(ctx context.Context, fn func(tx repos.Tx) error) error
 	NewTransactionMock func(ctx context.Context) (repos.Transaction, error)
@@ -57,6 +59,10 @@ func (d *DB) Playlist() repos.PlaylistRepository {
 
 func (d *DB) InternetRadioStation() repos.InternetRadioStationRepository {
 	return d.InternetRadioStationRepository
+}
+
+func (d *DB) MusicFolder() repos.MusicFolderRepository {
+	return d.MusicFolderRepository
 }
 
 func (d *DB) Transaction(ctx context.Context, fn func(tx repos.Tx) error) error {

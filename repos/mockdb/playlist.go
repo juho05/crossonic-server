@@ -2,21 +2,30 @@ package mockdb
 
 import (
 	"context"
+
 	"github.com/juho05/crossonic-server/repos"
 )
 
 type PlaylistRepository struct {
-	CreateMock          func(ctx context.Context, params repos.CreatePlaylistParams) (*repos.Playlist, error)
-	UpdateMock          func(ctx context.Context, user, id string, params repos.UpdatePlaylistParams) error
-	FindByIDMock        func(ctx context.Context, user, id string, include repos.IncludePlaylistInfo) (*repos.CompletePlaylist, error)
-	FindAllMock         func(ctx context.Context, user string, include repos.IncludePlaylistInfo) ([]*repos.CompletePlaylist, error)
-	GetTracksMock       func(ctx context.Context, id string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
-	AddTracksMock       func(ctx context.Context, id string, songIDs []string) error
-	RemoveTracksMock    func(ctx context.Context, id string, trackNumbers []int) error
-	ClearTracksMock     func(ctx context.Context, id string) error
-	SetTracksMock       func(ctx context.Context, id string, songIDs []string) error
-	FixTrackNumbersMock func(ctx context.Context) error
-	DeleteMock          func(ctx context.Context, user, id string) error
+	CreateMock                                              func(ctx context.Context, params repos.CreatePlaylistParams) (*repos.Playlist, error)
+	UpdateMock                                              func(ctx context.Context, user, id string, params repos.UpdatePlaylistParams) error
+	FindByIDMock                                            func(ctx context.Context, user, id string, include repos.IncludePlaylistInfo) (*repos.CompletePlaylist, error)
+	FindAllMock                                             func(ctx context.Context, user string, include repos.IncludePlaylistInfo) ([]*repos.CompletePlaylist, error)
+	GetTracksMock                                           func(ctx context.Context, id string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
+	AddTracksMock                                           func(ctx context.Context, id string, songIDs []string) error
+	RemoveTracksMock                                        func(ctx context.Context, id string, trackNumbers []int) error
+	ClearTracksMock                                         func(ctx context.Context, id string) error
+	SetTracksMock                                           func(ctx context.Context, id string, songIDs []string) error
+	FixTrackNumbersMock                                     func(ctx context.Context) error
+	DeleteMock                                              func(ctx context.Context, user, id string) error
+	DeleteTracksInaccessibleDueToMusicFolderPermissionsMock func(ctx context.Context) error
+}
+
+func (p PlaylistRepository) DeleteTracksInaccessibleDueToMusicFolderPermissions(ctx context.Context) error {
+	if p.DeleteTracksInaccessibleDueToMusicFolderPermissionsMock != nil {
+		return p.DeleteTracksInaccessibleDueToMusicFolderPermissionsMock(ctx)
+	}
+	panic("not implemented")
 }
 
 func (p PlaylistRepository) Create(ctx context.Context, params repos.CreatePlaylistParams) (*repos.Playlist, error) {

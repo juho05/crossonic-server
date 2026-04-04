@@ -25,7 +25,7 @@ func TestLoad(t *testing.T) {
 		DBName:     "testname",
 		DBHost:     "testhost",
 		DBPort:     1234,
-		MusicDir:   "/test/music",
+		musicDir:   "/test/music",
 		DataDir:    "/test/data",
 		CacheDir:   "/test/cache",
 		EncryptionKey: []byte{0xdd, 0xd5, 0xc1, 0xd3, 0x0c, 0xf8, 0x99, 0x1f, 0xdf, 0x7f, 0xe2,
@@ -33,7 +33,6 @@ func TestLoad(t *testing.T) {
 		ListenAddr:          "test:4321",
 		AutoMigrate:         false,
 		LogLevel:            log.TRACE,
-		StartupScan:         StartupScanFull,
 		ListenBrainzURL:     "https://listenbrainz.example.com",
 		LastFMApiKey:        "lastfmkeytest",
 		ScanHidden:          true,
@@ -49,7 +48,7 @@ func TestLoad(t *testing.T) {
 		DBName:     "testname",
 		DBHost:     "testhost",
 		DBPort:     1234,
-		MusicDir:   "/test/music",
+		musicDir:   "/test/music",
 		DataDir:    "/test/data",
 		CacheDir:   "/test/cache",
 		EncryptionKey: []byte{0xdd, 0xd5, 0xc1, 0xd3, 0x0c, 0xf8, 0x99, 0x1f, 0xdf, 0x7f, 0xe2,
@@ -57,7 +56,6 @@ func TestLoad(t *testing.T) {
 		ListenAddr:          "0.0.0.0:8080",
 		AutoMigrate:         true,
 		LogLevel:            log.INFO,
-		StartupScan:         StartupScanQuick,
 		ListenBrainzURL:     "https://api.listenbrainz.org",
 		LastFMApiKey:        "",
 		ScanHidden:          false,
@@ -74,7 +72,7 @@ func TestLoad(t *testing.T) {
 		"DB_NAME=" + fullConfig.DBName,
 		"DB_HOST=" + fullConfig.DBHost,
 		"DB_PORT=" + strconv.Itoa(fullConfig.DBPort),
-		"MUSIC_DIR=" + fullConfig.MusicDir,
+		"MUSIC_DIR=" + fullConfig.musicDir,
 		"DATA_DIR=" + fullConfig.DataDir,
 		"CACHE_DIR=" + fullConfig.CacheDir,
 		"ENCRYPTION_KEY=3dXB0wz4mR/ff+JYE47asMA3oUqiVFuG5uSGf2gn9K0",
@@ -83,7 +81,6 @@ func TestLoad(t *testing.T) {
 		"LOG_LEVEL=" + strconv.Itoa(int(fullConfig.LogLevel)),
 		"LOG_FILE=" + logFileName,
 		"LOG_APPEND=true",
-		"STARTUP_SCAN=" + string(fullConfig.StartupScan),
 		"LISTENBRAINZ_URL=" + fullConfig.ListenBrainzURL,
 		"LASTFM_API_KEY=" + fullConfig.LastFMApiKey,
 		"SCAN_HIDDEN=" + strconv.FormatBool(fullConfig.ScanHidden),
@@ -99,7 +96,7 @@ func TestLoad(t *testing.T) {
 		"DB_NAME=" + fullConfig.DBName,
 		"DB_HOST=" + fullConfig.DBHost,
 		"DB_PORT=" + strconv.Itoa(fullConfig.DBPort),
-		"MUSIC_DIR=" + fullConfig.MusicDir,
+		"MUSIC_DIR=" + fullConfig.musicDir,
 		"DATA_DIR=" + fullConfig.DataDir,
 		"CACHE_DIR=" + fullConfig.CacheDir,
 		"ENCRYPTION_KEY=3dXB0wz4mR/ff+JYE47asMA3oUqiVFuG5uSGf2gn9K0",
@@ -130,14 +127,13 @@ func TestLoad(t *testing.T) {
 			assert.Equal(t, tt.config.DBName, conf.DBName)
 			assert.Equal(t, tt.config.DBHost, conf.DBHost)
 			assert.Equal(t, tt.config.DBPort, conf.DBPort)
-			assert.Equal(t, tt.config.MusicDir, conf.MusicDir)
+			assert.Equal(t, tt.config.musicDir, conf.musicDir)
 			assert.Equal(t, tt.config.DataDir, conf.DataDir)
 			assert.Equal(t, tt.config.CacheDir, conf.CacheDir)
 			assert.Equal(t, tt.config.EncryptionKey, conf.EncryptionKey)
 			assert.Equal(t, tt.config.ListenAddr, conf.ListenAddr)
 			assert.Equal(t, tt.config.AutoMigrate, conf.AutoMigrate)
 			assert.Equal(t, tt.config.LogLevel, conf.LogLevel)
-			assert.Equal(t, tt.config.StartupScan, conf.StartupScan)
 			assert.Equal(t, tt.config.ListenBrainzURL, conf.ListenBrainzURL)
 			assert.Equal(t, tt.config.LastFMApiKey, conf.LastFMApiKey)
 			assert.Equal(t, tt.config.ScanHidden, conf.ScanHidden)
@@ -150,24 +146,6 @@ func TestLoad(t *testing.T) {
 			} else {
 				assert.Equal(t, os.Stderr, conf.LogFile)
 			}
-		})
-	}
-}
-
-func TestStartupScanOption_Valid(t *testing.T) {
-	tests := []struct {
-		name string
-		s    StartupScanOption
-		want bool
-	}{
-		{"disabled is valid", StartupScanDisabled, true},
-		{"quick is valid", StartupScanQuick, true},
-		{"full is valid", StartupScanFull, true},
-		{"asdf is valid", StartupScanOption("asdf"), false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.s.Valid())
 		})
 	}
 }
@@ -690,20 +668,19 @@ func Test_loadLogLevel(t *testing.T) {
 func Test_loadMusicDir(t *testing.T) {
 	key := "MUSIC_DIR"
 	tests := []struct {
-		name    string
-		value   string
-		want    string
-		wantErr bool
+		name  string
+		value string
+		want  string
 	}{
-		{"empty value", "", "", true},
-		{"existing value", "/test/music", "/test/music", false},
+		{"empty value", "", ""},
+		{"existing value", "/test/music", "/test/music"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v, err := loadMusicDir(map[string]string{
+			v := loadMusicDir(map[string]string{
 				key: tt.value,
 			})
-			assertEqualOrErr(t, key, tt.want, v, tt.wantErr, err)
+			assert.Equal(t, tt.want, v)
 		})
 	}
 }
@@ -724,30 +701,6 @@ func Test_loadScanHidden(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v, err := loadScanHidden(map[string]string{
-				key: tt.value,
-			})
-			assertEqualOrErr(t, key, tt.want, v, tt.wantErr, err)
-		})
-	}
-}
-
-func Test_loadStartupScan(t *testing.T) {
-	key := "STARTUP_SCAN"
-	tests := []struct {
-		name    string
-		value   string
-		want    StartupScanOption
-		wantErr bool
-	}{
-		{"empty value", "", StartupScanQuick, false},
-		{"invalid value", "asdf", "", true},
-		{"disabled", "disabled", StartupScanDisabled, false},
-		{"quick", "quick", StartupScanQuick, false},
-		{"full", "full", StartupScanFull, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			v, err := loadStartupScan(map[string]string{
 				key: tt.value,
 			})
 			assertEqualOrErr(t, key, tt.want, v, tt.wantErr, err)
