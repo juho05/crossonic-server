@@ -5,9 +5,10 @@ import "context"
 // models
 
 type MusicFolder struct {
-	ID   int    `db:"id"`
-	Name string `db:"name"`
-	Path string `db:"path"`
+	ID        int    `db:"id"`
+	Name      string `db:"name"`
+	Path      string `db:"path"`
+	SongCount int    `db:"song_count"`
 }
 
 type ArtistMusicFolderAssociation struct {
@@ -15,9 +16,17 @@ type ArtistMusicFolderAssociation struct {
 	ArtistID      string `db:"artist_id"`
 }
 
+// params
+
+type CreateMusicFolderParams struct {
+	ID   int
+	Name string
+	Path string
+}
+
 type MusicFolderRepository interface {
 	FindAll(ctx context.Context, user string) ([]MusicFolder, error)
-	CreateOrUpdate(ctx context.Context, folders []MusicFolder) error
+	CreateOrUpdate(ctx context.Context, folders []CreateMusicFolderParams) error
 	DeleteMusicFoldersNotIn(ctx context.Context, keepIDs []int) error
 
 	DeleteAllUserAssociations(ctx context.Context) error

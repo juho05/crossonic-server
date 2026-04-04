@@ -28,8 +28,9 @@ func (h *Handler) handleGetMusicFolders(w http.ResponseWriter, r *http.Request) 
 
 	musicFolders := util.Map(folders, func(f repos.MusicFolder) *responses.MusicFolder {
 		return &responses.MusicFolder{
-			ID:   f.ID,
-			Name: f.Name,
+			ID:        f.ID,
+			Name:      f.Name,
+			SongCount: &f.SongCount,
 		}
 	})
 

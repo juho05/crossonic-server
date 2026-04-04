@@ -23,8 +23,9 @@ type MusicFolders struct {
 }
 
 type MusicFolder struct {
-	ID   int    `xml:"id,attr" json:"id"`
-	Name string `xml:"name,attr,omitempty" json:"name,omitempty"`
+	ID        int    `xml:"id,attr" json:"id"`
+	Name      string `xml:"name,attr,omitempty" json:"name,omitempty"`
+	SongCount *int   `xml:"songCount,attr,omitempty" json:"songCount,omitempty"`
 }
 
 type ScanStatus struct {

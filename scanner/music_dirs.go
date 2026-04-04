@@ -53,8 +53,8 @@ func (s *Scanner) LoadMusicDirs(tx repos.Transaction) (changed bool, err error) 
 		return false, fmt.Errorf("delete user associations: %w", err)
 	}
 
-	err = tx.MusicFolder().CreateOrUpdate(ctx, util.Map(musicDirs, func(dir config.MusicDir) repos.MusicFolder {
-		return repos.MusicFolder{
+	err = tx.MusicFolder().CreateOrUpdate(ctx, util.Map(musicDirs, func(dir config.MusicDir) repos.CreateMusicFolderParams {
+		return repos.CreateMusicFolderParams{
 			ID:   dir.ID,
 			Name: dir.Name,
 			Path: dir.Path,

@@ -14,9 +14,11 @@ type musicFolderRepository struct {
 }
 
 func (m musicFolderRepository) FindAll(ctx context.Context, user string) ([]repos.MusicFolder, error) {
-	q := bqb.New(`SELECT mf.id, mf.name, mf.path FROM music_folders mf 
+	q := bqb.New(`SELECT mf.id, mf.name, mf.path, COALESCE(COUNT(s.id), 0) AS song_count FROM music_folders mf 
 		JOIN music_folder_users mfu ON mfu.music_folder_id = mf.id
+		LEFT JOIN songs s ON s.music_folder_id = mf.id
 		WHERE mfu.user_name = ?
+		GROUP BY mf.id
 		ORDER BY mf.id`, user)
 	musicFolders, err := selectQuery[repos.MusicFolder](ctx, m.db, q)
 	if err != nil {
@@ -25,12 +27,12 @@ func (m musicFolderRepository) FindAll(ctx context.Context, user string) ([]repo
 	return musicFolders, nil
 }
 
-func (m musicFolderRepository) CreateOrUpdate(ctx context.Context, folders []repos.MusicFolder) error {
+func (m musicFolderRepository) CreateOrUpdate(ctx context.Context, folders []repos.CreateMusicFolderParams) error {
 	if len(folders) == 0 {
 		return nil
 	}
 	return m.tx(ctx, func(m musicFolderRepository) error {
-		return execBatch(folders, func(folders []repos.MusicFolder) error {
+		return execBatch(folders, func(folders []repos.CreateMusicFolderParams) error {
 			valueList := bqb.Optional("")
 			for _, f := range folders {
 				valueList.Comma("(?, ?, ?)", f.ID, f.Name, f.Path)
