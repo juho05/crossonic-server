@@ -12,23 +12,27 @@ and stream your music on all your devices similar to popular streaming services.
 Follow the [installation guide](https://crossonic.org/server/install).
 
 ## Features
+
 - Robust library scanning
-    - Takes MusicBrainz IDs into account
-    - Stores crossonic song ID in the file metadata to prevent losing favorites/scrobbles when renaming files and/or changing metadata
-    - Multiple artists/genres per song
-    - Release groups, labels, disc subtitles, replay gain, lyrics, bpm, …
-    - Incremental scanning (only scans files that have changed)
+  - Takes MusicBrainz IDs into account
+  - Stores crossonic song ID in the file metadata to prevent losing favorites/scrobbles when renaming files and/or changing metadata
+  - Multiple artists/genres per song
+  - Release groups, labels, disc subtitles, replay gain, lyrics, bpm, …
+  - Incremental scanning (only scans files that have changed)
 - Multi-user
-    - Each with their own playlists, scrobbles, favorites, …
-    - Add internet radio stations per user
+  - Each with their own playlists, scrobbles, favorites, …
+  - Add internet radio stations per user
+- Multi-library support
+  - Per-user access controls
+  - Select multiple libraries simultaneously in the app
 - ListenBrainz integration
-    - Scrobbling
-    - Two-way favorites sync
-    - Configurable for each user
+  - Scrobbling
+  - Two-way favorites sync
+  - Configurable for each user
 - Fetch artist images and biographies from [last.fm](https://last.fm)
 - On-the-fly transcoding and caching
-    - Configurable `format=` and `maxBitRate=` parameters
-    - `raw`, `mp3`, `opus`, `vorbis`
+  - Configurable `format=` and `maxBitRate=` parameters
+  - `raw`, `mp3`, `opus`, `vorbis`
 - Receive scrobbles from clients (including playback duration)
 - Proper handling of different release versions
 - Compatible with your favorite (Open)Subsonic clients
