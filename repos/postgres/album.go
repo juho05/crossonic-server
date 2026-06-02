@@ -242,11 +242,11 @@ func (a albumRepository) GetAlternateVersions(ctx context.Context, albumId strin
 	conditions.Or(`(albums.music_brainz_id IS NULL AND albums2.music_brainz_id IS NULL AND albums.name = albums2.name AND (albums.original_date IS NULL OR albums2.original_date IS NULL OR albums.original_date = albums2.original_date) AND EXISTS (	
 			SELECT album_artist.artist_id FROM album_artist INNER JOIN album_artist AS album_artist2 ON album_artist2.artist_id = album_artist.artist_id WHERE album_artist.album_id = albums.id AND album_artist2.album_id = albums2.id
 		))`)
+	q.And("(?)", conditions)
 	if musicFolderIDs != nil {
-		conditions.And("?", genOneOfMusicFoldersCondition("albums", musicFolderIDs))
+		q.And("?", genOneOfMusicFoldersCondition("albums", musicFolderIDs))
 	}
 
-	q.And("(?)", conditions)
 	q.Space("ORDER BY albums.release_date DESC, albums.version ASC NULLS LAST, albums.id")
 
 	return execAlbumSelectMany(ctx, a.db, q, include)
@@ -281,8 +281,8 @@ func (a albumRepository) FindAlbumIDsToMigrate(ctx context.Context, scanStartTim
 	return selectQuery[repos.FindAlbumIDsToMigrateResult](ctx, a.db, q)
 }
 
-func (s albumRepository) DeleteAllWithoutMusicFolderID(ctx context.Context) error {
-	return executeQuery(ctx, s.db, bqb.New("DELETE FROM albums WHERE music_folder_id IS NULL"))
+func (a albumRepository) DeleteAllWithoutMusicFolderID(ctx context.Context) error {
+	return executeQuery(ctx, a.db, bqb.New("DELETE FROM albums WHERE music_folder_id IS NULL"))
 }
 
 // helpers

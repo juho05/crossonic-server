@@ -404,6 +404,7 @@ func (s songRepository) RemoveRating(ctx context.Context, user, songID string) e
 
 func (s songRepository) FindNotUploadedLBFeedback(ctx context.Context, user string, lbLovedMBIDs []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	include.Annotations = true
+	include.User = user
 	if len(lbLovedMBIDs) == 0 {
 		lbLovedMBIDs = append(lbLovedMBIDs, "\n") // prevent lbLovedMBIDs from being empty
 	}
@@ -411,7 +412,7 @@ func (s songRepository) FindNotUploadedLBFeedback(ctx context.Context, user stri
 		SELECT ? FROM songs ?
 		LEFT JOIN lb_feedback_status ON lb_feedback_status.song_id = songs.id AND lb_feedback_status.user_name = ?
 		WHERE
-			(lb_feedback_status.uploaded IS NULL AND song_stars.created IS NOT NULL AND songs.music_brainz_id NOT IN (?))
+			(lb_feedback_status.uploaded IS NULL AND song_stars.created IS NOT NULL AND (songs.music_brainz_id IS NULL OR songs.music_brainz_id NOT IN (?)))
 			OR
 			(lb_feedback_status.uploaded = false AND
 				(
@@ -420,8 +421,8 @@ func (s songRepository) FindNotUploadedLBFeedback(ctx context.Context, user stri
 						(songs.music_brainz_id IN (?) OR lb_feedback_status.remote_mbid IN (?))
 					OR
 						song_stars.created IS NOT NULL
-						AND songs.music_brainz_id NOT IN (?)
-						AND lb_feedback_status.remote_mbid NOT IN (?)
+						AND (songs.music_brainz_id IS NULL OR songs.music_brainz_id NOT IN (?))
+						AND (lb_feedback_status.remote_mbid IS NULL OR lb_feedback_status.remote_mbid NOT IN (?))
 				)
 			)
 	`, genSongSelectList(include), genSongJoins(include), user, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs)
@@ -430,6 +431,7 @@ func (s songRepository) FindNotUploadedLBFeedback(ctx context.Context, user stri
 
 func (s songRepository) FindLocalOutdatedFeedbackByLB(ctx context.Context, user string, lbLovedMBIDs []string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	include.Annotations = true
+	include.User = user
 	if len(lbLovedMBIDs) == 0 {
 		lbLovedMBIDs = append(lbLovedMBIDs, "\n") // prevent lbLovedMBIDs from being empty
 	}
@@ -439,7 +441,7 @@ func (s songRepository) FindLocalOutdatedFeedbackByLB(ctx context.Context, user 
 		WHERE
 			(lb_feedback_status.uploaded IS NULL AND song_stars.created IS NULL AND songs.music_brainz_id IN (?))
 			OR
-			(lb_feedback_status.uploaded = true AND (song_stars.created IS NULL AND (songs.music_brainz_id IN (?) OR lb_feedback_status.remote_mbid IN (?)) OR song_stars.created IS NOT NULL AND songs.music_brainz_id NOT IN (?) AND lb_feedback_status.remote_mbid NOT IN (?)))
+			(lb_feedback_status.uploaded = true AND (song_stars.created IS NULL AND (songs.music_brainz_id IN (?) OR lb_feedback_status.remote_mbid IN (?)) OR song_stars.created IS NOT NULL AND (songs.music_brainz_id IS NULL OR (songs.music_brainz_id IS NULL OR songs.music_brainz_id NOT IN (?))) AND (lb_feedback_status.remote_mbid IS NULL OR lb_feedback_status.remote_mbid NOT IN (?))))
 	`, genSongSelectList(include), genSongJoins(include), user, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs)
 	return execSongSelectMany(ctx, s.db, q, include)
 }

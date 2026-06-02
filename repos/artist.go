@@ -91,12 +91,8 @@ type FindArtistIDsToMigrateResult struct {
 
 type ArtistRepository interface {
 	Create(ctx context.Context, params CreateArtistParams) (string, error)
-	CreateIfNotExistsByName(ctx context.Context, params []CreateArtistParams) error
 	Update(ctx context.Context, id string, params UpdateArtistParams) error
 	DeleteIfNoAlbumsAndNoSongs(ctx context.Context) error
-
-	FindOrCreateIDsByNames(ctx context.Context, names []string) ([]string, error)
-
 	FindByID(ctx context.Context, id, user string, include IncludeArtistInfo) (*CompleteArtist, error)
 	FindByNames(ctx context.Context, names []string, include IncludeArtistInfo) ([]*CompleteArtist, error)
 	FindAll(ctx context.Context, params FindArtistsParams, include IncludeArtistInfo) ([]*CompleteArtist, error)

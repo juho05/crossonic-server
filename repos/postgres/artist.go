@@ -24,19 +24,6 @@ func (a artistRepository) Create(ctx context.Context, params repos.CreateArtistP
 	return id, executeQuery(ctx, a.db, q)
 }
 
-func (a artistRepository) CreateIfNotExistsByName(ctx context.Context, params []repos.CreateArtistParams) error {
-	return a.tx(ctx, func(a artistRepository) error {
-		return execBatch(params, func(params []repos.CreateArtistParams) error {
-			valueList := bqb.Optional("")
-			for _, p := range params {
-				valueList.Comma("(?, ?, NOW(), NOW(), ?, ?)", crossonic.GenIDArtist(), p.Name, p.MusicBrainzID, " "+util.NormalizeText(p.Name)+" ")
-			}
-			q := bqb.New("INSERT INTO artists (id, name, created, updated, music_brainz_id, search_text) VALUES ? ON CONFLICT (name) DO NOTHING", valueList)
-			return executeQuery(ctx, a.db, q)
-		})
-	})
-}
-
 func (a artistRepository) Update(ctx context.Context, id string, params repos.UpdateArtistParams) error {
 	searchText := repos.NewOptionalEmpty[string]()
 	if params.Name.HasValue() {
@@ -60,42 +47,6 @@ func (a artistRepository) DeleteIfNoAlbumsAndNoSongs(ctx context.Context) error 
 			LEFT JOIN album_artist ON album_artist.artist_id = arts.id
 		WHERE artists.id = arts.id AND song_artist.artist_id IS NULL AND album_artist.artist_id IS NULL`)
 	return executeQuery(ctx, a.db, q)
-}
-
-func (a artistRepository) FindOrCreateIDsByNames(ctx context.Context, names []string) ([]string, error) {
-	ids := make([]string, len(names))
-	err := a.tx(ctx, func(a artistRepository) error {
-		params := make([]repos.CreateArtistParams, len(names))
-		for i, n := range names {
-			params[i] = repos.CreateArtistParams{
-				Name: n,
-			}
-		}
-		err := a.CreateIfNotExistsByName(ctx, params)
-		if err != nil {
-			return fmt.Errorf("create artists by name if they don't already exist: %w", err)
-		}
-		artists, err := a.FindByNames(ctx, names, repos.IncludeArtistInfo{})
-		if err != nil {
-			return fmt.Errorf("find artists by names: %w", err)
-		}
-		artistNameToID := make(map[string]string, len(artists))
-		for _, a := range artists {
-			artistNameToID[a.Name] = a.ID
-		}
-		for i, n := range names {
-			id, ok := artistNameToID[n]
-			if ok {
-				ids[i] = id
-				continue
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return ids, nil
 }
 
 func (a artistRepository) FindByID(ctx context.Context, id, user string, include repos.IncludeArtistInfo) (*repos.CompleteArtist, error) {
