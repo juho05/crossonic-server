@@ -3,12 +3,13 @@ package postgres
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestInternetRadioStationRepository(t *testing.T) {
@@ -127,6 +128,34 @@ func TestInternetRadioStationRepository(t *testing.T) {
 			assert.Contains(t, util.Map(stations, func(s *repos.InternetRadioStation) string {
 				return s.ID
 			}), station2U2)
+		})
+	})
+
+	t.Run("FindByID", func(t *testing.T) {
+
+		t.Run("id does not exist", func(t *testing.T) {
+			thDeleteAll(t, db, "internet_radio_stations")
+			_, err := repo.FindByID(ctx, user, "irs_notexist")
+			assert.ErrorIs(t, err, repos.ErrNotFound, "should return ErrNotFound")
+		})
+
+		t.Run("exists but wrong user", func(t *testing.T) {
+			thDeleteAll(t, db, "internet_radio_stations")
+
+			id := createStation(user2)
+			_, err := repo.FindByID(ctx, user, id)
+			assert.ErrorIs(t, err, repos.ErrNotFound, "should return ErrNotFound")
+		})
+
+		t.Run("successful find", func(t *testing.T) {
+			thDeleteAll(t, db, "internet_radio_stations")
+
+			id := createStation(user)
+
+			station, err := repo.FindByID(ctx, user, id)
+			require.NoErrorf(t, err, "find station by id: %v", err)
+			assert.NotNil(t, station)
+			assert.Equal(t, id, station.ID)
 		})
 	})
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
@@ -273,8 +274,16 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO consider validating access rights of user, i.e. whether the requested cover is part of an item that is in
-	//  an accessible music folder.
+	hasAccess, err := h.validateUserAccessToID(r.Context(), q.User(), id)
+	if err != nil {
+		respondErr(w, q.Format(), fmt.Errorf("validate user access to id: %w", err))
+		return
+	}
+
+	if !hasAccess {
+		respondNotFoundErr(w, q.Format(), "cover not found")
+		return
+	}
 
 	coverDir := filepath.Join(h.Config.DataDir, "covers")
 
@@ -436,4 +445,60 @@ func (h *Handler) loadArtistCoverFromLastFMByID(ctx context.Context, id, user st
 		return fmt.Errorf("load artist cover from last fm by id: encode image: %w", err)
 	}
 	return nil
+}
+
+func (h *Handler) validateUserAccessToID(ctx context.Context, user, id string) (bool, error) {
+	t, ok := crossonic.GetIDType(id)
+	if !ok {
+		return false, nil
+	}
+
+	switch t {
+	case crossonic.IDTypeSong:
+		_, err := h.DB.Song().FindByID(ctx, id, user, repos.IncludeSongInfoBare())
+		if err != nil {
+			if errors.Is(err, repos.ErrNotFound) {
+				return false, nil
+			}
+			return false, fmt.Errorf("check user access to song id: %w", err)
+		}
+		return true, nil
+	case crossonic.IDTypeAlbum:
+		_, err := h.DB.Album().FindByID(ctx, id, user, repos.IncludeAlbumInfoBare())
+		if err != nil {
+			if errors.Is(err, repos.ErrNotFound) {
+				return false, nil
+			}
+			return false, fmt.Errorf("check user access to album id: %w", err)
+		}
+		return true, nil
+	case crossonic.IDTypeArtist:
+		_, err := h.DB.Artist().FindByID(ctx, id, user, repos.IncludeArtistInfoBare())
+		if err != nil {
+			if errors.Is(err, repos.ErrNotFound) {
+				return false, nil
+			}
+			return false, fmt.Errorf("check user access to artist id: %w", err)
+		}
+		return true, nil
+	case crossonic.IDTypePlaylist:
+		_, err := h.DB.Playlist().FindByID(ctx, user, id, false, repos.IncludePlaylistInfoBare())
+		if err != nil {
+			if errors.Is(err, repos.ErrNotFound) {
+				return false, nil
+			}
+			return false, fmt.Errorf("check user access to playlist id: %w", err)
+		}
+		return true, nil
+	case crossonic.IDTypeInternetRadioStation:
+		_, err := h.DB.InternetRadioStation().FindByID(ctx, user, id)
+		if err != nil {
+			if errors.Is(err, repos.ErrNotFound) {
+				return false, nil
+			}
+			return false, fmt.Errorf("check user access to internet radio station id: %w", err)
+		}
+		return true, nil
+	}
+	return false, nil
 }

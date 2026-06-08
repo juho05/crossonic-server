@@ -2,19 +2,28 @@ package mockdb
 
 import (
 	"context"
+
 	"github.com/juho05/crossonic-server/repos"
 )
 
 type InternetRadioStationRepository struct {
-	FindAllMock func(ctx context.Context, user string) ([]*repos.InternetRadioStation, error)
-	CreateMock  func(ctx context.Context, user string, params repos.CreateInternetRadioStationParams) (*repos.InternetRadioStation, error)
-	UpdateMock  func(ctx context.Context, user, id string, params repos.UpdateInternetRadioStationParams) error
-	DeleteMock  func(ctx context.Context, user, id string) error
+	FindAllMock  func(ctx context.Context, user string) ([]*repos.InternetRadioStation, error)
+	FindByIDMock func(ctx context.Context, user, id string) (*repos.InternetRadioStation, error)
+	CreateMock   func(ctx context.Context, user string, params repos.CreateInternetRadioStationParams) (*repos.InternetRadioStation, error)
+	UpdateMock   func(ctx context.Context, user, id string, params repos.UpdateInternetRadioStationParams) error
+	DeleteMock   func(ctx context.Context, user, id string) error
 }
 
 func (i InternetRadioStationRepository) FindAll(ctx context.Context, user string) ([]*repos.InternetRadioStation, error) {
 	if i.FindAllMock != nil {
 		return i.FindAllMock(ctx, user)
+	}
+	panic("not implemented")
+}
+
+func (i InternetRadioStationRepository) FindByID(ctx context.Context, user, id string) (*repos.InternetRadioStation, error) {
+	if i.FindByIDMock != nil {
+		return i.FindByIDMock(ctx, user, id)
 	}
 	panic("not implemented")
 }

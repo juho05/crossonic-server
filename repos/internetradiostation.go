@@ -36,6 +36,8 @@ type InternetRadioStationRepository interface {
 	Create(ctx context.Context, user string, params CreateInternetRadioStationParams) (*InternetRadioStation, error)
 	// FindAll returns all internet radio stations created by the user.
 	FindAll(ctx context.Context, user string) ([]*InternetRadioStation, error)
+	// FindByID returns the internet radio station with the given id if the user has access to it.
+	FindByID(ctx context.Context, user, id string) (*InternetRadioStation, error)
 	// Update updates an existing internet radio station of the user.
 	// If no internet radio station with the provided id is found for the user, ErrNotFound will be returned.
 	Update(ctx context.Context, user, id string, params UpdateInternetRadioStationParams) error

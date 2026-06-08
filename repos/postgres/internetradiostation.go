@@ -17,6 +17,11 @@ func (i internetRadioStationRepository) FindAll(ctx context.Context, user string
 	return selectQuery[*repos.InternetRadioStation](ctx, i.db, q)
 }
 
+func (i internetRadioStationRepository) FindByID(ctx context.Context, user, id string) (*repos.InternetRadioStation, error) {
+	q := bqb.New("SELECT * FROM internet_radio_stations WHERE user_name = ? AND id = ?", user, id)
+	return getQuery[*repos.InternetRadioStation](ctx, i.db, q)
+}
+
 func (i internetRadioStationRepository) Create(ctx context.Context, user string, params repos.CreateInternetRadioStationParams) (*repos.InternetRadioStation, error) {
 	q := bqb.New(`INSERT INTO internet_radio_stations (id,name,stream_url,created,updated,user_name,homepage_url)
 	VALUES (?,?,?,NOW(),NOW(),?,?) RETURNING *`, crossonic.GenIDInternetRadioStation(), params.Name, params.StreamURL, user, params.HomepageURL)
