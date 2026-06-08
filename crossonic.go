@@ -24,7 +24,7 @@ var MigrationsFS fs.FS
 
 var GenID func() string
 var IDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-~"
-var IDRegex = regexp.MustCompile(fmt.Sprintf("^(tr)|(al)|(ar)|(pl)|(irs)_[%s]{12}$", strings.ReplaceAll(IDAlphabet, "-", "\\-")))
+var IDRegex = regexp.MustCompile(fmt.Sprintf("^(tr|al|ar|pl|irs)_[%s]{12}$", strings.ReplaceAll(IDAlphabet, "-", "\\-")))
 
 func init() {
 	var err error
