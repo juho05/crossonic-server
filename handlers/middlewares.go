@@ -128,6 +128,14 @@ func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 }
 
 func (h *Handler) passwordAuth(ctx context.Context, username, password string) (bool, error) {
+	if strings.HasPrefix(password, "enc:") {
+		decoded, err := hex.DecodeString(strings.TrimPrefix(password, "enc:"))
+		if err != nil {
+			return false, fmt.Errorf("failed to decode hex encoded password: %w", err)
+		}
+		password = string(decoded)
+	}
+
 	user, err := h.DB.User().FindByName(ctx, username)
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
