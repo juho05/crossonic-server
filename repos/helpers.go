@@ -186,6 +186,9 @@ func GenerateAPIKey() (string, error) {
 }
 
 func HashAPIKey(apiKey string) ([]byte, error) {
+	// We use a fixed salt here to make database lookups quicker on authentication. The API key value space is large
+	// enough that brute-force attacks are not of practical concern. Hashing the API key just serves as an additional
+	// security layer by slowing down authentication and preventing API keys from appearing in plain text in the database.
 	return pbkdf2.Key(sha256.New, apiKey, []byte("crossonic-server"), 4096, 32)
 }
 

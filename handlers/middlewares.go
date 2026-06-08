@@ -96,6 +96,8 @@ func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 				}
 				authenticated, err = h.passwordAuth(r.Context(), values.Get("u"), values.Get("p"))
 			} else if values.Has("t") {
+				// This allows empty salt values if the parameter is specified but empty. It's the clients responsibility
+				// to properly use this parameter. We do not validate this value any further to prevent client incompatibilities.
 				if !values.Has("s") {
 					responses.EncodeError(w, values.Get("f"), "missing parameter 's'", responses.SubsonicErrorRequiredParameterMissing)
 					return
