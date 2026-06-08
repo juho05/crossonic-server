@@ -60,7 +60,7 @@ type PlaylistRepository interface {
 	Create(ctx context.Context, params CreatePlaylistParams) (*Playlist, error)
 	Update(ctx context.Context, user, id string, params UpdatePlaylistParams) error
 
-	FindByID(ctx context.Context, user, id string, include IncludePlaylistInfo) (*CompletePlaylist, error)
+	FindByID(ctx context.Context, user, id string, allowPublicByDifferentOwner bool, include IncludePlaylistInfo) (*CompletePlaylist, error)
 	FindAll(ctx context.Context, user string, include IncludePlaylistInfo) ([]*CompletePlaylist, error)
 
 	GetTracks(ctx context.Context, id string, include IncludeSongInfo) ([]*CompleteSong, error)

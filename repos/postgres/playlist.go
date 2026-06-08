@@ -33,9 +33,13 @@ func (p playlistRepository) Update(ctx context.Context, user, id string, params 
 	return executeQueryExpectAffectedRows(ctx, p.db, q)
 }
 
-func (p playlistRepository) FindByID(ctx context.Context, user, id string, include repos.IncludePlaylistInfo) (*repos.CompletePlaylist, error) {
+func (p playlistRepository) FindByID(ctx context.Context, user, id string, allowPublicByDifferentOwner bool, include repos.IncludePlaylistInfo) (*repos.CompletePlaylist, error) {
 	q := bqb.New("SELECT ? FROM playlists ?", genPlaylistSelectList(include), genPlaylistJoins(include))
-	q.Space("WHERE playlists.id = ? AND (playlists.owner = ? OR playlists.public = true)", id, user)
+	accessCondition := bqb.New("playlists.owner = ?", user)
+	if allowPublicByDifferentOwner {
+		accessCondition.Or("playlists.public = true")
+	}
+	q.Space("WHERE playlists.id = ? AND (?)", id, accessCondition)
 	return getQuery[*repos.CompletePlaylist](ctx, p.db, q)
 }
 

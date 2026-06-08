@@ -29,7 +29,7 @@ func (h *Handler) handleSetPlaylistCover(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	_, err := h.DB.Playlist().FindByID(r.Context(), q.User(), id, repos.IncludePlaylistInfoBare())
+	_, err := h.DB.Playlist().FindByID(r.Context(), q.User(), id, false, repos.IncludePlaylistInfoBare())
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("set playlist cover: get playlist: %w", err))
 		return

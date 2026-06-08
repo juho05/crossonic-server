@@ -9,7 +9,7 @@ import (
 type PlaylistRepository struct {
 	CreateMock                                              func(ctx context.Context, params repos.CreatePlaylistParams) (*repos.Playlist, error)
 	UpdateMock                                              func(ctx context.Context, user, id string, params repos.UpdatePlaylistParams) error
-	FindByIDMock                                            func(ctx context.Context, user, id string, include repos.IncludePlaylistInfo) (*repos.CompletePlaylist, error)
+	FindByIDMock                                            func(ctx context.Context, user, id string, allowPublicByDifferentOwner bool, include repos.IncludePlaylistInfo) (*repos.CompletePlaylist, error)
 	FindAllMock                                             func(ctx context.Context, user string, include repos.IncludePlaylistInfo) ([]*repos.CompletePlaylist, error)
 	GetTracksMock                                           func(ctx context.Context, id string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error)
 	AddTracksMock                                           func(ctx context.Context, id string, songIDs []string) error
@@ -42,9 +42,9 @@ func (p PlaylistRepository) Update(ctx context.Context, user, id string, params 
 	panic("not implemented")
 }
 
-func (p PlaylistRepository) FindByID(ctx context.Context, user, id string, include repos.IncludePlaylistInfo) (*repos.CompletePlaylist, error) {
+func (p PlaylistRepository) FindByID(ctx context.Context, user, id string, allowPublicByDifferentOwner bool, include repos.IncludePlaylistInfo) (*repos.CompletePlaylist, error) {
 	if p.FindByIDMock != nil {
-		return p.FindByIDMock(ctx, user, id, include)
+		return p.FindByIDMock(ctx, user, id, allowPublicByDifferentOwner, include)
 	}
 	panic("not implemented")
 }

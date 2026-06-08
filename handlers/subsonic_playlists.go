@@ -146,7 +146,7 @@ func (h *Handler) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
-		playlist, err := tx.Playlist().FindByID(r.Context(), q.User(), id, repos.IncludePlaylistInfo{
+		playlist, err := tx.Playlist().FindByID(r.Context(), q.User(), id, false, repos.IncludePlaylistInfo{
 			TrackInfo: true,
 		})
 		if err != nil {
@@ -228,7 +228,7 @@ func (h *Handler) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getPlaylistById(ctx context.Context, id, user string) (*responses.Playlist, error) {
-	dbPlaylist, err := h.DB.Playlist().FindByID(ctx, user, id, repos.IncludePlaylistInfoFull())
+	dbPlaylist, err := h.DB.Playlist().FindByID(ctx, user, id, true, repos.IncludePlaylistInfoFull())
 	if err != nil {
 		return nil, fmt.Errorf("get playlist by id: find playlist: %w", err)
 	}
