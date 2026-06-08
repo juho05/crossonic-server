@@ -104,7 +104,7 @@ func (h *Handler) handleDeleteInternetRadioStation(w http.ResponseWriter, r *htt
 		return
 	}
 
-	err := h.DB.InternetRadioStation().Delete(r.Context(), q.Format(), id)
+	err := h.DB.InternetRadioStation().Delete(r.Context(), q.User(), id)
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("delete internet radio station: %w", err))
 		return
