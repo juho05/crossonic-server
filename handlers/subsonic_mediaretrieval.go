@@ -482,7 +482,7 @@ func (h *Handler) validateUserAccessToID(ctx context.Context, user, id string) (
 		}
 		return true, nil
 	case crossonic.IDTypePlaylist:
-		_, err := h.DB.Playlist().FindByID(ctx, user, id, false, repos.IncludePlaylistInfoBare())
+		_, err := h.DB.Playlist().FindByID(ctx, user, id, true, repos.IncludePlaylistInfoBare())
 		if err != nil {
 			if errors.Is(err, repos.ErrNotFound) {
 				return false, nil
