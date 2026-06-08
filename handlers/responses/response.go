@@ -47,6 +47,7 @@ type Response struct {
 	Album                  *AlbumWithSongs         `xml:"album,omitempty" json:"album,omitempty"`
 	Artist                 *Artist                 `xml:"artist,omitempty" json:"artist,omitempty"`
 	NowPlaying             *NowPlaying             `xml:"nowPlaying,omitempty" json:"nowPlaying,omitempty"`
+	SearchResult2          *SearchResult3          `xml:"searchResult2,omitempty" json:"searchResult2,omitempty"`
 	SearchResult3          *SearchResult3          `xml:"searchResult3,omitempty" json:"searchResult3,omitempty"`
 	Lyrics                 *Lyrics                 `xml:"lyrics,omitempty" json:"lyrics,omitempty"`
 	LyricsList             *LyricsList             `xml:"lyricsList,omitempty" json:"lyricsList,omitempty"`

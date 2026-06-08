@@ -10,38 +10,48 @@ import (
 	"github.com/juho05/crossonic-server/util"
 )
 
-func (h *Handler) handleSearch3(w http.ResponseWriter, r *http.Request) {
-	q := getQuery(w, r)
+func (h *Handler) handleSearch(search3 bool) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := getQuery(w, r)
 
-	search := strings.Trim(q.Str("query"), `"`)
+		search := strings.Trim(q.Str("query"), `"`)
 
-	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
-	if !ok {
-		return
+		musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
+		if !ok {
+			return
+		}
+
+		artists, ok := h.searchArtists(w, r, search, musicFolderIDs)
+		if !ok {
+			return
+		}
+
+		albums, ok := h.searchAlbums(w, r, search, musicFolderIDs)
+		if !ok {
+			return
+		}
+
+		songs, ok := h.searchSongs(w, r, search, musicFolderIDs)
+		if !ok {
+			return
+		}
+
+		res := responses.New()
+		if search3 {
+			res.SearchResult3 = &responses.SearchResult3{
+				Songs:   songs,
+				Albums:  albums,
+				Artists: artists,
+			}
+		} else {
+			res.SearchResult2 = &responses.SearchResult3{
+				Songs:   songs,
+				Albums:  albums,
+				Artists: artists,
+			}
+		}
+		res.EncodeOrLog(w, q.Format())
 	}
-
-	artists, ok := h.searchArtists(w, r, search, musicFolderIDs)
-	if !ok {
-		return
-	}
-
-	albums, ok := h.searchAlbums(w, r, search, musicFolderIDs)
-	if !ok {
-		return
-	}
-
-	songs, ok := h.searchSongs(w, r, search, musicFolderIDs)
-	if !ok {
-		return
-	}
-
-	res := responses.New()
-	res.SearchResult3 = &responses.SearchResult3{
-		Songs:   songs,
-		Albums:  albums,
-		Artists: artists,
-	}
-	res.EncodeOrLog(w, q.Format())
 }
 
 func (h *Handler) searchArtists(w http.ResponseWriter, r *http.Request, searchQuery string, musicFolderIDs []int) ([]*responses.Artist, bool) {
