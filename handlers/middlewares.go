@@ -8,13 +8,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/log"
+)
+
+const (
+	authRateWindow   = 5 * time.Second
+	authRateMaxFails = 3
 )
 
 type ContextKey int
@@ -71,6 +79,8 @@ func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
+			// There is no rate limiting on apiKey because the search space is big enough that brute-force is infeasible.
+
 			user, err := h.DB.User().FindUserNameByAPIKey(r.Context(), apiKey)
 			if err != nil {
 				if errors.Is(err, repos.ErrNotFound) {
@@ -88,13 +98,24 @@ func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 				responses.EncodeError(w, values.Get("f"), "missing parameter 'u'", responses.SubsonicErrorRequiredParameterMissing)
 				return
 			}
+			username := values.Get("u")
+			if limited, retryAfter := h.isAuthRateLimited(username); limited {
+				seconds := int(math.Ceil(retryAfter.Seconds()))
+				if seconds < 1 {
+					seconds = 1
+				}
+				w.Header().Set("Retry-After", strconv.Itoa(seconds))
+				w.WriteHeader(http.StatusTooManyRequests)
+				responses.EncodeError(w, values.Get("f"), "too many failed login attempts", responses.SubsonicErrorGeneric)
+				return
+			}
 			var err error
 			if values.Has("p") {
 				if values.Has("t") || values.Has("s") {
 					responses.EncodeError(w, values.Get("f"), "multiple conflicting authentication mechanisms provided", responses.SubsonicErrorMultipleConflictingAuthenticationMechanismsProvided)
 					return
 				}
-				authenticated, err = h.passwordAuth(r.Context(), values.Get("u"), values.Get("p"))
+				authenticated, err = h.passwordAuth(r.Context(), username, values.Get("p"))
 			} else if values.Has("t") {
 				// This allows empty salt values if the parameter is specified but empty. It's the clients responsibility
 				// to properly use this parameter. We do not validate this value any further to prevent client incompatibilities.
@@ -102,7 +123,7 @@ func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 					responses.EncodeError(w, values.Get("f"), "missing parameter 's'", responses.SubsonicErrorRequiredParameterMissing)
 					return
 				}
-				authenticated, err = h.tokenAuth(r.Context(), values.Get("u"), values.Get("t"), values.Get("s"))
+				authenticated, err = h.tokenAuth(r.Context(), username, values.Get("t"), values.Get("s"))
 			} else {
 				responses.EncodeError(w, values.Get("f"), "missing authentication parameter(s)", responses.SubsonicErrorRequiredParameterMissing)
 				return
@@ -120,6 +141,7 @@ func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			if !authenticated {
+				h.recordAuthFailure(username)
 				responses.EncodeError(w, values.Get("f"), "invalid credentials", responses.SubsonicErrorWrongUsernameOrPassword)
 				return
 			}
@@ -197,6 +219,41 @@ func (h *Handler) tokenAuth(ctx context.Context, username, token, salt string) (
 	setHashedPasswordIfNil(ctx, h.DB, user, dbPassword)
 
 	return true, nil
+}
+
+func (h *Handler) isAuthRateLimited(username string) (bool, time.Duration) {
+	cutoff := time.Now().Add(-authRateWindow)
+	h.authFailuresLock.RLock()
+	defer h.authFailuresLock.RUnlock()
+	failures := h.authFailures[username]
+	// Failures are appended in chronological order, so those within the window
+	// stay sorted ascending (oldest first).
+	inWindow := make([]time.Time, 0, len(failures))
+	for _, t := range failures {
+		if t.After(cutoff) {
+			inWindow = append(inWindow, t)
+		}
+	}
+	if len(inWindow) < authRateMaxFails {
+		return false, 0
+	}
+	expiresAt := inWindow[0].Add(authRateWindow)
+	return true, time.Until(expiresAt)
+}
+
+func (h *Handler) recordAuthFailure(username string) {
+	now := time.Now()
+	cutoff := now.Add(-authRateWindow)
+	h.authFailuresLock.Lock()
+	defer h.authFailuresLock.Unlock()
+	prev := h.authFailures[username]
+	pruned := prev[:0]
+	for _, t := range prev {
+		if t.After(cutoff) {
+			pruned = append(pruned, t)
+		}
+	}
+	h.authFailures[username] = append(pruned, now)
 }
 
 func setHashedPasswordIfNil(ctx context.Context, db repos.DB, user *repos.User, password string) {

@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -28,21 +30,66 @@ type Handler struct {
 	TranscodeCache *cache.Cache
 
 	Config config.Config
+
+	// user -> timestamps of failed logins
+	authFailures     map[string][]time.Time
+	authFailuresLock sync.RWMutex
+	authCleanupStop  chan struct{}
 }
 
 func New(conf config.Config, db repos.DB, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
 	h := &Handler{
-		DB:             db,
-		Scanner:        scanner,
-		ListenBrainz:   listenBrainz,
-		LastFM:         lastFM,
-		Transcoder:     transcoder,
-		TranscodeCache: transcodeCache,
-		CoverCache:     coverCache,
-		Config:         conf,
+		DB:              db,
+		Scanner:         scanner,
+		ListenBrainz:    listenBrainz,
+		LastFM:          lastFM,
+		Transcoder:      transcoder,
+		TranscodeCache:  transcodeCache,
+		CoverCache:      coverCache,
+		Config:          conf,
+		authFailures:    make(map[string][]time.Time),
+		authCleanupStop: make(chan struct{}),
 	}
 	h.registerRoutes()
+	go h.cleanAuthFailures()
 	return h
+}
+
+func (h *Handler) Close() {
+	select {
+	case <-h.authCleanupStop:
+		break
+	default:
+		close(h.authCleanupStop)
+	}
+}
+
+func (h *Handler) cleanAuthFailures() {
+	ticker := time.NewTicker(authRateWindow)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			cutoff := time.Now().Add(-authRateWindow)
+			h.authFailuresLock.Lock()
+			for username, failures := range h.authFailures {
+				pruned := failures[:0]
+				for _, t := range failures {
+					if t.After(cutoff) {
+						pruned = append(pruned, t)
+					}
+				}
+				if len(pruned) == 0 {
+					delete(h.authFailures, username)
+				} else {
+					h.authFailures[username] = pruned
+				}
+			}
+			h.authFailuresLock.Unlock()
+		case <-h.authCleanupStop:
+			return
+		}
+	}
 }
 
 func (h *Handler) registerRoutes() {

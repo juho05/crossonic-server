@@ -91,6 +91,7 @@ func run(conf config.Config) error {
 	}
 
 	handler := handlers.New(conf, db, mediaScanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
+	defer handler.Close()
 
 	addr := conf.ListenAddr
 
