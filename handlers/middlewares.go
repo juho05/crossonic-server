@@ -139,6 +139,8 @@ func (h *Handler) passwordAuth(ctx context.Context, username, password string) (
 	user, err := h.DB.User().FindByName(ctx, username)
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
+			// dummy computation to prevent username enumerations
+			_, _ = repos.VerifyPassword("$argon2id$v=19$m=3072,t=1,p=4$N2LCBe1+JO5/S5bE2HGRcg$MeQXxb6r9d0GhBbwMvc7MmkJyrbv8+EkY1Aj6SFpIeE", password)
 			return false, nil
 		}
 		return false, fmt.Errorf("password auth: %w", err)
