@@ -441,7 +441,17 @@ func (s songRepository) FindLocalOutdatedFeedbackByLB(ctx context.Context, user 
 		WHERE
 			(lb_feedback_status.uploaded IS NULL AND song_stars.created IS NULL AND songs.music_brainz_id IN (?))
 			OR
-			(lb_feedback_status.uploaded = true AND (song_stars.created IS NULL AND (songs.music_brainz_id IN (?) OR lb_feedback_status.remote_mbid IN (?)) OR song_stars.created IS NOT NULL AND (songs.music_brainz_id IS NULL OR (songs.music_brainz_id IS NULL OR songs.music_brainz_id NOT IN (?))) AND (lb_feedback_status.remote_mbid IS NULL OR lb_feedback_status.remote_mbid NOT IN (?))))
+			(lb_feedback_status.uploaded = true AND
+				(
+						song_stars.created IS NULL
+						AND
+						(songs.music_brainz_id IN (?) OR lb_feedback_status.remote_mbid IN (?))
+					OR
+						song_stars.created IS NOT NULL
+						AND (songs.music_brainz_id IS NULL OR songs.music_brainz_id NOT IN (?))
+						AND (lb_feedback_status.remote_mbid IS NULL OR lb_feedback_status.remote_mbid NOT IN (?))
+				)
+			)
 	`, genSongSelectList(include), genSongJoins(include), user, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs)
 	return execSongSelectMany(ctx, s.db, q, include)
 }
@@ -531,7 +541,7 @@ func genSongJoins(include repos.IncludeSongInfo) *bqb.Query {
 
 	if include.PlayInfo && include.User != "" {
 		q.Space(`LEFT JOIN (
-			SELECT song_id, COUNT(*) as count, MAX(time) as last_played FROM scrobbles WHERE user_name = ? AND now_playing = false AND (duration_ms IS NULL OR duration_ms >= 240000 OR duration_ms >= song_duration_ms/2) GROUP BY (user_name, song_id)
+			SELECT song_id, COUNT(*) as count, MAX(time) as last_played FROM scrobbles WHERE user_name = ? AND now_playing = false AND (duration_ms IS NULL OR duration_ms >= 240000 OR duration_ms >= song_duration_ms*0.5) GROUP BY (user_name, song_id)
 		) plays ON plays.song_id = songs.id`, include.User)
 	}
 
