@@ -223,7 +223,8 @@ func (d *DB) Transaction(ctx context.Context, fn func(tx repos.Tx) error) error 
 		}
 	}()
 	err = fn(&DB{
-		tx: tx,
+		tx:     tx,
+		config: d.config,
 	})
 	if err != nil {
 		return err
