@@ -12,7 +12,7 @@ import (
 )
 
 type Lyrics struct {
-	Title  string  `xml:"title,attr" json:"title"`
+	Title  *string `xml:"title,attr,omitempty" json:"title,omitempty"`
 	Artist *string `xml:"artist,attr,omitempty" json:"artist,omitempty"`
 	Value  string  `xml:",chardata" json:"value"`
 }

@@ -179,8 +179,17 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	q := getQuery(w, r)
 
-	title, ok := q.StrReq("title")
-	if !ok {
+	respondEmptyLyrics := func() {
+		res := responses.New()
+		res.Lyrics = &responses.Lyrics{
+			Value: "",
+		}
+		res.EncodeOrLog(w, q.Format())
+	}
+
+	title := q.Str("title")
+	if title == "" {
+		respondEmptyLyrics()
 		return
 	}
 
@@ -190,7 +199,11 @@ func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 		Lists: true,
 	})
 	if err != nil {
-		respondErr(w, q.Format(), fmt.Errorf("get lyrics: find songs by title: %w", err))
+		if errors.Is(err, repos.ErrNotFound) {
+			respondEmptyLyrics()
+		} else {
+			respondErr(w, q.Format(), fmt.Errorf("get lyrics: find songs by title: %w", err))
+		}
 		return
 	}
 
@@ -211,12 +224,12 @@ func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if song == nil {
-		respondNotFoundErr(w, q.Format(), "song not found")
+		respondEmptyLyrics()
 		return
 	}
 
 	if song.Lyrics == nil {
-		respondNotFoundErr(w, q.Format(), "no lyrics available")
+		respondEmptyLyrics()
 		return
 	}
 
@@ -226,7 +239,7 @@ func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 
 	res := responses.New()
 	res.Lyrics = &responses.Lyrics{
-		Title:  song.Title,
+		Title:  &song.Title,
 		Artist: &artist,
 		Value:  *responses.NewLyrics(song.Lyrics),
 	}
