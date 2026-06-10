@@ -12,7 +12,7 @@ import (
 
 type Album struct {
 	ID                  string         `xml:"id,attr,omitempty"       json:"id"`
-	Created             time.Time      `xml:"created,attr,omitempty"  json:"created,omitempty"`
+	Created             time.Time      `xml:"created,attr"  json:"created"`
 	ArtistID            *string        `xml:"artistId,attr,omitempty" json:"artistId,omitempty"`
 	Artist              *string        `xml:"artist,attr,omitempty"             json:"artist,omitempty"`
 	Artists             []*ArtistRef   `xml:"artists,omitempty"           json:"artists,omitempty"`
@@ -28,7 +28,7 @@ type Album struct {
 	Starred             *time.Time     `xml:"starred,attr,omitempty"         json:"starred,omitempty"`
 	UserRating          *int           `xml:"userRating,attr,omitempty"      json:"userRating,omitempty"`
 	AverageRating       *float64       `xml:"averageRating,attr,omitempty"   json:"averageRating,omitempty"`
-	Parent              *string        `xml:"parent,attr" json:"parent"`
+	Parent              *string        `xml:"parent,attr,omitempty" json:"parent,omitempty"`
 	IsDir               bool           `xml:"isDir,attr" json:"isDir"`
 	Type                string         `xml:"type,attr" json:"type"`
 	MediaType           string         `xml:"mediaType,attr" json:"mediaType"`
