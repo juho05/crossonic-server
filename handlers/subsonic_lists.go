@@ -18,7 +18,13 @@ func (h *Handler) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fromYear, ok := q.Int("fromYear")
+	if !ok {
+		return
+	}
 	toYear, ok := q.Int("toYear")
+	if !ok {
+		return
+	}
 
 	if fromYear != nil && toYear != nil && *fromYear > *toYear {
 		*fromYear, *toYear = *toYear, *fromYear
@@ -226,6 +232,9 @@ func (h *Handler) handleGetSongsByGenre(w http.ResponseWriter, r *http.Request) 
 	}
 
 	paginate, ok := q.Paginate("count", "offset", 10)
+	if !ok {
+		return
+	}
 
 	musicFolderIDs, ok := q.MusicFolderIDs(r.Context(), h.DB)
 	if !ok {
