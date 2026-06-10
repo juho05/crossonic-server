@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/juho05/crossonic-server"
@@ -22,8 +23,8 @@ type ListenBrainz struct {
 	cancel context.CancelFunc
 	config config.Config
 
-	submittingMissingListens bool
-	syncingFavorites         bool
+	submittingMissingListens atomic.Bool
+	syncingFavorites         atomic.Bool
 }
 
 type Listen struct {
@@ -251,11 +252,10 @@ func (l *ListenBrainz) GetListenbrainzConnection(ctx context.Context, user strin
 }
 
 func (l *ListenBrainz) SubmitMissingListens(ctx context.Context) error {
-	if l.submittingMissingListens {
+	if !l.submittingMissingListens.CompareAndSwap(false, true) {
 		return nil
 	}
-	l.submittingMissingListens = true
-	defer func() { l.submittingMissingListens = false }()
+	defer l.submittingMissingListens.Store(false)
 
 	scrobbles, err := l.db.Scrobble().FindUnsubmittedLBScrobbles(ctx)
 	if err != nil {
@@ -490,11 +490,10 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 // if upload status is uploaded:     global favorite <- remote is favorite
 // if upload status is not uploaded: global favorite <- local is favorite
 func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
-	if l.syncingFavorites {
+	if !l.syncingFavorites.CompareAndSwap(false, true) {
 		return nil
 	}
-	l.syncingFavorites = true
-	defer func() { l.syncingFavorites = false }()
+	defer l.syncingFavorites.Store(false)
 
 	users, err := l.db.User().FindAll(ctx)
 	if err != nil {
