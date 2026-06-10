@@ -282,7 +282,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	size, ok := q.IntPositiveDef("size", 2048)
+	size, ok := q.IntPositiveDef("size", 0)
 	if !ok {
 		return
 	}
@@ -301,9 +301,8 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	coverDir := filepath.Join(h.Config.DataDir, "covers")
 
 	cacheKey := fmt.Sprintf("%s-%d", id, size)
-
 	cacheObj, exists := h.CoverCache.GetObject(cacheKey)
-	if exists {
+	if exists && size > 0 {
 		cacheReader, err := cacheObj.Reader()
 		if err != nil {
 			respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
@@ -315,7 +314,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 				log.Errorf("get cover art: %s", err)
 			}
 		}()
-		w.Header().Set("Cache-Control", "max-age=10080") // 3h
+		w.Header().Set("Cache-Control", "max-age=10800") // 3h
 		w.Header().Set("Content-Type", "image/webp")
 
 		var lastModified time.Time
@@ -378,16 +377,26 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		respondNotFoundErr(w, q.Format(), "")
 		return
 	}
+
+	w.Header().Set("Cache-Control", "max-age=10800") // 3h
+
+	// zero size means original
+	if size <= 0 {
+		file.Close()
+		http.ServeFileFS(w, r, fileFS, id)
+		return
+	}
+
 	img, err := imaging.Decode(file, imaging.AutoOrientation(true))
 	file.Close()
 	if err != nil {
+		w.Header().Del("Cache-Control")
 		respondErr(w, q.Format(), fmt.Errorf("get cover art: decode %s: %w", id, err))
 		return
 	}
 	size = min(size, min(img.Bounds().Dx(), img.Bounds().Dy()))
 	img = imaging.Thumbnail(img, size, size, imaging.Linear)
 	w.Header().Set("Content-Type", "image/webp")
-	w.Header().Set("Cache-Control", "max-age=10080") // 3h
 	w.WriteHeader(http.StatusOK)
 	cacheObj, err = h.CoverCache.CreateObject(cacheKey)
 	if err != nil {
