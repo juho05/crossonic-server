@@ -654,7 +654,7 @@ func getSongArtistRefs(ctx context.Context, db executer, songIDs []string) (map[
 }
 
 func getSongAlbumArtistRefs(ctx context.Context, db executer, songIDs []string) (map[string][]repos.ArtistRef, error) {
-	q := bqb.New(`SELECT songs.id as song_id, artists.id, artists.name FROM songs
+	q := bqb.New(`SELECT songs.id as song_id, artists.id, artists.name, artists.music_brainz_id FROM songs
 		JOIN albums ON songs.album_id = albums.id
 		JOIN album_artist ON album_artist.album_id = albums.id
 		JOIN artists ON album_artist.artist_id = artists.id
