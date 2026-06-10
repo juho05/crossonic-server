@@ -82,7 +82,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if estimateContentLength {
-		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.Duration.ToStd()-timeOffset)/float64(time.Second)*float64(bitRate)/8*1024)))
+		w.Header().Set("Content-Length", fmt.Sprint(int(float64(info.Duration.ToStd()-timeOffset)/float64(time.Second)*float64(bitRate)/8*1000)))
 	}
 
 	if r.Method == http.MethodHead {
