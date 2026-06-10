@@ -244,7 +244,7 @@ func cleanUpLastFmDescription(description string) string {
 			continue
 		}
 
-		if i < len(description)-1 {
+		if i < len(runes)-1 {
 			// remove <a> tags
 			if runes[i] == '<' && (runes[i+1] == 'a' || (runes[i+1] == '/' && i < len(runes)-2 && runes[i+2] == 'a')) {
 				for i < len(runes) && runes[i] != '>' {
