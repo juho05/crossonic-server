@@ -94,12 +94,12 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		done := make(chan struct{})
 		w.Header().Set("Accept-Ranges", "none")
 		if format == "raw" {
-			err = h.Transcoder.SeekRaw(info.Path, timeOffset, w, func() {
+			err = h.Transcoder.SeekRaw(info.Path, timeOffset, w, func(err error) {
 				close(done)
 			})
 			log.Tracef("Streaming %s with offset (%s) (%s %dkbps) to %s (user: %s)...", id, timeOffset.String(), info.ContentType, info.BitRate, q.Client(), q.User())
 		} else {
-			bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, timeOffset, w, func() {
+			bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, timeOffset, w, func(err error) {
 				close(done)
 			})
 			log.Tracef("Streaming %s with transcoded offset (%s) (%s %dkbps) to %s (user: %s)...", id, timeOffset.String(), fileFormat.Name, bitRate, q.Client(), q.User())
@@ -121,8 +121,16 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 			respondErr(w, q.Format(), fmt.Errorf("stream: %w", err))
 			return
 		}
-		bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, 0, cacheObj, func() {
-			err := cacheObj.SetComplete()
+		bitRate, err = h.Transcoder.Transcode(info.Path, info.ChannelCount, fileFormat, bitRate, 0, cacheObj, func(err error) {
+			if err != nil {
+				err = h.TranscodeCache.DeleteObject(cacheKey)
+				if err != nil {
+					log.Errorf("stream: %s", err)
+				}
+				return
+			}
+
+			err = cacheObj.SetComplete()
 			if err != nil {
 				log.Errorf("ffmpeg: transcode: %s", err)
 			}

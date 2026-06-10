@@ -103,7 +103,7 @@ func (t *Transcoder) SelectFormat(name string, channels, maxBitRateK int) (Forma
 	return f, maxBitRateK
 }
 
-func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitRateK int, timeOffset time.Duration, w io.Writer, onDone func()) (bitRate int, err error) {
+func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitRateK int, timeOffset time.Duration, w io.Writer, onDone func(err error)) (bitRate int, err error) {
 	if maxBitRateK == 0 {
 		maxBitRateK = format.defaultBitRateK
 	}
@@ -149,23 +149,22 @@ func (t *Transcoder) Transcode(path string, channels int, format Format, maxBitR
 		return 0, fmt.Errorf("ffmpeg: transcode: %w", err)
 	}
 	go func() {
-		err = cmd.Wait()
+		err := cmd.Wait()
 		if err != nil {
 			if stderr != nil {
 				log.Errorf("ffmpeg: transcode: %s\n%s", err, stderr.String())
 			} else {
 				log.Errorf("ffmpeg: transcode: %s", err)
 			}
-			return
 		}
 		if onDone != nil {
-			onDone()
+			onDone(err)
 		}
 	}()
 	return maxBitRateK, nil
 }
 
-func (t *Transcoder) SeekRaw(path string, timeOffset time.Duration, w io.Writer, onDone func()) error {
+func (t *Transcoder) SeekRaw(path string, timeOffset time.Duration, w io.Writer, onDone func(err error)) error {
 	ext := strings.TrimPrefix(filepath.Ext(path), ".")
 	cmd := exec.Command(ffmpegPath, "-v", "error", "-ss", fmt.Sprintf("%dus", timeOffset.Microseconds()), "-i", path, "-map", "0:a:0", "-vn", "-c", "copy", "-f", ext, "-")
 
@@ -177,17 +176,16 @@ func (t *Transcoder) SeekRaw(path string, timeOffset time.Duration, w io.Writer,
 		return fmt.Errorf("ffmpeg: seek raw: start: %w", err)
 	}
 	go func() {
-		err = cmd.Wait()
+		err := cmd.Wait()
 		if err != nil {
 			if stderr != nil {
 				log.Errorf("ffmpeg: seek raw: wait: %s\n%s", err, stderr.String())
 			} else {
 				log.Errorf("ffmpeg: seek raw: wait: %s", err)
 			}
-			return
 		}
 		if onDone != nil {
-			onDone()
+			onDone(err)
 		}
 	}()
 	return nil
