@@ -71,19 +71,16 @@ func (c *Cache) GetObject(key string) (*Object, bool) {
 }
 
 func (c *Cache) CreateObject(key string) (*Object, error) {
-	c.objectsLock.RLock()
+	c.objectsLock.Lock()
+	defer c.objectsLock.Unlock()
 	if _, ok := c.objects[key]; ok {
-		c.objectsLock.RUnlock()
 		return nil, os.ErrExist
 	}
-	c.objectsLock.RUnlock()
 	object, err := c.newCacheObject(key)
 	if err != nil {
 		return nil, fmt.Errorf("cache new object: %w", err)
 	}
-	c.objectsLock.Lock()
 	c.objects[key] = object
-	c.objectsLock.Unlock()
 	return object, nil
 }
 
