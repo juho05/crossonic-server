@@ -2,6 +2,7 @@ package responses
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/juho05/crossonic-server/config"
@@ -72,7 +73,7 @@ func NewSong(s *repos.CompleteSong, conf config.Config) *Song {
 		CoverArt:      coverArt,
 		Size:          s.Size,
 		ContentType:   s.ContentType,
-		Suffix:        filepath.Ext(s.Path),
+		Suffix:        strings.TrimPrefix(filepath.Ext(s.Path), "."),
 		Duration:      s.Duration.Seconds(),
 		BitRate:       s.BitRate,
 		SamplingRate:  s.SamplingRate,
