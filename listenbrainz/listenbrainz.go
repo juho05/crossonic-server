@@ -388,9 +388,8 @@ func (l *ListenBrainz) StartPeriodicSync(period time.Duration) {
 			select {
 			case <-ctx.Done():
 				break loop
-			default:
+			case <-time.After(period):
 			}
-			time.Sleep(period)
 		}
 	}()
 }
@@ -695,7 +694,10 @@ func listenBrainzRequest[T any](ctx context.Context, listenBrainzURL, endpoint, 
 			log.Errorf("invalid value of X-RateLimit-Reset-In in 429 ListenBrainz response: %s", secondsStr)
 			seconds = 1
 		}
-		time.Sleep(time.Duration(seconds)*time.Second + 500*time.Millisecond)
+		err = util.CancelableSleep(ctx, time.Duration(seconds)*time.Second+500*time.Millisecond)
+		if err != nil {
+			return obj, fmt.Errorf("listenbrainz request: %w", err)
+		}
 		return listenBrainzRequest[T](ctx, listenBrainzURL, endpoint, method, token, body)
 	}
 	defer res.Body.Close()

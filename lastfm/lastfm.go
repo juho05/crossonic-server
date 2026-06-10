@@ -14,6 +14,7 @@ import (
 
 	"github.com/andybalholm/cascadia"
 	"github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server/util"
 	"github.com/juho05/log"
 	"golang.org/x/net/html"
 )
@@ -183,7 +184,10 @@ func lastFMRequest[T any](l *LastFm, ctx context.Context, method, responseKey st
 				seconds = int(math.Ceil(time.Until(t).Seconds()))
 			}
 		}
-		time.Sleep(time.Duration(seconds) * time.Second)
+		err = util.CancelableSleep(ctx, time.Duration(seconds)*time.Second)
+		if err != nil {
+			return obj, fmt.Errorf("last.fm request: %w", context.Canceled)
+		}
 		return lastFMRequest[T](l, ctx, method, responseKey, params)
 	}
 	defer res.Body.Close()
@@ -210,7 +214,10 @@ func lastFMRequest[T any](l *LastFm, ctx context.Context, method, responseKey st
 		}
 		// rate limit exceeded
 		if code == 29 {
-			time.Sleep(1 * time.Second)
+			err := util.CancelableSleep(ctx, 1*time.Second)
+			if err != nil {
+				return obj, fmt.Errorf("last.fm request: %w", err)
+			}
 			return lastFMRequest[T](l, ctx, method, responseKey, params)
 		}
 		// not found
@@ -225,9 +232,9 @@ func lastFMRequest[T any](l *LastFm, ctx context.Context, method, responseKey st
 			return obj, fmt.Errorf("last.fm request: decode response: %w: %w", ErrUnexpectedResponseBody, err)
 		}
 		return obj, nil
-	} else {
-		return obj, fmt.Errorf("last.fm request: response key %s does not exist in response: %w", responseKey, ErrUnexpectedResponseBody)
 	}
+
+	return obj, fmt.Errorf("last.fm request: response key %s does not exist in response: %w", responseKey, ErrUnexpectedResponseBody)
 }
 
 func cleanUpLastFmDescription(description string) string {
