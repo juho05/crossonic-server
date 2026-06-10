@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/juho05/log"
@@ -24,7 +25,7 @@ type Cache struct {
 	objects     map[string]*Object
 	objectsLock sync.RWMutex
 
-	cleaning bool
+	cleaning atomic.Bool
 
 	close chan<- struct{}
 }
@@ -133,113 +134,85 @@ func (c *Cache) Clear() error {
 	return nil
 }
 
-func (c *Cache) InvalidateGracefully() error {
-	c.objectsLock.Lock()
-	defer c.objectsLock.Unlock()
-	for key, o := range c.objects {
-		if o.readerCount > 0 {
-			o.delete = true
-			continue
-		}
-		err := o.Close()
-		if err != nil {
-			return fmt.Errorf("cache: invalidate gracefully: delete object: %w", err)
-		}
-		err = os.Remove(c.keyToPath(key))
-		if err != nil {
-			return fmt.Errorf("cache: invalidate gracefully: delete object: %w", err)
-		}
-		delete(c.objects, key)
-		if o.complete {
-			err = os.Remove(c.keyToPath(key) + "-complete")
-			if err != nil {
-				return fmt.Errorf("cache: invalidate gracefully: delete object: %w", err)
-			}
-		}
+// evict closes the object and removes it from the cache (memory and disk) if
+// it has no active readers, reporting whether it was removed. It must be
+// called while holding objectsLock.
+func (c *Cache) evict(o *Object) bool {
+	closed, err := o.closeForEviction()
+	if err != nil {
+		log.Errorf("cache: clean: close object: %s", err)
 	}
-	return nil
+	if !closed {
+		return false
+	}
+	key := o.key
+	if err := os.Remove(c.keyToPath(key)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Errorf("cache: clean: remove object: %s", err)
+	}
+	if err := os.Remove(c.keyToPath(key) + "-complete"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Warnf("failed to remove %s: %s", c.keyToPath(key)+"-complete", err)
+	}
+	delete(c.objects, key)
+	return true
 }
 
 func (c *Cache) clean() {
-	if c.cleaning {
+	if !c.cleaning.CompareAndSwap(false, true) {
 		return
 	}
-	c.cleaning = true
-	defer func() {
-		c.cleaning = false
-	}()
+	defer c.cleaning.Store(false)
 	log.Tracef("cleaning cache in %s...", c.dir)
 	c.objectsLock.Lock()
 	defer c.objectsLock.Unlock()
+
+	type entry struct {
+		obj      *Object
+		size     int64
+		accessed time.Time
+	}
+
 	var size int64
-	objects := make([]*Object, 0, len(c.objects))
+	entries := make([]entry, 0, len(c.objects))
 	var largest *Object
-	for key, o := range c.objects {
-		if o.readerCount <= 0 {
-			if o.delete || time.Since(o.accessed) > c.maxUnusedTime {
-				err := o.Close()
-				if err != nil {
-					log.Errorf("cache: clean: %s", err)
-				}
-				err = os.Remove(c.keyToPath(key))
-				if err != nil {
-					log.Errorf("cache: clean: %s", err)
-				}
-				err = os.Remove(c.keyToPath(key) + "-complete")
-				if err != nil && !errors.Is(err, os.ErrNotExist) {
-					log.Warnf("failed to remove %s: %s", c.keyToPath(key)+"-complete", err)
-				}
-				delete(c.objects, key)
+	var largestSize int64
+	for _, o := range c.objects {
+		readerCount, objSize, accessed := o.stats()
+		if readerCount <= 0 {
+			if time.Since(accessed) > c.maxUnusedTime {
+				c.evict(o)
 				continue
 			}
-			if time.Since(o.accessed) > 30*time.Minute && (largest == nil || o.size > largest.size) {
+			if time.Since(accessed) > 30*time.Minute && (largest == nil || objSize > largestSize) {
 				largest = o
+				largestSize = objSize
 			}
 		}
-		size += o.size
-		objects = append(objects, o)
+		size += objSize
+		entries = append(entries, entry{obj: o, size: objSize, accessed: accessed})
 	}
 	if size <= c.maxSize {
 		log.Tracef("max cache size not reached yet: %d kB of %d kB", size/1000, c.maxSize/1000)
 		return
 	}
 	oldSize := size
-	if largest != nil && float64(c.maxSize)/float64(largest.size) > 0.3 {
-		err := largest.Close()
-		if err != nil {
-			log.Errorf("cache: clean: %s", err)
+	if largest != nil && float64(c.maxSize)/float64(largestSize) > 0.3 {
+		if c.evict(largest) {
+			size -= largestSize
 		}
-		err = os.Remove(c.keyToPath(largest.key))
-		if err != nil {
-			log.Errorf("cache: clean: %s", err)
-		}
-		err = os.Remove(c.keyToPath(largest.key) + "-complete")
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Warnf("failed to remove %s: %s", c.keyToPath(largest.key)+"-complete", err)
-		}
-		delete(c.objects, largest.key)
-		size -= largest.size
 	}
-	slices.SortFunc(objects, func(a, b *Object) int {
+	slices.SortFunc(entries, func(a, b entry) int {
 		return cmp.Compare(time.Since(b.accessed), time.Since(a.accessed))
 	})
-	for _, o := range objects {
-		if (largest != nil && o.key == largest.key) || o.readerCount > 0 {
+	for _, e := range entries {
+		if largest != nil && e.obj.key == largest.key {
 			continue
 		}
 		if size <= c.maxSize {
 			break
 		}
-		err := o.Close()
-		if err != nil {
-			log.Errorf("cache: clean: %s", err)
+		if c.evict(e.obj) {
+			size -= e.size
 		}
-		err = os.Remove(c.keyToPath(o.key))
-		if err != nil {
-			log.Errorf("cache: clean: %s", err)
-		}
-		delete(c.objects, o.key)
-		size -= o.size
 	}
 	log.Tracef("cleaned %d kB; new size: %d kB of %d kB", oldSize/1000-size/1000, size/1000, c.maxSize/1000)
 }

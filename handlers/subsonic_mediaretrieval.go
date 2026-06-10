@@ -15,6 +15,7 @@ import (
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 	"github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server/cache"
 	"github.com/juho05/crossonic-server/handlers/responses"
 	"github.com/juho05/crossonic-server/lastfm"
 	"github.com/juho05/crossonic-server/repos"
@@ -309,8 +310,8 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	coverDir := filepath.Join(h.Config.DataDir, "covers")
 
 	cacheKey := fmt.Sprintf("%s-%d", id, size)
-	cacheObj, exists := h.CoverCache.GetObject(cacheKey)
-	if exists && size > 0 {
+
+	serveExistingCover := func(cacheObj *cache.Object) {
 		cacheReader, err := cacheObj.Reader()
 		if err != nil {
 			respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
@@ -341,6 +342,11 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 			}
 			_, _ = io.Copy(w, cacheReader)
 		}
+	}
+
+	cacheObj, exists := h.CoverCache.GetObject(cacheKey)
+	if exists && size > 0 {
+		serveExistingCover(cacheObj)
 		return
 	}
 
@@ -404,13 +410,19 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	}
 	size = min(size, min(img.Bounds().Dx(), img.Bounds().Dy()))
 	img = imaging.Thumbnail(img, size, size, imaging.Linear)
-	w.Header().Set("Content-Type", "image/webp")
-	w.WriteHeader(http.StatusOK)
 	cacheObj, err = h.CoverCache.CreateObject(cacheKey)
 	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			cacheObj, exists := h.CoverCache.GetObject(cacheKey)
+			if exists {
+				serveExistingCover(cacheObj)
+				return
+			}
+		}
 		respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
 		return
 	}
+	w.Header().Set("Content-Type", "image/webp")
 	go func() {
 		err = webp.Encode(cacheObj, img, nil)
 		if err != nil {
@@ -431,8 +443,9 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 		respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
 		return
 	}
-	defer cacheObj.Close()
+	defer cacheReader.Close()
 	w.Header().Set("Last-Modified", stat.ModTime().UTC().Format(http.TimeFormat))
+	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, cacheReader)
 }
 

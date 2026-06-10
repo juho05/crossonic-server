@@ -32,6 +32,10 @@ func (c *cacheReader) Read(p []byte) (n int, err error) {
 		return 0, nil
 	}
 	size := min(int64(len(p)), c.obj.size-c.offset)
+	if c.obj.file == nil {
+		// file was deleted non-gracefully -> abort
+		return 0, fmt.Errorf("cache reader is closed")
+	}
 	n, err = c.obj.file.ReadAt(p[:size], c.offset)
 	c.offset += int64(n)
 	if errors.Is(err, io.EOF) {
@@ -50,6 +54,10 @@ func (c *cacheReader) ReadAt(p []byte, off int64) (n int, err error) {
 		return 0, nil
 	}
 	size := min(int64(len(p)), c.obj.size-off)
+	if c.obj.file == nil {
+		// file was deleted non-gracefully -> abort
+		return 0, fmt.Errorf("cache reader is closed")
+	}
 	n, err = c.obj.file.ReadAt(p[:size], off)
 	if errors.Is(err, io.EOF) {
 		err = nil
