@@ -98,6 +98,11 @@ func DecryptPassword(encryptedPassword, key []byte) (string, error) {
 		return "", fmt.Errorf("new gcm: %w", err)
 	}
 	nonceSize := gcm.NonceSize()
+
+	if len(encryptedPassword) < nonceSize {
+		return "", fmt.Errorf("encrypted password too short")
+	}
+
 	nonce, ciphertext := encryptedPassword[:nonceSize], encryptedPassword[nonceSize:]
 	password, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
@@ -116,7 +121,7 @@ func HashPassword(password string) (string, error) {
 		return "", fmt.Errorf("generate salt: %w", err)
 	}
 
-	hash := argon2.IDKey([]byte(password), salt, 1, 3072, 4, 32)
+	hash := argon2.IDKey([]byte(password), salt, argon2idTime, argon2idMemory, argon2idThreads, 32)
 
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
