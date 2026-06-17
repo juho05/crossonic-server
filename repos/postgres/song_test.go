@@ -932,21 +932,30 @@ func TestSongRepository(t *testing.T) {
 
 	t.Run("FindByTitle", func(t *testing.T) {
 		folderID := thCreateMusicFolder(t, db, user)
-		uniqueTitle := "UniqueTitle-" + crossonic.GenIDSong()
+		folderID2 := thCreateMusicFolder(t, db, user)
+		folderID3 := thCreateMusicFolder(t, db, user2)
+		songTitle := "UniqueTitle-" + crossonic.GenIDSong()
 		id := crossonic.GenIDSong()
+		id2 := crossonic.GenIDSong()
+		id3 := crossonic.GenIDSong()
 		require.NoError(t, repo.CreateAll(ctx, []repos.CreateSongParams{
-			{ID: &id, Path: "/test/bytitle-" + id + ".mp3", Title: uniqueTitle, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
+			{ID: &id, Path: "/test/bytitle-" + id + ".mp3", Title: songTitle, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
+			{ID: &id2, Path: "/test/bytitle-" + id2 + ".mp3", Title: songTitle, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID2},
+			{ID: &id3, Path: "/test/bytitle-" + id3 + ".mp3", Title: songTitle, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID3},
 		}))
 
-		t.Run("returns songs by title", func(t *testing.T) {
-			songs, err := repo.FindByTitle(ctx, uniqueTitle, repos.IncludeSongInfoBare())
+		t.Run("returns accessible songs by title", func(t *testing.T) {
+			songs, err := repo.FindByTitle(ctx, songTitle, user, repos.IncludeSongInfoBare())
 			require.NoErrorf(t, err, "find by title: %v", err)
 			ids := util.Map(songs, func(s *repos.CompleteSong) string { return s.ID })
+			assert.Equal(t, 2, len(ids))
 			assert.Contains(t, ids, id)
+			assert.Contains(t, ids, id2)
+			assert.NotContains(t, ids, id3)
 		})
 
 		t.Run("returns empty for unknown title", func(t *testing.T) {
-			songs, err := repo.FindByTitle(ctx, "no-such-title-xyz-123", repos.IncludeSongInfoBare())
+			songs, err := repo.FindByTitle(ctx, "no-such-title-xyz-123", user, repos.IncludeSongInfoBare())
 			require.NoErrorf(t, err, "find by title: %v", err)
 			assert.Empty(t, songs)
 		})

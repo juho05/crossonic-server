@@ -204,7 +204,7 @@ func (h *Handler) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 
 	artist := q.Str("artist")
 
-	songs, err := h.DB.Song().FindByTitle(r.Context(), title, repos.IncludeSongInfo{
+	songs, err := h.DB.Song().FindByTitle(r.Context(), title, q.User(), repos.IncludeSongInfo{
 		Lists: true,
 	})
 	if err != nil {

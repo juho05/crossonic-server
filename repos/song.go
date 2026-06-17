@@ -234,7 +234,7 @@ type SongRepository interface {
 	FindAllFiltered(ctx context.Context, filter SongFindAllFilter, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByMusicBrainzID(ctx context.Context, mbid string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindByPath(ctx context.Context, path string, include IncludeSongInfo) (*CompleteSong, error)
-	FindByTitle(ctx context.Context, title string, include IncludeSongInfo) ([]*CompleteSong, error)
+	FindByTitle(ctx context.Context, title, user string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindAllByPathOrMBID(ctx context.Context, paths []string, mbids []string, include IncludeSongInfo) ([]*CompleteSong, error)
 	FindNonExistentIDs(ctx context.Context, ids []string) ([]string, error)
 

@@ -163,8 +163,8 @@ func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFi
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 
-func (s songRepository) FindByTitle(ctx context.Context, title string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
-	q := bqb.New("SELECT ? FROM songs ? WHERE songs.title = ?", genSongSelectList(include), genSongJoins(include), title)
+func (s songRepository) FindByTitle(ctx context.Context, title, user string, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
+	q := bqb.New("SELECT ? FROM songs ? ? WHERE songs.title = ?", genSongSelectList(include), genMusicFolderUserJoin("songs", user), genSongJoins(include), title)
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 

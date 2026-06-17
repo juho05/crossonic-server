@@ -129,7 +129,9 @@ func parseStructuredLyrics(lyrics string) *StructuredLyrics {
 					case "offset":
 						var err error
 						offset, err = strconv.Atoi(content)
-						log.Warnf("invalid offset in lyrics data: %s", err)
+						if err != nil {
+							log.Warnf("invalid offset in lyrics data: %s", err)
+						}
 					}
 				}
 			}
