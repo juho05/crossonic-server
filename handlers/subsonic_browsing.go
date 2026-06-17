@@ -207,7 +207,7 @@ func (h *Handler) handleGetArtistsIndex(byID3 bool) func(w http.ResponseWriter, 
 				i.Artist = append(i.Artist, artist)
 			} else {
 				indexMap[key] = &responses.Index{
-					Name:   string(key),
+					Name:   strings.ToUpper(string(key)),
 					Artist: []*responses.Artist{artist},
 				}
 			}
