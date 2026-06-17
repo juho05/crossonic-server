@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 	"unicode"
@@ -531,18 +532,18 @@ func (h *Handler) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) constructCoverURL(id string, query UrlQuery) string {
-	u := fmt.Sprintf("%s/rest/getCoverArt?id=%s&c=%s&u=%s&v=%s", h.Config.BaseURL, id, query.Str("c"), query.Str("u"), query.Str("v"))
+	u := fmt.Sprintf("%s/rest/getCoverArt?id=%s&c=%s&u=%s&v=%s", h.Config.BaseURL, url.QueryEscape(id), url.QueryEscape(query.Str("c")), url.QueryEscape(query.Str("u")), url.QueryEscape(query.Str("v")))
 	if query.Has("p") {
-		u += "&p=" + query.Str("p")
+		u += "&p=" + url.QueryEscape(query.Str("p"))
 	}
 	if query.Has("t") {
-		u += "&t=" + query.Str("t")
+		u += "&t=" + url.QueryEscape(query.Str("t"))
 	}
 	if query.Has("s") {
-		u += "&s=" + query.Str("s")
+		u += "&s=" + url.QueryEscape(query.Str("s"))
 	}
 	if query.Has("apiKey") {
-		u += "&apiKey=" + query.Str("apiKey")
+		u += "&apiKey=" + url.QueryEscape(query.Str("apiKey"))
 	}
 	return u
 }
