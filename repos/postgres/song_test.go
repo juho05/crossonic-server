@@ -1290,6 +1290,112 @@ func TestSongRepository(t *testing.T) {
 			assert.NotContains(t, ids, songID)
 		})
 
+		t.Run("includes both unstarred copies sharing an MBID when none is starred", func(t *testing.T) {
+			mbid := "mbid-" + crossonic.GenIDSong()
+			song1 := thCreateSongWithMBID(t, db, folderID, mbid)
+			song2 := thCreateSongWithMBID(t, db, folderID, mbid)
+
+			songs, err := repo.FindLocalOutdatedFeedbackByLB(ctx, user, []string{mbid}, repos.IncludeSongInfoBare())
+			require.NoError(t, err)
+			ids := util.Map(songs, func(s *repos.CompleteSong) string { return s.ID })
+			assert.Contains(t, ids, song1)
+			assert.Contains(t, ids, song2)
+		})
+
+		t.Run("excludes unstarred copy sharing an MBID with an already-starred sibling", func(t *testing.T) {
+			mbid := "mbid-" + crossonic.GenIDSong()
+			starred := thCreateSongWithMBID(t, db, folderID, mbid)
+			sibling := thCreateSongWithMBID(t, db, folderID, mbid)
+			require.NoError(t, repo.Star(ctx, user, starred))
+
+			songs, err := repo.FindLocalOutdatedFeedbackByLB(ctx, user, []string{mbid}, repos.IncludeSongInfoBare())
+			require.NoError(t, err)
+			ids := util.Map(songs, func(s *repos.CompleteSong) string { return s.ID })
+			assert.NotContains(t, ids, sibling)
+		})
+
+		t.Run("ignores a sibling starred by another user when guarding", func(t *testing.T) {
+			mbid := "mbid-" + crossonic.GenIDSong()
+			sibling := thCreateSongWithMBID(t, db, folderID, mbid)
+			otherUsersCopy := thCreateSongWithMBID(t, db, folderID, mbid)
+			require.NoError(t, repo.Star(ctx, user2, otherUsersCopy))
+
+			songs, err := repo.FindLocalOutdatedFeedbackByLB(ctx, user, []string{mbid}, repos.IncludeSongInfoBare())
+			require.NoError(t, err)
+			ids := util.Map(songs, func(s *repos.CompleteSong) string { return s.ID })
+			assert.Contains(t, ids, sibling)
+		})
+
+		t.Run("excludes uploaded sibling of an already-starred copy", func(t *testing.T) {
+			mbid := "mbid-" + crossonic.GenIDSong()
+			rep := thCreateSongWithMBID(t, db, folderID, mbid)
+			require.NoError(t, repo.Star(ctx, user, rep))
+			require.NoError(t, repo.SetLBFeedbackUploaded(ctx, user, []repos.SongSetLBFeedbackUploadedParams{
+				{SongID: rep, Uploaded: true},
+			}, false))
+			sibling := thCreateSongWithMBID(t, db, folderID, mbid)
+			require.NoError(t, repo.SetLBFeedbackUploaded(ctx, user, []repos.SongSetLBFeedbackUploadedParams{
+				{SongID: sibling, Uploaded: true},
+			}, false))
+
+			songs, err := repo.FindLocalOutdatedFeedbackByLB(ctx, user, []string{mbid}, repos.IncludeSongInfoBare())
+			require.NoError(t, err)
+			ids := util.Map(songs, func(s *repos.CompleteSong) string { return s.ID })
+			assert.NotContains(t, ids, sibling)
+		})
+
+		t.Run("excludes all uploaded siblings when one copy of three is starred", func(t *testing.T) {
+			mbid := "mbid-" + crossonic.GenIDSong()
+			rep := thCreateSongWithMBID(t, db, folderID, mbid)
+			require.NoError(t, repo.Star(ctx, user, rep))
+			sibling1 := thCreateSongWithMBID(t, db, folderID, mbid)
+			sibling2 := thCreateSongWithMBID(t, db, folderID, mbid)
+			require.NoError(t, repo.SetLBFeedbackUploaded(ctx, user, []repos.SongSetLBFeedbackUploadedParams{
+				{SongID: rep, Uploaded: true},
+				{SongID: sibling1, Uploaded: true},
+				{SongID: sibling2, Uploaded: true},
+			}, false))
+
+			songs, err := repo.FindLocalOutdatedFeedbackByLB(ctx, user, []string{mbid}, repos.IncludeSongInfoBare())
+			require.NoError(t, err)
+			ids := util.Map(songs, func(s *repos.CompleteSong) string { return s.ID })
+			assert.NotContains(t, ids, sibling1)
+			assert.NotContains(t, ids, sibling2)
+		})
+
+		t.Run("ignores a sibling starred by another user in the uploaded branch", func(t *testing.T) {
+			mbid := "mbid-" + crossonic.GenIDSong()
+			sibling := thCreateSongWithMBID(t, db, folderID, mbid)
+			require.NoError(t, repo.SetLBFeedbackUploaded(ctx, user, []repos.SongSetLBFeedbackUploadedParams{
+				{SongID: sibling, Uploaded: true},
+			}, false))
+			otherUsersCopy := thCreateSongWithMBID(t, db, folderID, mbid)
+			require.NoError(t, repo.Star(ctx, user2, otherUsersCopy))
+
+			songs, err := repo.FindLocalOutdatedFeedbackByLB(ctx, user, []string{mbid}, repos.IncludeSongInfoBare())
+			require.NoError(t, err)
+			ids := util.Map(songs, func(s *repos.CompleteSong) string { return s.ID })
+			assert.Contains(t, ids, sibling)
+		})
+
+		t.Run("does not suppress a remote_mbid match that has no local MBID", func(t *testing.T) {
+			// A tag-less song matched via remote_mbid has a NULL music_brainz_id, so the
+			// sibling guard (which compares music_brainz_id) must never suppress it, even
+			// when an unrelated starred song exists.
+			remoteMBID := "remote-mbid-" + crossonic.GenIDSong()
+			tagless := thCreateSong(t, db, nil, folderID)
+			require.NoError(t, repo.SetLBFeedbackUploaded(ctx, user, []repos.SongSetLBFeedbackUploadedParams{
+				{SongID: tagless, RemoteMBID: &remoteMBID, Uploaded: true},
+			}, true))
+			starredOther := thCreateSongWithMBID(t, db, folderID, "mbid-"+crossonic.GenIDSong())
+			require.NoError(t, repo.Star(ctx, user, starredOther))
+
+			songs, err := repo.FindLocalOutdatedFeedbackByLB(ctx, user, []string{remoteMBID}, repos.IncludeSongInfoBare())
+			require.NoError(t, err)
+			ids := util.Map(songs, func(s *repos.CompleteSong) string { return s.ID })
+			assert.Contains(t, ids, tagless)
+		})
+
 		t.Run("works with empty lbLovedMBIDs", func(t *testing.T) {
 			songs, err := repo.FindLocalOutdatedFeedbackByLB(ctx, user, []string{}, repos.IncludeSongInfoBare())
 			require.NoError(t, err)

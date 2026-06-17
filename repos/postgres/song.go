@@ -447,20 +447,30 @@ func (s songRepository) FindLocalOutdatedFeedbackByLB(ctx context.Context, user 
 		SELECT ? FROM songs ?
 		LEFT JOIN lb_feedback_status ON lb_feedback_status.song_id = songs.id AND lb_feedback_status.user_name = ?
 		WHERE
-			(lb_feedback_status.uploaded IS NULL AND song_stars.created IS NULL AND songs.music_brainz_id IN (?))
+			(lb_feedback_status.uploaded IS NULL AND song_stars.created IS NULL AND songs.music_brainz_id IN (?)
+				AND NOT EXISTS (
+					SELECT 1 FROM song_stars ss
+					JOIN songs s2 ON s2.id = ss.song_id
+					WHERE ss.user_name = ? AND s2.music_brainz_id = songs.music_brainz_id
+				))
 			OR
 			(lb_feedback_status.uploaded = true AND
 				(
 						song_stars.created IS NULL
 						AND
 						(songs.music_brainz_id IN (?) OR lb_feedback_status.remote_mbid IN (?))
+						AND NOT EXISTS (
+							SELECT 1 FROM song_stars ss
+							JOIN songs s2 ON s2.id = ss.song_id
+							WHERE ss.user_name = ? AND s2.music_brainz_id = songs.music_brainz_id
+						)
 					OR
 						song_stars.created IS NOT NULL
 						AND (songs.music_brainz_id IS NULL OR songs.music_brainz_id NOT IN (?))
 						AND (lb_feedback_status.remote_mbid IS NULL OR lb_feedback_status.remote_mbid NOT IN (?))
 				)
 			)
-	`, genSongSelectList(include), genSongJoins(include), user, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs, lbLovedMBIDs)
+	`, genSongSelectList(include), genSongJoins(include), user, lbLovedMBIDs, user, lbLovedMBIDs, lbLovedMBIDs, user, lbLovedMBIDs, lbLovedMBIDs)
 	return execSongSelectMany(ctx, s.db, q, include)
 }
 

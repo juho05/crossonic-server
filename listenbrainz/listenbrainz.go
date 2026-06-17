@@ -458,17 +458,32 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 		Score         FeedbackScore `json:"score"`
 	}
 	successSongs := make([]repos.SongSetLBFeedbackUploadedParams, 0, len(feedback))
+	// Multiple local files can share the same recording MBID. Send each unique
+	// (recording MBID, score) to ListenBrainz only once, but still mark every song
+	// that maps to a successful POST as uploaded.
+	type feedbackKey struct {
+		mbid  string
+		score FeedbackScore
+	}
+	postResults := make(map[feedbackKey]error)
 	for _, f := range feedback {
 		if f.SongMBID == nil {
 			continue
 		}
-		log.Tracef("listenbrainz: uploading feedback for %s (%s, %v): %v", f.SongName, f.SongID, f.SongMBID, f.Score)
-		_, err := listenBrainzRequest[any](ctx, l.config.ListenBrainzURL, "/1/feedback/recording-feedback", http.MethodPost, con.Token, request{
-			RecordingMBID: *f.SongMBID,
-			Score:         f.Score,
-		})
+		key := feedbackKey{mbid: *f.SongMBID, score: f.Score}
+		err, posted := postResults[key]
+		if !posted {
+			log.Tracef("listenbrainz: uploading feedback for %s (%s, %v): %v", f.SongName, f.SongID, f.SongMBID, f.Score)
+			_, err = listenBrainzRequest[any](ctx, l.config.ListenBrainzURL, "/1/feedback/recording-feedback", http.MethodPost, con.Token, request{
+				RecordingMBID: *f.SongMBID,
+				Score:         f.Score,
+			})
+			if err != nil {
+				log.Errorf("listenbrainz: update song feedback: %s", err)
+			}
+			postResults[key] = err
+		}
 		if err != nil {
-			log.Errorf("listenbrainz: update song feedback: %s", err)
 			continue
 		}
 		successSongs = append(successSongs, repos.SongSetLBFeedbackUploadedParams{
@@ -518,8 +533,12 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 			continue
 		}
 		lbLovedMBIDs := make([]string, 0, len(lbFeedback))
+		lbLovedReleaseMBIDs := make(map[string]struct{}, len(lbFeedback))
 		for _, f := range lbFeedback {
 			lbLovedMBIDs = append(lbLovedMBIDs, f.RecordingMBID)
+			if f.TrackMetadata.MBIDMapping.ReleaseMBID != nil {
+				lbLovedReleaseMBIDs[*f.TrackMetadata.MBIDMapping.ReleaseMBID] = struct{}{}
+			}
 		}
 
 		err = l.db.Song().SetLBFeedbackUploadedForAllMatchingStarredSongs(ctx, u.Name, lbLovedMBIDs)
@@ -561,6 +580,7 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 
 		songs, err = l.db.Song().FindLocalOutdatedFeedbackByLB(ctx, u.Name, lbLovedMBIDs, repos.IncludeSongInfo{
 			User:        u.Name,
+			Album:       true,
 			Annotations: true,
 		})
 		if err != nil {
@@ -570,12 +590,41 @@ func (l *ListenBrainz) SyncSongFeedback(ctx context.Context) error {
 
 		unstarSongIDs := make([]string, 0, 5)
 		starSongIDs := make([]string, 0, 5)
+		// For the remote->local pull, only star one representative per recording
+		// MBID so that multiple local files sharing the same recording MBID aren't
+		// all auto-starred. Prefer a copy whose release matches a loved release on
+		// LB, otherwise keep the copy with the lowest song ID for a stable choice.
+		starByMBID := make(map[string]*repos.CompleteSong)
 		for _, s := range songs {
 			if s.Starred != nil {
 				unstarSongIDs = append(unstarSongIDs, s.ID)
-			} else {
-				starSongIDs = append(starSongIDs, s.ID)
+				continue
 			}
+			// A star candidate without a local MBID is matched via remote_mbid and
+			// cannot be de-duplicated by recording MBID; star it directly.
+			if s.MusicBrainzID == nil {
+				starSongIDs = append(starSongIDs, s.ID)
+				continue
+			}
+			if s.AlbumReleaseMBID != nil {
+				if _, ok := lbLovedReleaseMBIDs[*s.AlbumReleaseMBID]; ok {
+					starByMBID[*s.MusicBrainzID] = s
+					continue
+				}
+			}
+
+			existingSong, ok := starByMBID[*s.MusicBrainzID]
+			if ok && existingSong.AlbumReleaseMBID != nil {
+				if _, ok := lbLovedReleaseMBIDs[*existingSong.AlbumReleaseMBID]; ok {
+					continue
+				}
+			}
+			if !ok || s.ID < existingSong.ID {
+				starByMBID[*s.MusicBrainzID] = s
+			}
+		}
+		for _, song := range starByMBID {
+			starSongIDs = append(starSongIDs, song.ID)
 		}
 
 		uploadCount, err := l.UpdateSongFeedback(ctx, Connection{
