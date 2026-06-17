@@ -60,8 +60,8 @@ func NewSong(s *repos.CompleteSong, conf config.Config) *Song {
 	}
 
 	var year *int
-	if s.OriginalDate != nil {
-		year = util.ToPtr(s.OriginalDate.Year())
+	if s.ReleaseDate != nil {
+		year = util.ToPtr(s.ReleaseDate.Year())
 	}
 
 	song := &Song{

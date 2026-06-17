@@ -55,8 +55,8 @@ func NewAlbum(a *repos.CompleteAlbum, conf config.Config) *Album {
 	}
 
 	var year *int
-	if a.OriginalDate != nil {
-		year = util.ToPtr(a.OriginalDate.Year())
+	if a.ReleaseDate != nil {
+		year = util.ToPtr(a.ReleaseDate.Year())
 	}
 
 	album := &Album{
