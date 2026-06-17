@@ -93,10 +93,6 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 			return
 		}
 
-		if fromYear != nil && toYear != nil && *fromYear > *toYear {
-			*fromYear, *toYear = *toYear, *fromYear
-		}
-
 		genres := q.Strs("genre")
 		if listType == "byGenre" && len(genres) == 0 {
 			responses.EncodeError(w, q.Format(), "missing genre parameter", responses.SubsonicErrorRequiredParameterMissing)
@@ -111,7 +107,7 @@ func (h *Handler) handleGetAlbumList(version int) func(w http.ResponseWriter, r 
 			"highest":            repos.FindAlbumSortByRating,
 			"alphabeticalByName": repos.FindAlbumSortByName,
 			"starred":            repos.FindAlbumSortByStarred,
-			"byYear":             repos.FindAlbumSortByOriginalDate,
+			"byYear":             repos.FindAlbumSortByReleaseDate,
 			"byGenre":            repos.FindAlbumSortByName,
 			"frequent":           repos.FindAlbumSortByFrequent,
 			"recent":             repos.FindAlbumSortByRecent,

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
 	"github.com/stretchr/testify/assert"
@@ -338,8 +338,8 @@ func TestSongRepository(t *testing.T) {
 			date2020 := repos.NewDate(2020, nil, nil)
 			id2000, id2020 := crossonic.GenIDSong(), crossonic.GenIDSong()
 			require.NoError(t, repo.CreateAll(ctx, []repos.CreateSongParams{
-				{ID: &id2000, Path: "/test/fromyr2000-" + id2000 + ".mp3", Title: "Song 2000", OriginalDate: &date2000, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
-				{ID: &id2020, Path: "/test/fromyr2020-" + id2020 + ".mp3", Title: "Song 2020", OriginalDate: &date2020, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
+				{ID: &id2000, Path: "/test/fromyr2000-" + id2000 + ".mp3", Title: "Song 2000", ReleaseDate: &date2000, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
+				{ID: &id2020, Path: "/test/fromyr2020-" + id2020 + ".mp3", Title: "Song 2020", ReleaseDate: &date2020, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
 			}))
 			fromYear := 2010
 
@@ -359,8 +359,8 @@ func TestSongRepository(t *testing.T) {
 			date2020 := repos.NewDate(2020, nil, nil)
 			id2000, id2020 := crossonic.GenIDSong(), crossonic.GenIDSong()
 			require.NoError(t, repo.CreateAll(ctx, []repos.CreateSongParams{
-				{ID: &id2000, Path: "/test/toyr2000-" + id2000 + ".mp3", Title: "Song 2000", OriginalDate: &date2000, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
-				{ID: &id2020, Path: "/test/toyr2020-" + id2020 + ".mp3", Title: "Song 2020", OriginalDate: &date2020, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
+				{ID: &id2000, Path: "/test/toyr2000-" + id2000 + ".mp3", Title: "Song 2000", ReleaseDate: &date2000, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
+				{ID: &id2020, Path: "/test/toyr2020-" + id2020 + ".mp3", Title: "Song 2020", ReleaseDate: &date2020, Size: 1, ContentType: "audio/mpeg", Duration: repos.NewDurationMS(1000), BitRate: 128, SamplingRate: 44100, ChannelCount: 2, MusicFolderID: folderID},
 			}))
 			toYear := 2010
 

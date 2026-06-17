@@ -48,6 +48,14 @@ func (s songRepository) FindByPath(ctx context.Context, path string, include rep
 func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFindAllFilter, include repos.IncludeSongInfo) ([]*repos.CompleteSong, error) {
 	q := bqb.New("SELECT ? FROM songs ?", genSongSelectList(include), genSongJoins(include))
 
+	var descendingYear bool
+	if filter.FromYear != nil && filter.ToYear != nil {
+		descendingYear = *filter.ToYear < *filter.FromYear
+		if descendingYear {
+			filter.ToYear, filter.FromYear = filter.FromYear, filter.ToYear
+		}
+	}
+
 	where := bqb.Optional("WHERE")
 
 	if len(filter.Genres) > 0 {
@@ -81,10 +89,10 @@ func (s songRepository) FindAllFiltered(ctx context.Context, filter repos.SongFi
 	}
 
 	if filter.FromYear != nil {
-		where.And("(songs.original_date IS NOT NULL AND SPLIT_PART(songs.original_date, '-', 1)::int >= ?)", *filter.FromYear)
+		where.And("(songs.release_date IS NOT NULL AND SPLIT_PART(songs.release_date, '-', 1)::int >= ?)", *filter.FromYear)
 	}
 	if filter.ToYear != nil {
-		where.And("(songs.original_date IS NOT NULL AND SPLIT_PART(songs.original_date, '-', 1)::int <= ?)", *filter.ToYear)
+		where.And("(songs.release_date IS NOT NULL AND SPLIT_PART(songs.release_date, '-', 1)::int <= ?)", *filter.ToYear)
 	}
 
 	if len(filter.AlbumIDs) > 0 {

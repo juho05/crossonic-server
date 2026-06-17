@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	crossonic "github.com/juho05/crossonic-server"
+	"github.com/juho05/crossonic-server"
 	"github.com/juho05/crossonic-server/repos"
 	"github.com/juho05/crossonic-server/util"
 	"github.com/stretchr/testify/assert"
@@ -481,9 +481,9 @@ func TestAlbumRepository(t *testing.T) {
 			folderID := thCreateMusicFolder(t, db, user)
 			date2000 := repos.NewDate(2000, nil, nil)
 			date2010 := repos.NewDate(2010, nil, nil)
-			album2000, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "Album2000", OriginalDate: &date2000, MusicFolderID: folderID})
+			album2000, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "Album2000", ReleaseDate: &date2000, MusicFolderID: folderID})
 			require.NoError(t, err)
-			album2010, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "Album2010", OriginalDate: &date2010, MusicFolderID: folderID})
+			album2010, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "Album2010", ReleaseDate: &date2010, MusicFolderID: folderID})
 			require.NoError(t, err)
 			fromYear := 2005
 
@@ -502,9 +502,9 @@ func TestAlbumRepository(t *testing.T) {
 			folderID := thCreateMusicFolder(t, db, user)
 			date2000 := repos.NewDate(2000, nil, nil)
 			date2010 := repos.NewDate(2010, nil, nil)
-			album2000, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "Album2000b", OriginalDate: &date2000, MusicFolderID: folderID})
+			album2000, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "Album2000b", ReleaseDate: &date2000, MusicFolderID: folderID})
 			require.NoError(t, err)
-			album2010, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "Album2010b", OriginalDate: &date2010, MusicFolderID: folderID})
+			album2010, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "Album2010b", ReleaseDate: &date2010, MusicFolderID: folderID})
 			require.NoError(t, err)
 			toYear := 2005
 
@@ -517,6 +517,74 @@ func TestAlbumRepository(t *testing.T) {
 			ids := util.Map(results, func(a *repos.CompleteAlbum) string { return a.ID })
 			assert.Contains(t, ids, album2000)
 			assert.NotContains(t, ids, album2010)
+		})
+
+		t.Run("from/to year direction controls sort order", func(t *testing.T) {
+			folderID := thCreateMusicFolder(t, db, user)
+			date2000 := repos.NewDate(2000, nil, nil)
+			date2010 := repos.NewDate(2010, nil, nil)
+			album2000, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "AlbumDir2000", OriginalDate: &date2000, ReleaseDate: &date2000, MusicFolderID: folderID})
+			require.NoError(t, err)
+			album2010, err := repo.Create(ctx, repos.CreateAlbumParams{Name: "AlbumDir2010", OriginalDate: &date2010, ReleaseDate: &date2010, MusicFolderID: folderID})
+			require.NoError(t, err)
+			lowYear := 2000
+			highYear := 2010
+
+			t.Run("ascending when fromYear < toYear", func(t *testing.T) {
+				results, err := repo.FindAll(ctx, repos.FindAlbumParams{
+					SortBy:         repos.FindAlbumSortByReleaseDate,
+					FromYear:       &lowYear,
+					ToYear:         &highYear,
+					MusicFolderIDs: []int{folderID},
+				}, repos.IncludeAlbumInfoBare())
+				require.NoErrorf(t, err, "find all: %v", err)
+				ids := util.Map(results, func(a *repos.CompleteAlbum) string { return a.ID })
+				require.Contains(t, ids, album2000)
+				require.Contains(t, ids, album2010)
+				assert.Less(t, indexOf(ids, album2000), indexOf(ids, album2010))
+			})
+
+			t.Run("descending when fromYear > toYear", func(t *testing.T) {
+				results, err := repo.FindAll(ctx, repos.FindAlbumParams{
+					SortBy:         repos.FindAlbumSortByReleaseDate,
+					FromYear:       &highYear,
+					ToYear:         &lowYear,
+					MusicFolderIDs: []int{folderID},
+				}, repos.IncludeAlbumInfoBare())
+				require.NoErrorf(t, err, "find all: %v", err)
+				ids := util.Map(results, func(a *repos.CompleteAlbum) string { return a.ID })
+				require.Contains(t, ids, album2000)
+				require.Contains(t, ids, album2010)
+				assert.Less(t, indexOf(ids, album2010), indexOf(ids, album2000))
+			})
+
+			t.Run("ascending when fromYear < toYear (original)", func(t *testing.T) {
+				results, err := repo.FindAll(ctx, repos.FindAlbumParams{
+					SortBy:         repos.FindAlbumSortByOriginalDate,
+					FromYear:       &lowYear,
+					ToYear:         &highYear,
+					MusicFolderIDs: []int{folderID},
+				}, repos.IncludeAlbumInfoBare())
+				require.NoErrorf(t, err, "find all: %v", err)
+				ids := util.Map(results, func(a *repos.CompleteAlbum) string { return a.ID })
+				require.Contains(t, ids, album2000)
+				require.Contains(t, ids, album2010)
+				assert.Less(t, indexOf(ids, album2000), indexOf(ids, album2010))
+			})
+
+			t.Run("descending when fromYear > toYear (original)", func(t *testing.T) {
+				results, err := repo.FindAll(ctx, repos.FindAlbumParams{
+					SortBy:         repos.FindAlbumSortByOriginalDate,
+					FromYear:       &highYear,
+					ToYear:         &lowYear,
+					MusicFolderIDs: []int{folderID},
+				}, repos.IncludeAlbumInfoBare())
+				require.NoErrorf(t, err, "find all: %v", err)
+				ids := util.Map(results, func(a *repos.CompleteAlbum) string { return a.ID })
+				require.Contains(t, ids, album2000)
+				require.Contains(t, ids, album2010)
+				assert.Less(t, indexOf(ids, album2010), indexOf(ids, album2000))
+			})
 		})
 
 		t.Run("pagination limit", func(t *testing.T) {

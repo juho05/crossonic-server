@@ -76,12 +76,20 @@ func (a albumRepository) FindByID(ctx context.Context, id, user string, include 
 func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumParams, include repos.IncludeAlbumInfo) ([]*repos.CompleteAlbum, error) {
 	q := bqb.New("SELECT ? FROM albums ?", genAlbumSelectList(include), genAlbumJoins(include))
 
+	var descendingYear bool
+	if params.FromYear != nil && params.ToYear != nil {
+		descendingYear = *params.ToYear < *params.FromYear
+		if descendingYear {
+			params.ToYear, params.FromYear = params.FromYear, params.ToYear
+		}
+	}
+
 	where := bqb.Optional("WHERE")
 	if params.FromYear != nil {
-		where.And("(albums.original_date IS NOT NULL AND SPLIT_PART(albums.original_date, '-', 1)::int >= ?)", *params.FromYear)
+		where.And("(albums.release_date IS NOT NULL AND SPLIT_PART(albums.release_date, '-', 1)::int >= ?)", *params.FromYear)
 	}
 	if params.ToYear != nil {
-		where.And("(albums.original_date IS NOT NULL AND SPLIT_PART(albums.original_date, '-', 1)::int <= ?)", *params.ToYear)
+		where.And("(albums.release_date IS NOT NULL AND SPLIT_PART(albums.release_date, '-', 1)::int <= ?)", *params.ToYear)
 	}
 	if len(params.Genres) > 0 {
 		genres := util.Map(params.Genres, func(g string) string {
@@ -121,10 +129,18 @@ func (a albumRepository) FindAll(ctx context.Context, params repos.FindAlbumPara
 			orderBy.Comma("random()")
 		}
 	case repos.FindAlbumSortByOriginalDate:
-		orderBy.Comma("albums.original_date, lower(albums.name)")
+		orderBy.Comma("albums.original_date")
+		if descendingYear {
+			orderBy.Space("DESC")
+		}
+		orderBy.Comma("lower(albums.name)")
 		where.And("(albums.original_date IS NOT NULL)")
 	case repos.FindAlbumSortByReleaseDate:
-		orderBy.Comma("albums.release_date, lower(albums.name)")
+		orderBy.Comma("albums.release_date")
+		if descendingYear {
+			orderBy.Space("DESC")
+		}
+		orderBy.Comma("lower(albums.name)")
 		where.And("(albums.release_date IS NOT NULL)")
 	case repos.FindAlbumSortByFrequent:
 		if !include.PlayInfo || include.User == "" {
