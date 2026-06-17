@@ -74,7 +74,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 
 	err = h.DB.Transaction(r.Context(), func(tx repos.Tx) error {
 		if submission {
-			possibleConflicts, err := h.DB.Scrobble().FindPossibleConflicts(r.Context(), q.User(), ids, times)
+			possibleConflicts, err := tx.Scrobble().FindPossibleConflicts(r.Context(), q.User(), ids, times)
 			if err != nil {
 				return fmt.Errorf("find possible conflicts: %w", err)
 			}
@@ -111,7 +111,7 @@ func (h *Handler) handleScrobble(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		for i, id := range ids {
-			song, err := h.DB.Song().FindByID(r.Context(), id, q.User(), repos.IncludeSongInfo{
+			song, err := tx.Song().FindByID(r.Context(), id, q.User(), repos.IncludeSongInfo{
 				Album: true,
 				Lists: true,
 			})
