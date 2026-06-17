@@ -90,8 +90,11 @@ func run(conf config.Config) error {
 		lfm = lastfm.New(conf.LastFMApiKey)
 	}
 
-	handler := handlers.New(conf, db, mediaScanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
+	handler, err := handlers.New(conf, db, mediaScanner, lBrainz, lfm, transcoder, transcodeCache, coverCache)
 	defer handler.Close()
+	if err != nil {
+		return fmt.Errorf("create handler: %s", err)
+	}
 
 	addr := conf.ListenAddr
 

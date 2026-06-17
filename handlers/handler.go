@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -35,9 +36,14 @@ type Handler struct {
 	authFailures     map[string][]time.Time
 	authFailuresLock sync.RWMutex
 	authCleanupStop  chan struct{}
+
+	// dummyEncryptedPassword holds a decoy encrypted password used to perform
+	// the same cryptographic work for non-existent users as for real ones,
+	// preventing username enumeration via timing analysis (see dummyTokenAuth).
+	dummyEncryptedPassword []byte
 }
 
-func New(conf config.Config, db repos.DB, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) *Handler {
+func New(conf config.Config, db repos.DB, scanner *scanner.Scanner, listenBrainz *listenbrainz.ListenBrainz, lastFM *lastfm.LastFm, transcoder *ffmpeg.Transcoder, transcodeCache *cache.Cache, coverCache *cache.Cache) (*Handler, error) {
 	h := &Handler{
 		DB:              db,
 		Scanner:         scanner,
@@ -50,9 +56,15 @@ func New(conf config.Config, db repos.DB, scanner *scanner.Scanner, listenBrainz
 		authFailures:    make(map[string][]time.Time),
 		authCleanupStop: make(chan struct{}),
 	}
+	var err error
+	h.dummyEncryptedPassword, err = repos.EncryptPassword("dummy-password", conf.EncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt dummy password: %w", err)
+	}
+
 	h.registerRoutes()
 	go h.cleanAuthFailures()
-	return h
+	return h, nil
 }
 
 func (h *Handler) Close() {

@@ -196,6 +196,9 @@ func (h *Handler) tokenAuth(ctx context.Context, username, token, salt string) (
 	user, err := h.DB.User().FindByName(ctx, username)
 	if err != nil {
 		if errors.Is(err, repos.ErrNotFound) {
+			// Perform the same cryptographic work as a successful auth so that
+			// the response time does not reveal whether the username exists.
+			h.dummyTokenAuth(token, salt)
 			return false, nil
 		}
 		return false, fmt.Errorf("token auth: %w", err)
@@ -219,6 +222,19 @@ func (h *Handler) tokenAuth(ctx context.Context, username, token, salt string) (
 	setHashedPasswordIfNil(ctx, h.DB, user, dbPassword)
 
 	return true, nil
+}
+
+func (h *Handler) dummyTokenAuth(token, salt string) {
+	if h.dummyEncryptedPassword == nil {
+		return
+	}
+	dbPassword, err := repos.DecryptPassword(h.dummyEncryptedPassword, h.Config.EncryptionKey)
+	if err != nil {
+		return
+	}
+	hash := md5.Sum([]byte(dbPassword + salt))
+	dbToken := hex.EncodeToString(hash[:])
+	subtle.ConstantTimeCompare([]byte(dbToken), []byte(token))
 }
 
 func (h *Handler) isAuthRateLimited(username string) (bool, time.Duration) {
