@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"io"
 	"os"
 	"sync"
@@ -185,7 +186,7 @@ func TestCleanKeepsObjectsWithActiveReaders(t *testing.T) {
 	c := testCache(t, 1<<30, time.Millisecond)
 	o := makeComplete(t, c, "a", "hello")
 
-	r, err := o.Reader()
+	r, err := o.Reader(context.Background())
 	require.NoError(t, err)
 
 	time.Sleep(5 * time.Millisecond)
@@ -227,8 +228,9 @@ func TestCleanSizeEviction(t *testing.T) {
 // --- Object: read/write --------------------------------------------------
 
 // TestReaderIncremental exercises reading from an object while it is still
-// being written: reads return only the bytes available so far (0, nil when
-// nothing new) and io.EOF once the object is complete and drained.
+// being written: reads return the bytes available so far, then block (rather
+// than busy-spinning with (0, nil)) until more data is written, and return
+// io.EOF once the object is complete and drained.
 func TestReaderIncremental(t *testing.T) {
 	c := testCache(t, 1<<30, time.Hour)
 	o, err := c.CreateObject("a")
@@ -236,7 +238,7 @@ func TestReaderIncremental(t *testing.T) {
 	_, err = o.Write([]byte("hello"))
 	require.NoError(t, err)
 
-	r, err := o.Reader()
+	r, err := o.Reader(context.Background())
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -246,16 +248,34 @@ func TestReaderIncremental(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(buf[:n]))
 
-	// nothing new and not complete -> (0, nil)
-	n, err = r.Read(buf)
-	assert.NoError(t, err)
-	assert.Equal(t, 0, n)
+	// Nothing new and not complete -> Read blocks until the next Write
+	// instead of returning (0, nil) and busy-spinning the io.Copy loop.
+	type readResult struct {
+		n   int
+		err error
+	}
+	done := make(chan readResult, 1)
+	go func() {
+		n, err := r.Read(buf)
+		done <- readResult{n, err}
+	}()
+
+	select {
+	case res := <-done:
+		t.Fatalf("Read returned %d, %v before more data was written; expected it to block", res.n, res.err)
+	case <-time.After(100 * time.Millisecond):
+	}
 
 	_, err = o.Write([]byte("!"))
 	require.NoError(t, err)
-	n, err = r.Read(buf)
-	require.NoError(t, err)
-	assert.Equal(t, "!", string(buf[:n]))
+
+	select {
+	case res := <-done:
+		require.NoError(t, res.err)
+		assert.Equal(t, "!", string(buf[:res.n]))
+	case <-time.After(time.Second):
+		t.Fatal("Read did not wake up after Write")
+	}
 
 	require.NoError(t, o.SetComplete())
 	n, err = r.Read(buf)
@@ -263,11 +283,59 @@ func TestReaderIncremental(t *testing.T) {
 	assert.ErrorIs(t, err, io.EOF)
 }
 
+// TestReaderContextCancel verifies that a Read blocked on an incomplete object
+// returns the context error when the context is cancelled (e.g. the client
+// disconnected mid-stream) instead of waiting forever.
+func TestReaderContextCancel(t *testing.T) {
+	c := testCache(t, 1<<30, time.Hour)
+	o, err := c.CreateObject("a")
+	require.NoError(t, err)
+	_, err = o.Write([]byte("hello"))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	r, err := o.Reader(ctx)
+	require.NoError(t, err)
+	defer r.Close()
+
+	buf := make([]byte, 16)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(buf[:n]))
+
+	type readResult struct {
+		n   int
+		err error
+	}
+	done := make(chan readResult, 1)
+	go func() {
+		n, err := r.Read(buf)
+		done <- readResult{n, err}
+	}()
+
+	// Read should block (nothing new, not complete) until we cancel.
+	select {
+	case res := <-done:
+		t.Fatalf("Read returned %d, %v before cancellation; expected it to block", res.n, res.err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cancel()
+
+	select {
+	case res := <-done:
+		assert.Equal(t, 0, res.n)
+		assert.ErrorIs(t, res.err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("Read did not return after context cancellation")
+	}
+}
+
 func TestReaderComplete(t *testing.T) {
 	c := testCache(t, 1<<30, time.Hour)
 	o := makeComplete(t, c, "a", "hello world")
 
-	r, err := o.Reader()
+	r, err := o.Reader(context.Background())
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -288,7 +356,7 @@ func TestReadAt(t *testing.T) {
 	c := testCache(t, 1<<30, time.Hour)
 	o := makeComplete(t, c, "a", "0123456789")
 
-	r, err := o.Reader()
+	r, err := o.Reader(context.Background())
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -308,7 +376,7 @@ func TestSeek(t *testing.T) {
 	c := testCache(t, 1<<30, time.Hour)
 	o := makeComplete(t, c, "a", "0123456789")
 
-	r, err := o.Reader()
+	r, err := o.Reader(context.Background())
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -347,7 +415,7 @@ func TestSeekNotComplete(t *testing.T) {
 	_, err = o.Write([]byte("data"))
 	require.NoError(t, err)
 
-	r, err := o.Reader()
+	r, err := o.Reader(context.Background())
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -387,7 +455,7 @@ func TestReaderAbortsWhenFileClosed(t *testing.T) {
 	c := testCache(t, 1<<30, time.Hour)
 	o := makeComplete(t, c, "a", "hello world")
 
-	r, err := o.Reader()
+	r, err := o.Reader(context.Background())
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -443,7 +511,7 @@ func TestConcurrentReadWriteClean(t *testing.T) {
 			if err != nil {
 				// someone else owns the object; just try to read it
 				if obj, ok := c.GetObject(key); ok {
-					if r, err := obj.Reader(); err == nil {
+					if r, err := obj.Reader(context.Background()); err == nil {
 						_, _ = io.Copy(io.Discard, r)
 						_ = r.Close()
 					}
@@ -466,7 +534,7 @@ func TestConcurrentReadWriteClean(t *testing.T) {
 				rwg.Add(1)
 				go func() {
 					defer rwg.Done()
-					r, err := obj.Reader()
+					r, err := obj.Reader(context.Background())
 					if err != nil {
 						return
 					}

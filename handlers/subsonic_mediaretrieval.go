@@ -149,7 +149,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 		log.Tracef("Streaming %s transcoded (%s %dkbps) to %s (user: %s) (cached (complete: %t)) (range: %s)...", id, fileFormat.Name, bitRate, q.Client(), q.User(), cacheObj.IsComplete(), r.Header.Get("Range"))
 	}
 
-	cacheReader, err := cacheObj.Reader()
+	cacheReader, err := cacheObj.Reader(r.Context())
 	if err != nil {
 		respondInternalErr(w, q.Format(), fmt.Errorf("stream: %w", err))
 		return
@@ -312,7 +312,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 	cacheKey := fmt.Sprintf("%s-%d", id, size)
 
 	serveExistingCover := func(cacheObj *cache.Object) {
-		cacheReader, err := cacheObj.Reader()
+		cacheReader, err := cacheObj.Reader(r.Context())
 		if err != nil {
 			respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
 			return
@@ -438,7 +438,7 @@ func (h *Handler) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("get cover art: %s", err)
 		}
 	}()
-	cacheReader, err := cacheObj.Reader()
+	cacheReader, err := cacheObj.Reader(r.Context())
 	if err != nil {
 		respondErr(w, q.Format(), fmt.Errorf("get cover art: %w", err))
 		return

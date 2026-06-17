@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,8 +25,21 @@ type Object struct {
 	readerCount int
 	complete    bool
 
+	// dataChanged is closed (and replaced with a fresh channel) whenever the
+	// object's readable state changes: more data is written, it is marked
+	// complete, or the underlying file is closed. Readers waiting for more data
+	// of an incomplete object block on it instead of busy-spinning.
+	dataChanged chan struct{}
+
 	modified time.Time
 	accessed time.Time
+}
+
+// signalDataChanged wakes any readers blocked waiting for more data and arms a
+// fresh channel for future waiters. The caller must hold the write lock.
+func (c *Object) signalDataChanged() {
+	close(c.dataChanged)
+	c.dataChanged = make(chan struct{})
 }
 
 func (c *Cache) newCacheObject(key string) (*Object, error) {
@@ -35,12 +49,13 @@ func (c *Cache) newCacheObject(key string) (*Object, error) {
 	}
 	_ = os.Remove(c.keyToPath(key) + "-complete")
 	return &Object{
-		cache:    c,
-		key:      key,
-		modified: time.Now(),
-		accessed: time.Now(),
-		file:     file,
-		size:     0,
+		cache:       c,
+		key:         key,
+		modified:    time.Now(),
+		accessed:    time.Now(),
+		file:        file,
+		size:        0,
+		dataChanged: make(chan struct{}),
 	}, nil
 }
 
@@ -53,6 +68,9 @@ func (c *Object) Write(p []byte) (n int, err error) {
 	n, err = c.file.Write(p)
 	c.size += int64(n)
 	c.modified = time.Now()
+	if n > 0 {
+		c.signalDataChanged()
+	}
 	return n, err
 }
 
@@ -60,6 +78,7 @@ func (c *Object) SetComplete() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.complete = true
+	c.signalDataChanged()
 	f, err := os.Create(c.cache.keyToPath(c.key) + "-complete")
 	if err != nil {
 		return fmt.Errorf("set complete: %w", err)
@@ -80,8 +99,11 @@ func (c *Object) Modified() time.Time {
 	return c.modified
 }
 
-func (c *Object) Reader() (io.ReadSeekCloser, error) {
-	return c.newCacheReader()
+// Reader returns a reader over the object. For an incomplete object, Read
+// blocks until more data is written; ctx cancellation (e.g. the client
+// disconnecting) unblocks it with the context error.
+func (c *Object) Reader(ctx context.Context) (io.ReadSeekCloser, error) {
+	return c.newCacheReader(ctx)
 }
 
 func (c *Object) Key() string {
@@ -99,6 +121,9 @@ func (c *Object) Close() error {
 	if c.file != nil {
 		err = c.file.Close()
 		c.file = nil
+		// Wake readers blocked on an incomplete object so they observe the
+		// closed file and return instead of waiting forever.
+		c.signalDataChanged()
 	}
 	return err
 }
@@ -160,6 +185,7 @@ func (c *Object) closeForEviction() (closed bool, err error) {
 	if c.file != nil {
 		err = c.file.Close()
 		c.file = nil
+		c.signalDataChanged()
 	}
 	return true, err
 }

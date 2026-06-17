@@ -248,12 +248,13 @@ func (c *Cache) loadObjects() error {
 			continue
 		}
 		c.objects[key] = &Object{
-			cache:    c,
-			key:      key,
-			size:     i.Size(),
-			complete: true,
-			modified: i.ModTime(),
-			accessed: time.Now(),
+			cache:       c,
+			key:         key,
+			size:        i.Size(),
+			complete:    true,
+			modified:    i.ModTime(),
+			accessed:    time.Now(),
+			dataChanged: make(chan struct{}),
 		}
 	}
 
