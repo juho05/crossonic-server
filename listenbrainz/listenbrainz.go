@@ -445,7 +445,7 @@ func (l *ListenBrainz) UpdateSongFeedback(ctx context.Context, con Connection, f
 			}
 			for _, r := range res {
 				if r.RecordingMBID != nil {
-					feedback[missingMBIDIndices[r.Index]].SongMBID = r.RecordingMBID
+					feedback[missingMBIDIndices[i+r.Index]].SongMBID = r.RecordingMBID
 				} else {
 					log.Warnf("listenbrainz: update song feedback: not found: %s by %s", r.RecordingNameArg, r.ArtistNameArg)
 				}
