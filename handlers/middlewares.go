@@ -36,7 +36,7 @@ var errAuthTypeNotSupported = errors.New("auth type not supported")
 func (h *Handler) subsonicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		values := r.URL.Query()
-		if r.Method == http.MethodPost && r.Body != nil && r.ContentLength > 0 && strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+		if r.Method == http.MethodPost && r.Body != nil && r.ContentLength != 0 && strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
 			body, err := io.ReadAll(r.Body)
 			r.Body.Close()
 			if err != nil {
