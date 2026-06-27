@@ -6,7 +6,22 @@ on:
       - "v*.*.*"
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test ./...
+
   release:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
