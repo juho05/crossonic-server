@@ -7,10 +7,15 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Install taglib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtag-dev pkg-config
 
       - name: Set up Go
         uses: actions/setup-go@v7
